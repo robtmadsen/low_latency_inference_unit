@@ -135,18 +135,20 @@ VL_FLAGS   := --binary --timing --trace -sv \
               +incdir+$(RTL_DIR) +incdir+$(TB_DIR) \
               +incdir+$(UVM_HOME) \
               +define+UVM_NO_DPI \
-              -CFLAGS "$(PY_CFLAGS)" \
-              -LDFLAGS "$(PY_LDFLAGS)" \
               -j 0 \
               -o simv
 
 UVM_PKG    := $(UVM_HOME)/uvm_pkg.sv
 
+# For Verilator: class files are `included by tb_top.sv at $unit scope,
+# so only pass RTL, interfaces, and tb_top on the command line.
+VL_SV      := $(RTL_PKG) $(RTL_SRC) $(TB_IFS) $(TB_TOP)
+
 .PHONY: compile run clean help
 
 compile: $(BUILD_DIR)
 	$(VERILATOR) $(VL_FLAGS) \
-	    $(UVM_PKG) $(ALL_SV) $(DPI_SRC) \
+	    $(UVM_PKG) $(VL_SV) \
 	    --Mdir $(BUILD_DIR) \
 	    2>&1 | tee $(BUILD_DIR)/compile.log
 

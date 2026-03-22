@@ -29,9 +29,9 @@ class lliu_env extends uvm_env;
         super.connect_phase(phase);
         // Stream monitor → predictor (to compute expected inference result)
         m_axis_agent.m_monitor.ap.connect(m_predictor.analysis_export);
-        // Predictor → scoreboard expected port
-        m_predictor.result_ap.connect(m_scoreboard.expected_export);
-        // AXI-Lite monitor → scoreboard actual port (result reads)
-        m_axil_agent.m_monitor.ap.connect(m_scoreboard.actual_export);
+        // Predictor → scoreboard expected FIFO
+        m_predictor.result_ap.connect(m_scoreboard.expected_fifo.analysis_export);
+        // AXI-Lite monitor → scoreboard actual FIFO (result reads)
+        m_axil_agent.m_monitor.ap.connect(m_scoreboard.actual_fifo.analysis_export);
     endfunction
 endclass

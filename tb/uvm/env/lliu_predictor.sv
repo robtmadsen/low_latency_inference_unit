@@ -4,7 +4,8 @@
 // On each valid Add Order, calls DPI-C golden model to compute expected
 // inference result. Sends expected float32 result to scoreboard.
 
-// DPI-C function imports
+// DPI-C function imports (disabled when UVM_NO_DPI is defined)
+`ifndef UVM_NO_DPI
 import "DPI-C" function int dpi_golden_init(string model_path);
 import "DPI-C" function int dpi_golden_inference(
     input  shortint unsigned features[], input int num_features,
@@ -19,6 +20,7 @@ import "DPI-C" function int dpi_golden_extract_features(
     input  int num_features
 );
 import "DPI-C" function void dpi_golden_cleanup();
+`endif
 
 class lliu_predictor extends uvm_subscriber #(axi4_stream_transaction);
     `uvm_component_utils(lliu_predictor)
@@ -43,6 +45,7 @@ class lliu_predictor extends uvm_subscriber #(axi4_stream_transaction);
 
     // Initialize DPI-C golden model
     function void init_golden_model();
+`ifndef UVM_NO_DPI
         string model_path;
 
         if (m_dpi_initialized) return;
@@ -60,6 +63,9 @@ class lliu_predictor extends uvm_subscriber #(axi4_stream_transaction);
 
         m_dpi_initialized = 1;
         `uvm_info("PREDICTOR", $sformatf("DPI-C golden model initialized: %s", model_path), UVM_LOW)
+`else
+        `uvm_info("PREDICTOR", "DPI-C disabled (UVM_NO_DPI), using local computation", UVM_LOW)
+`endif
     endfunction
 
     // Set weights for prediction (called by test sequence before stimulus)
@@ -141,6 +147,7 @@ class lliu_predictor extends uvm_subscriber #(axi4_stream_transaction);
                   price, side, order_ref), UVM_MEDIUM)
 
         // Compute expected features via DPI-C
+`ifndef UVM_NO_DPI
         if (m_dpi_initialized && m_weights.size() > 0) begin
             status = dpi_golden_extract_features(price, order_ref, side, features, 4);
             if (status != 0) begin
@@ -161,6 +168,9 @@ class lliu_predictor extends uvm_subscriber #(axi4_stream_transaction);
             `uvm_info("PREDICTOR", "DPI-C not available, computing locally", UVM_MEDIUM)
             compute_local(price, order_ref, side);
         end
+`else
+        compute_local(price, order_ref, side);
+`endif
     endfunction
 
     // Local computation fallback (when DPI-C is not available)
@@ -172,7 +182,9 @@ class lliu_predictor extends uvm_subscriber #(axi4_stream_transaction);
     endfunction
 
     function void final_phase(uvm_phase phase);
+`ifndef UVM_NO_DPI
         if (m_dpi_initialized)
             dpi_golden_cleanup();
+`endif
     endfunction
 endclass

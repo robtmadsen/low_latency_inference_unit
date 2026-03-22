@@ -140,6 +140,7 @@ class itch_replay_seq extends uvm_sequence #(axi4_stream_transaction);
         byte unsigned framed[];
         int msg_count;
         int bytes_read;
+        byte unsigned tmp_byte;
 
         fd = $fopen(m_data_file, "rb");
         if (fd == 0) begin
@@ -154,10 +155,12 @@ class itch_replay_seq extends uvm_sequence #(axi4_stream_transaction);
             if (m_max_messages > 0 && msg_count >= m_max_messages) break;
 
             // Read 2-byte big-endian length prefix
-            bytes_read = $fread(len_buf[0], fd);
+            bytes_read = $fread(tmp_byte, fd);
             if (bytes_read < 1) break;
-            bytes_read = $fread(len_buf[1], fd);
+            len_buf[0] = tmp_byte;
+            bytes_read = $fread(tmp_byte, fd);
             if (bytes_read < 1) break;
+            len_buf[1] = tmp_byte;
 
             msg_len = {len_buf[0], len_buf[1]};
             if (msg_len == 0 || msg_len > 1024) break;
@@ -165,8 +168,9 @@ class itch_replay_seq extends uvm_sequence #(axi4_stream_transaction);
             // Read message body
             msg_body = new[msg_len];
             for (int i = 0; i < msg_len; i++) begin
-                bytes_read = $fread(msg_body[i], fd);
+                bytes_read = $fread(tmp_byte, fd);
                 if (bytes_read < 1) break;
+                msg_body[i] = tmp_byte;
             end
 
             // Frame and send
