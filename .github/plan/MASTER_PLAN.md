@@ -112,12 +112,12 @@ Stage 2: Complete RTL + cocotb System Tests
   [x] #13 cocotb Phase 6 — real data replay
 
 Stage 3: UVM Environment Bring-Up
-  [ ] #14 UVM Phase 1 — TB skeleton
-  [ ] #15 UVM Phase 2 — AXI4-Stream agent
-  [ ] #16 UVM Phase 3 — AXI4-Lite agent
-  [ ] #17 UVM Phase 4 — DPI-C golden model + scoreboard
-  [ ] #18 UVM Phase 5 — smoke test
-  [ ] #19 UVM Phase 6 — replay test
+  [x] #14 UVM Phase 1 — TB skeleton
+  [x] #15 UVM Phase 2 — AXI4-Stream agent
+  [x] #16 UVM Phase 3 — AXI4-Lite agent
+  [x] #17 UVM Phase 4 — DPI-C golden model + scoreboard
+  [x] #18 UVM Phase 5 — smoke test
+  [x] #19 UVM Phase 6 — replay test
 
 Stage 4: Advanced Verification
   [ ] #20 cocotb Phase 7 — protocol checkers
