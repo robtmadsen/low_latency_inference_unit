@@ -1,13 +1,16 @@
 # UVM Testbench Makefile for Low-Latency Inference Unit
 #
 # Targets:
-#   make SIM=vcs   compile  — Compile with VCS (recommended, full UVM + SVA)
-#   make SIM=vcs   run TEST=<test_name>
-#   make SIM=questa compile — Compile with Questa
-#   make SIM=questa run TEST=<test_name>
+#   make SIM=verilator compile — Compile with Verilator (open-source, CI-friendly)
+#   make SIM=verilator run TEST=<test_name>
+#   make SIM=vcs       compile — Compile with VCS (full SVA + constrained-random)
+#   make SIM=vcs       run TEST=<test_name>
+#   make SIM=questa    compile — Compile with Questa
+#   make SIM=questa    run TEST=<test_name>
 #
-# UVM requires a class-capable simulator (VCS, Questa, Xcelium).
-# Verilator does not support UVM — use cocotb tests for open-source CI.
+# Verilator 5.0+ supports SystemVerilog classes, virtual methods, and dynamic
+# memory — sufficient for UVM testbenches. Set UVM_HOME to the Accellera UVM
+# source tree (e.g. export UVM_HOME=/path/to/uvm-1.2/src).
 
 # ---- Directories ----
 TB_DIR     := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
@@ -16,7 +19,7 @@ RTL_DIR    := $(PROJ_ROOT)/rtl
 DATA_DIR   := $(PROJ_ROOT)/data
 
 # ---- Simulator selection ----
-SIM       ?= vcs
+SIM       ?= verilator
 TEST      ?= lliu_base_test
 SEED      ?= random
 VERBOSITY ?= UVM_MEDIUM
@@ -116,15 +119,57 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 # ==============================================================================
+# Verilator (open-source, CI-friendly)
+# ==============================================================================
+else ifeq ($(SIM),verilator)
+
+VERILATOR  ?= verilator
+UVM_HOME   ?= $(error UVM_HOME is not set. Point it to the Accellera UVM source tree, e.g. /path/to/uvm-1.2/src)
+
+# Verilator flags for UVM class-based testbench
+VL_FLAGS   := --binary --timing --trace -sv \
+              -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
+              -Wno-UNUSEDSIGNAL -Wno-IMPORTSTAR -Wno-CONSTRAINTIGN \
+              -Wno-MISINDENT -Wno-CASEINCOMPLETE \
+              --timescale 1ns/1ps \
+              +incdir+$(RTL_DIR) +incdir+$(TB_DIR) \
+              +incdir+$(UVM_HOME) \
+              +define+UVM_NO_DPI \
+              -CFLAGS "$(PY_CFLAGS)" \
+              -LDFLAGS "$(PY_LDFLAGS)" \
+              -j 0 \
+              -o simv
+
+UVM_PKG    := $(UVM_HOME)/uvm_pkg.sv
+
+.PHONY: compile run clean help
+
+compile: $(BUILD_DIR)
+	$(VERILATOR) $(VL_FLAGS) \
+	    $(UVM_PKG) $(ALL_SV) $(DPI_SRC) \
+	    --Mdir $(BUILD_DIR) \
+	    2>&1 | tee $(BUILD_DIR)/compile.log
+
+run: compile
+	$(BUILD_DIR)/simv \
+	    +UVM_TESTNAME=$(TEST) \
+	    +UVM_VERBOSITY=$(VERBOSITY) \
+	    +DATA_DIR=$(DATA_DIR) \
+	    +GOLDEN_MODEL=$(GM_PY) \
+	    2>&1 | tee $(BUILD_DIR)/$(TEST).log
+
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+# ==============================================================================
 # Unsupported simulator
 # ==============================================================================
 else
 
 .PHONY: compile run
 compile run:
-	@echo "ERROR: SIM=$(SIM) is not supported for UVM."
-	@echo "UVM requires a class-capable simulator: SIM=vcs or SIM=questa"
-	@echo "For open-source simulation, use the cocotb testbench: make -C ../cocotb"
+	@echo "ERROR: SIM=$(SIM) is not supported."
+	@echo "Supported simulators: verilator, vcs, questa"
 	@exit 1
 
 endif
@@ -141,11 +186,13 @@ help:
 	@echo "UVM Testbench for Low-Latency Inference Unit"
 	@echo ""
 	@echo "Usage:"
-	@echo "  make SIM=vcs   compile              Compile with VCS"
-	@echo "  make SIM=vcs   run TEST=<name>      Run test (default: lliu_base_test)"
-	@echo "  make SIM=questa compile             Compile with Questa"
-	@echo "  make SIM=questa run TEST=<name>     Run test"
-	@echo "  make clean                          Remove build artifacts"
+	@echo "  make SIM=verilator compile            Compile with Verilator (default)"
+	@echo "  make SIM=verilator run TEST=<name>    Run test (default: lliu_base_test)"
+	@echo "  make SIM=vcs       compile            Compile with VCS"
+	@echo "  make SIM=vcs       run TEST=<name>    Run test"
+	@echo "  make SIM=questa    compile            Compile with Questa"
+	@echo "  make SIM=questa    run TEST=<name>    Run test"
+	@echo "  make clean                            Remove build artifacts"
 	@echo ""
 	@echo "Available tests:"
 	@echo "  lliu_base_test     — Base test (no stimulus, sanity check)"
@@ -153,8 +200,10 @@ help:
 	@echo "  lliu_replay_test   — Real NASDAQ ITCH data replay"
 	@echo ""
 	@echo "Options:"
+	@echo "  SIM=<sim>             verilator (default), vcs, questa"
+	@echo "  UVM_HOME=<path>       Path to UVM source (required for Verilator)"
 	@echo "  SEED=<int|random>     Random seed (default: random)"
 	@echo "  VERBOSITY=<level>     UVM_NONE|UVM_LOW|UVM_MEDIUM|UVM_HIGH|UVM_FULL"
 	@echo ""
-	@echo "Note: UVM requires VCS, Questa, or Xcelium."
-	@echo "      For open-source CI, use cocotb: make -C ../cocotb"
+	@echo "Note: Verilator 5.0+ supports SV classes for UVM."
+	@echo "      VCS/Questa additionally support full SVA and constrained-random."
