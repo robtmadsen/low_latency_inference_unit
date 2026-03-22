@@ -19,6 +19,10 @@ else ifeq ($(TOPLEVEL),dot_product_engine)
 else ifeq ($(TOPLEVEL),itch_parser)
     VERILOG_SOURCES += $(RTL_DIR)/itch_field_extract.sv
     VERILOG_SOURCES += $(RTL_DIR)/itch_parser.sv
+else ifeq ($(TOPLEVEL),feature_extractor)
+    VERILOG_SOURCES += $(RTL_DIR)/feature_extractor.sv
+else ifeq ($(TOPLEVEL),axi4_lite_slave)
+    VERILOG_SOURCES += $(RTL_DIR)/axi4_lite_slave.sv
 else ifeq ($(TOPLEVEL),lliu_top)
     VERILOG_SOURCES += $(shell find $(RTL_DIR) -name '*.sv' ! -name 'lliu_pkg.sv')
 endif
