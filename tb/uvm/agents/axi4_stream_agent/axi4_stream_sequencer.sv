@@ -1,0 +1,9 @@
+// axi4_stream_sequencer.sv — AXI4-Stream UVM sequencer
+
+class axi4_stream_sequencer extends uvm_sequencer #(axi4_stream_transaction);
+    `uvm_component_utils(axi4_stream_sequencer)
+
+    function new(string name = "axi4_stream_sequencer", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction
+endclass
