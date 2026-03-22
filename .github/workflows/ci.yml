@@ -1,0 +1,131 @@
+# CI — Lint, cocotb tests, and UVM compile+run
+#
+# Runs on every push/PR to main. Uses GitHub-hosted Ubuntu runners
+# so the MacBook Air doesn't have to suffer through Verilator C++ builds.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # ── RTL lint ──────────────────────────────────────────────────────
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Verilator
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y verilator
+
+      - name: Lint all RTL modules
+        run: |
+          verilator --lint-only -sv \
+            -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \
+            --timescale 1ns/1ps \
+            +incdir+rtl \
+            rtl/lliu_pkg.sv rtl/*.sv
+
+  # ── cocotb tests ──────────────────────────────────────────────────
+  cocotb:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - { top: bfloat16_mul,       test: test_bfloat16_mul }
+          - { top: fp32_acc,           test: test_fp32_acc }
+          - { top: dot_product_engine, test: test_dot_product_engine }
+          - { top: itch_parser,        test: test_itch_parser }
+          - { top: feature_extractor,  test: test_feature_extractor }
+          - { top: axi4_lite_slave,    test: test_axi4_lite_slave }
+          - { top: lliu_top,           test: test_lliu_top }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Verilator
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y verilator
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install cocotb
+        run: pip install cocotb
+
+      - name: Run ${{ matrix.module.top }} tests
+        working-directory: tb/cocotb
+        run: |
+          make SIM=verilator \
+               TOPLEVEL=${{ matrix.module.top }} \
+               MODULE=${{ matrix.module.test }}
+
+  # ── UVM compile + run ─────────────────────────────────────────────
+  uvm:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [lliu_base_test, lliu_smoke_test]
+    env:
+      UVM_HOME: ${{ github.workspace }}/uvm-core/src
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Verilator build
+        id: cache-verilator
+        uses: actions/cache@v4
+        with:
+          path: /tmp/verilator
+          key: verilator-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+
+      - name: Install Verilator build deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git autoconf g++ flex bison ccache \
+            libfl2 libfl-dev zlib1g-dev
+
+      - name: Build Verilator from source
+        if: steps.cache-verilator.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/verilator/verilator.git /tmp/verilator
+          cd /tmp/verilator
+          autoconf
+          ./configure --prefix=/usr/local
+          make -j$(nproc)
+
+      - name: Install Verilator
+        run: |
+          cd /tmp/verilator
+          sudo make install
+          verilator --version
+
+      - name: Clone UVM reference library
+        run: |
+          git clone --depth 1 https://github.com/accellera-official/uvm-core.git \
+            ${{ github.workspace }}/uvm-core
+
+      - name: Compile UVM testbench
+        run: |
+          make -C tb/uvm SIM=verilator UVM_HOME=$UVM_HOME compile
+
+      - name: Run ${{ matrix.test }}
+        run: |
+          make -C tb/uvm SIM=verilator UVM_HOME=$UVM_HOME \
+               TEST=${{ matrix.test }} run
+
+      - name: Upload waveform on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: waveform-${{ matrix.test }}
+          path: tb/uvm/sim_build/verilator/*.vcd
+          retention-days: 7
