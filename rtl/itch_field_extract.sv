@@ -1,0 +1,62 @@
+// itch_field_extract.sv — Combinational field slicer for ITCH 5.0 Add Order
+//
+// Pure combinational: extracts fields from an aligned message byte buffer.
+// Only asserts fields_valid for Add Order messages (type 'A' = 0x41).
+//
+// ITCH Add Order layout (36 bytes):
+//   [0]     message_type (1 byte)
+//   [1:2]   stock_locate (2 bytes)
+//   [3:4]   tracking_number (2 bytes)
+//   [5:10]  timestamp (6 bytes)
+//   [11:18] order_reference_number (8 bytes, big-endian)
+//   [19]    buy_sell_indicator (1 byte, 'B' or 'S')
+//   [20:23] shares (4 bytes)
+//   [24:31] stock (8 bytes)
+//   [32:35] price (4 bytes, big-endian)
+
+import lliu_pkg::*;
+
+module itch_field_extract (
+    // Packed message data: byte N = msg_data[(B-1-N)*8 +: 8], B = ITCH_ADD_ORDER_LEN
+    input  logic [ITCH_ADD_ORDER_LEN*8-1:0] msg_data,
+    input  logic       msg_valid,
+
+    output logic [7:0]  message_type,
+    output logic [63:0] order_ref,
+    output logic        side,       // 1 = buy ('B'), 0 = sell ('S')
+    output logic [31:0] price,
+    output logic        fields_valid
+);
+
+    localparam int B = ITCH_ADD_ORDER_LEN; // 36
+
+    // Byte 0: message type
+    assign message_type = msg_data[(B-1)*8 +: 8];
+
+    // Bytes 11–18: order reference number (8 bytes, big-endian)
+    assign order_ref = {
+        msg_data[(B-1-11)*8 +: 8],
+        msg_data[(B-1-12)*8 +: 8],
+        msg_data[(B-1-13)*8 +: 8],
+        msg_data[(B-1-14)*8 +: 8],
+        msg_data[(B-1-15)*8 +: 8],
+        msg_data[(B-1-16)*8 +: 8],
+        msg_data[(B-1-17)*8 +: 8],
+        msg_data[(B-1-18)*8 +: 8]
+    };
+
+    // Byte 19: buy/sell indicator ('B' = 0x42 → buy, anything else → sell)
+    assign side = (msg_data[(B-1-19)*8 +: 8] == 8'h42);
+
+    // Bytes 32–35: price (4 bytes, big-endian)
+    assign price = {
+        msg_data[(B-1-32)*8 +: 8],
+        msg_data[(B-1-33)*8 +: 8],
+        msg_data[(B-1-34)*8 +: 8],
+        msg_data[(B-1-35)*8 +: 8]
+    };
+
+    // Only assert fields_valid for Add Order messages
+    assign fields_valid = msg_valid && (message_type == ITCH_MSG_ADD_ORDER);
+
+endmodule
