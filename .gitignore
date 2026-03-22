@@ -1,0 +1,19 @@
+# Build artifacts
+sim_build/
+__pycache__/
+*.pyc
+
+# Waveform dumps
+*.vcd
+*.fst
+
+# Test results
+results.xml
+
+# OS files
+.DS_Store
+
+# Editor
+*.swp
+*.swo
+*~
