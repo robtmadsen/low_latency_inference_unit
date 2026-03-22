@@ -95,21 +95,21 @@ cocotb and UVM advanced features can proceed in any order. Listed interleaved fo
 
 ```
 Stage 1: Build + Test in Lockstep
-  [ ] #1  RTL Phase 1 — arithmetic primitives
-  [ ] #2  cocotb Phase 1 — arithmetic block tests
-  [ ] #3  RTL Phase 2 — dot-product engine
-  [ ] #4  cocotb Phase 2 — golden model + engine test
-  [ ] #5  RTL Phase 3 — ITCH parser
-  [ ] #6  cocotb Phase 3 — parser tests
+  [x] #1  RTL Phase 1 — arithmetic primitives
+  [x] #2  cocotb Phase 1 — arithmetic block tests
+  [x] #3  RTL Phase 2 — dot-product engine
+  [x] #4  cocotb Phase 2 — golden model + engine test
+  [x] #5  RTL Phase 3 — ITCH parser
+  [x] #6  cocotb Phase 3 — parser tests
 
 Stage 2: Complete RTL + cocotb System Tests
-  [ ] #7  RTL Phase 4 — feature extractor
-  [ ] #8  RTL Phase 5 — AXI4-Lite slave
-  [ ] #9  cocotb Phase 4 — feature extractor + AXI4-Lite tests
-  [ ] #10 RTL Phase 6 — lliu_top integration
-  [ ] #11 RTL Phase 7 — lint clean + Makefile
-  [ ] #12 cocotb Phase 5 — end-to-end smoke test
-  [ ] #13 cocotb Phase 6 — real data replay
+  [x] #7  RTL Phase 4 — feature extractor
+  [x] #8  RTL Phase 5 — AXI4-Lite slave
+  [x] #9  cocotb Phase 4 — feature extractor + AXI4-Lite tests
+  [x] #10 RTL Phase 6 — lliu_top integration
+  [x] #11 RTL Phase 7 — lint clean + Makefile
+  [x] #12 cocotb Phase 5 — end-to-end smoke test
+  [x] #13 cocotb Phase 6 — real data replay
 
 Stage 3: UVM Environment Bring-Up
   [ ] #14 UVM Phase 1 — TB skeleton
