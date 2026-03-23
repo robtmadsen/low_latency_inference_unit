@@ -32,12 +32,12 @@ RTL_SRC   := $(filter-out $(RTL_PKG), $(wildcard $(RTL_DIR)/*.sv))
 TB_IFS    := $(TB_DIR)/axi4_stream_if.sv \
              $(TB_DIR)/axi4_lite_if.sv
 
-TB_AGENTS := $(wildcard $(TB_DIR)/agents/axi4_stream_agent/*.sv) \
-             $(wildcard $(TB_DIR)/agents/axi4_lite_agent/*.sv)
+TB_PKGS   := $(TB_DIR)/agents/axi4_stream_agent/axi4_stream_agent_pkg.sv \
+             $(TB_DIR)/agents/axi4_lite_agent/axi4_lite_agent_pkg.sv \
+             $(TB_DIR)/env/lliu_env_pkg.sv \
+             $(TB_DIR)/sequences/lliu_seq_pkg.sv \
+             $(TB_DIR)/tests/lliu_test_pkg.sv
 
-TB_ENV    := $(wildcard $(TB_DIR)/env/*.sv)
-TB_SEQ    := $(wildcard $(TB_DIR)/sequences/*.sv)
-TB_TESTS  := $(wildcard $(TB_DIR)/tests/*.sv)
 TB_TOP    := $(TB_DIR)/tb_top.sv
 
 # ---- DPI-C golden model ----
@@ -55,7 +55,7 @@ PY_LDFLAGS:= $(shell $(PYTHON)-config --ldflags --embed 2>/dev/null || echo "-L$
 BUILD_DIR := $(TB_DIR)/sim_build/$(SIM)
 
 # ---- All SV sources in compile order ----
-ALL_SV    := $(RTL_PKG) $(RTL_SRC) $(TB_IFS) $(TB_AGENTS) $(TB_ENV) $(TB_SEQ) $(TB_TESTS) $(TB_TOP)
+ALL_SV    := $(RTL_PKG) $(RTL_SRC) $(TB_IFS) $(TB_PKGS) $(TB_TOP)
 
 # ==============================================================================
 # VCS
@@ -140,9 +140,8 @@ VL_FLAGS   := --binary --timing --trace -sv \
 
 UVM_PKG    := $(UVM_HOME)/uvm_pkg.sv
 
-# For Verilator: class files are `included by tb_top.sv at $unit scope,
-# so only pass RTL, interfaces, and tb_top on the command line.
-VL_SV      := $(RTL_PKG) $(RTL_SRC) $(TB_IFS) $(TB_TOP)
+# All SV sources in compile order: RTL, interfaces, packages, tb_top.
+VL_SV      := $(RTL_PKG) $(RTL_SRC) $(TB_IFS) $(TB_PKGS) $(TB_TOP)
 
 .PHONY: compile run clean help
 

@@ -1,49 +1,20 @@
 // tb_top.sv — UVM testbench top-level
 //
 // Instantiates clock, reset, DUT, interfaces, and launches UVM test.
-//
-// For Verilator: class files are `included at $unit scope so they
-// see the uvm_pkg import.  VCS/Questa compile them as separate files.
 
 `timescale 1ns/1ps
 
 // ----------------------------------------------------------------
-// $unit-scope imports — visible to all `included class files
+// $unit-scope imports
 // ----------------------------------------------------------------
 `include "uvm_macros.svh"
 import uvm_pkg::*;
 import lliu_pkg::*;
-
-// ----------------------------------------------------------------
-// Include UVM class files at $unit scope (Verilator only;
-// VCS/Questa receive them on the command line instead)
-// ----------------------------------------------------------------
-`ifdef VERILATOR
-    // AXI4-Stream agent
-    `include "agents/axi4_stream_agent/axi4_stream_transaction.sv"
-    `include "agents/axi4_stream_agent/axi4_stream_sequencer.sv"
-    `include "agents/axi4_stream_agent/axi4_stream_driver.sv"
-    `include "agents/axi4_stream_agent/axi4_stream_monitor.sv"
-    `include "agents/axi4_stream_agent/axi4_stream_agent.sv"
-    // AXI4-Lite agent
-    `include "agents/axi4_lite_agent/axi4_lite_transaction.sv"
-    `include "agents/axi4_lite_agent/axi4_lite_sequencer.sv"
-    `include "agents/axi4_lite_agent/axi4_lite_driver.sv"
-    `include "agents/axi4_lite_agent/axi4_lite_monitor.sv"
-    `include "agents/axi4_lite_agent/axi4_lite_agent.sv"
-    // Environment
-    `include "env/lliu_predictor.sv"
-    `include "env/lliu_scoreboard.sv"
-    `include "env/lliu_env.sv"
-    // Sequences
-    `include "sequences/weight_load_seq.sv"
-    `include "sequences/itch_replay_seq.sv"
-    `include "sequences/axil_rw_seq.sv"
-    // Tests
-    `include "tests/lliu_base_test.sv"
-    `include "tests/lliu_smoke_test.sv"
-    `include "tests/lliu_replay_test.sv"
-`endif
+import axi4_stream_agent_pkg::*;
+import axi4_lite_agent_pkg::*;
+import lliu_env_pkg::*;
+import lliu_seq_pkg::*;
+import lliu_test_pkg::*;
 
 module tb_top;
 
