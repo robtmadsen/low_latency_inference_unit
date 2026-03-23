@@ -18,6 +18,10 @@ from drivers.axi4_lite_driver import AXI4LiteDriver
 from utils.itch_decoder import encode_add_order
 from stimulus.weight_loader import load_weights, float_to_bfloat16
 from scoreboard.scoreboard import Scoreboard
+from checkers.axi4_stream_checker import AXI4StreamChecker
+from checkers.axi4_lite_checker import AXI4LiteChecker
+from checkers.parser_checker import ParserChecker
+from checkers.dot_product_checker import DotProductChecker
 
 
 # ---- Register addresses ----
@@ -128,6 +132,16 @@ async def test_single_inference(dut):
     await axil.reset()
     await RisingEdge(dut.clk)
 
+    # Start protocol checkers
+    stream_chk = AXI4StreamChecker(dut)
+    axil_chk = AXI4LiteChecker(dut)
+    parser_chk = ParserChecker(dut, parser_path=dut.u_parser)
+    dp_chk = DotProductChecker(dut, dp_path=dut.u_dp_engine)
+    await stream_chk.start()
+    await axil_chk.start()
+    await parser_chk.start()
+    await dp_chk.start()
+
     # --- Load weights ---
     weights = [0.5, -1.0, 0.25, 2.0]
     await load_weights(axil, weights)
@@ -155,6 +169,10 @@ async def test_single_inference(dut):
     sb.check()
 
     dut._log.info(sb.report())
+    dut._log.info(stream_chk.report())
+    dut._log.info(axil_chk.report())
+    dut._log.info(parser_chk.report())
+    dut._log.info(dp_chk.report())
     assert sb.passed, f"Scoreboard failed: expected={expected}, got={result}"
 
 
@@ -169,6 +187,16 @@ async def test_two_sequential_inferences(dut):
     await axis.reset()
     await axil.reset()
     await RisingEdge(dut.clk)
+
+    # Start protocol checkers
+    stream_chk = AXI4StreamChecker(dut)
+    axil_chk = AXI4LiteChecker(dut)
+    parser_chk = ParserChecker(dut, parser_path=dut.u_parser)
+    dp_chk = DotProductChecker(dut, dp_path=dut.u_dp_engine)
+    await stream_chk.start()
+    await axil_chk.start()
+    await parser_chk.start()
+    await dp_chk.start()
 
     weights = [1.0, 1.0, 1.0, 1.0]
     await load_weights(axil, weights)
@@ -204,4 +232,8 @@ async def test_two_sequential_inferences(dut):
     sb.check()
 
     dut._log.info(sb.report())
+    dut._log.info(stream_chk.report())
+    dut._log.info(axil_chk.report())
+    dut._log.info(parser_chk.report())
+    dut._log.info(dp_chk.report())
     assert sb.passed, f"Scoreboard failed:\n{sb.report()}"

@@ -10,6 +10,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from utils.bfloat16 import float_to_bfloat16, bits_to_fp32, fp32_to_bits
 from models.golden_model import GoldenModel
+from checkers.dot_product_checker import DotProductChecker
 import numpy as np
 
 
@@ -60,6 +61,9 @@ async def test_dot_product_basic(dut):
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
+    dp_chk = DotProductChecker(dut)
+    await dp_chk.start()
+
     gm = GoldenModel()
     features = [1.0, 2.0, 3.0, 4.0]
     weights = [0.5, -0.5, 0.25, -0.25]
@@ -70,6 +74,7 @@ async def test_dot_product_basic(dut):
     dut._log.info(f"Result: {result}, Expected: {expected}")
     assert abs(result - expected) < 0.1, \
         f"Dot product mismatch: got {result}, expected {expected}"
+    dut._log.info(dp_chk.report())
 
 
 @cocotb.test()
@@ -77,6 +82,9 @@ async def test_dot_product_sweep(dut):
     """Randomized weight/feature pairs, batch of 100, checked against golden model."""
     clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
+
+    dp_chk = DotProductChecker(dut)
+    await dp_chk.start()
 
     rng = random.Random(42)
     gm = GoldenModel()
@@ -99,6 +107,7 @@ async def test_dot_product_sweep(dut):
             assert rel_err < 0.05, \
                 f"Trial {trial}: got {result}, expected {expected} (rel_err={rel_err:.4f})"
 
+    dut._log.info(dp_chk.report())
     dut._log.info("PASS: 100 randomized dot products match golden model")
 
 
@@ -108,6 +117,9 @@ async def test_dot_product_back_to_back(dut):
     clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
+
+    dp_chk = DotProductChecker(dut)
+    await dp_chk.start()
 
     gm = GoldenModel()
 
@@ -128,4 +140,5 @@ async def test_dot_product_back_to_back(dut):
     assert abs(result2 - expected2) < 0.1, \
         f"Back-to-back: accumulator did not clear. Got {result2}, expected {expected2}"
 
+    dut._log.info(dp_chk.report())
     dut._log.info("PASS: back-to-back inferences with accumulator clear")

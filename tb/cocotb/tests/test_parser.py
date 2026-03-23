@@ -9,6 +9,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from drivers.axi4_stream_driver import AXI4StreamDriver
 from utils.itch_decoder import encode_add_order, encode_system_event
+from checkers.axi4_stream_checker import AXI4StreamChecker
+from checkers.parser_checker import ParserChecker
 
 
 async def reset_dut(dut):
@@ -48,6 +50,12 @@ async def test_single_add_order(dut):
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
+    # Start protocol checkers
+    stream_chk = AXI4StreamChecker(dut)
+    parser_chk = ParserChecker(dut)
+    await stream_chk.start()
+    await parser_chk.start()
+
     driver = AXI4StreamDriver(dut)
 
     # Known values
@@ -85,6 +93,8 @@ async def test_single_add_order(dut):
     assert got_price == expected_price, \
         f"price mismatch: got {got_price}, expected {expected_price}"
 
+    dut._log.info(stream_chk.report())
+    dut._log.info(parser_chk.report())
     dut._log.info("PASS: single Add Order correctly parsed")
 
 
@@ -94,6 +104,11 @@ async def test_multi_beat_message(dut):
     clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
+
+    stream_chk = AXI4StreamChecker(dut)
+    parser_chk = ParserChecker(dut)
+    await stream_chk.start()
+    await parser_chk.start()
 
     driver = AXI4StreamDriver(dut)
 
@@ -127,6 +142,8 @@ async def test_multi_beat_message(dut):
     assert got_price == expected_price, \
         f"price mismatch: got {got_price}, expected {expected_price}"
 
+    dut._log.info(stream_chk.report())
+    dut._log.info(parser_chk.report())
     dut._log.info("PASS: multi-beat Add Order correctly parsed")
 
 
@@ -136,6 +153,11 @@ async def test_non_add_order_passthrough(dut):
     clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
+
+    stream_chk = AXI4StreamChecker(dut)
+    parser_chk = ParserChecker(dut)
+    await stream_chk.start()
+    await parser_chk.start()
 
     driver = AXI4StreamDriver(dut)
 
@@ -151,6 +173,8 @@ async def test_non_add_order_passthrough(dut):
     assert dut.fields_valid.value == 0, \
         "fields_valid should NOT assert for non-Add-Order message"
 
+    dut._log.info(stream_chk.report())
+    dut._log.info(parser_chk.report())
     dut._log.info("PASS: non-Add-Order message correctly discarded")
 
 
@@ -160,6 +184,11 @@ async def test_back_to_back_messages(dut):
     clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
+
+    stream_chk = AXI4StreamChecker(dut)
+    parser_chk = ParserChecker(dut)
+    await stream_chk.start()
+    await parser_chk.start()
 
     driver = AXI4StreamDriver(dut)
 
@@ -194,4 +223,6 @@ async def test_back_to_back_messages(dut):
 
         dut._log.info(f"Message {idx}: PASS")
 
+    dut._log.info(stream_chk.report())
+    dut._log.info(parser_chk.report())
     dut._log.info("PASS: back-to-back Add Orders correctly parsed")
