@@ -36,9 +36,9 @@ async def test_bfloat16_mul_basic(dut):
 
         dut.a.value = a_bf16
         dut.b.value = b_bf16
-        await Timer(1, units='ns')  # combinational settle
+        await Timer(1, unit='ns')  # combinational settle
 
-        result_bits = dut.result.value.integer
+        result_bits = int(dut.result.value)
         result_float = bits_to_fp32(result_bits)
         expected = bfloat16_mul_ref(a_float, b_float)
 
@@ -60,37 +60,37 @@ async def test_bfloat16_mul_special_cases(dut):
     # Zero × nonzero
     dut.a.value = float_to_bfloat16(0.0)
     dut.b.value = float_to_bfloat16(5.0)
-    await Timer(1, units='ns')
-    result = bits_to_fp32(dut.result.value.integer)
+    await Timer(1, unit='ns')
+    result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"0.0 * 5.0 should be 0.0, got {result}"
 
     # Nonzero × zero
     dut.a.value = float_to_bfloat16(5.0)
     dut.b.value = float_to_bfloat16(0.0)
-    await Timer(1, units='ns')
-    result = bits_to_fp32(dut.result.value.integer)
+    await Timer(1, unit='ns')
+    result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"5.0 * 0.0 should be 0.0, got {result}"
 
     # Zero × zero
     dut.a.value = float_to_bfloat16(0.0)
     dut.b.value = float_to_bfloat16(0.0)
-    await Timer(1, units='ns')
-    result = bits_to_fp32(dut.result.value.integer)
+    await Timer(1, unit='ns')
+    result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"0.0 * 0.0 should be 0.0, got {result}"
 
     # Large values
     dut.a.value = float_to_bfloat16(256.0)
     dut.b.value = float_to_bfloat16(256.0)
-    await Timer(1, units='ns')
-    result = bits_to_fp32(dut.result.value.integer)
+    await Timer(1, unit='ns')
+    result = bits_to_fp32(int(dut.result.value))
     expected = bfloat16_mul_ref(256.0, 256.0)
     assert abs(result - expected) < 1.0, f"256*256: expected {expected}, got {result}"
 
     # Negative × positive
     dut.a.value = float_to_bfloat16(-4.0)
     dut.b.value = float_to_bfloat16(2.0)
-    await Timer(1, units='ns')
-    result = bits_to_fp32(dut.result.value.integer)
+    await Timer(1, unit='ns')
+    result = bits_to_fp32(int(dut.result.value))
     assert result < 0, f"-4.0 * 2.0 should be negative, got {result}"
 
     dut._log.info("PASS: all special cases")
@@ -101,7 +101,7 @@ async def test_bfloat16_mul_special_cases(dut):
 @cocotb.test()
 async def test_fp32_acc_accumulate(dut):
     """Accumulate N addends and check running sum."""
-    clock = Clock(dut.clk, 10, units='ns')
+    clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
 
     # Reset
@@ -127,7 +127,7 @@ async def test_fp32_acc_accumulate(dut):
     dut.acc_en.value = 0
     await RisingEdge(dut.clk)  # let final accumulate land
 
-    result = bits_to_fp32(dut.acc_out.value.integer)
+    result = bits_to_fp32(int(dut.acc_out.value))
     assert abs(result - 10.0) < 0.01, f"Expected 10.0, got {result}"
     dut._log.info(f"PASS: accumulate sum = {result}")
 
@@ -135,7 +135,7 @@ async def test_fp32_acc_accumulate(dut):
 @cocotb.test()
 async def test_fp32_acc_clear(dut):
     """Verify accumulator resets on clear signal."""
-    clock = Clock(dut.clk, 10, units='ns')
+    clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
 
     # Reset
@@ -157,7 +157,7 @@ async def test_fp32_acc_clear(dut):
     dut.acc_en.value = 0
     await RisingEdge(dut.clk)
 
-    result_before = bits_to_fp32(dut.acc_out.value.integer)
+    result_before = bits_to_fp32(int(dut.acc_out.value))
     assert result_before != 0.0, f"Accumulator should be nonzero, got {result_before}"
 
     # Clear
@@ -166,6 +166,6 @@ async def test_fp32_acc_clear(dut):
     dut.acc_clear.value = 0
     await RisingEdge(dut.clk)
 
-    result_after = bits_to_fp32(dut.acc_out.value.integer)
+    result_after = bits_to_fp32(int(dut.acc_out.value))
     assert result_after == 0.0, f"Accumulator should be 0 after clear, got {result_after}"
     dut._log.info(f"PASS: clear works (was {result_before}, now {result_after})")

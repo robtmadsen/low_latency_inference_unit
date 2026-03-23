@@ -13,7 +13,7 @@ from utils.bfloat16 import fp32_to_bits, bits_to_fp32
 @cocotb.test()
 async def test_fp32_acc_accumulate(dut):
     """Accumulate N addends and check running sum."""
-    clock = Clock(dut.clk, 10, units='ns')
+    clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
 
     # Reset
@@ -37,7 +37,7 @@ async def test_fp32_acc_accumulate(dut):
     dut.acc_en.value = 0
     await RisingEdge(dut.clk)
 
-    result = bits_to_fp32(dut.acc_out.value.integer)
+    result = bits_to_fp32(int(dut.acc_out.value))
     assert abs(result - 10.0) < 0.01, f"Expected 10.0, got {result}"
     dut._log.info(f"PASS: accumulate sum = {result}")
 
@@ -45,7 +45,7 @@ async def test_fp32_acc_accumulate(dut):
 @cocotb.test()
 async def test_fp32_acc_clear(dut):
     """Verify accumulator resets on clear signal."""
-    clock = Clock(dut.clk, 10, units='ns')
+    clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
 
     # Reset
@@ -67,7 +67,7 @@ async def test_fp32_acc_clear(dut):
     dut.acc_en.value = 0
     await RisingEdge(dut.clk)
 
-    result_before = bits_to_fp32(dut.acc_out.value.integer)
+    result_before = bits_to_fp32(int(dut.acc_out.value))
     assert result_before != 0.0, f"Accumulator should be nonzero, got {result_before}"
 
     # Clear
@@ -76,6 +76,6 @@ async def test_fp32_acc_clear(dut):
     dut.acc_clear.value = 0
     await RisingEdge(dut.clk)
 
-    result_after = bits_to_fp32(dut.acc_out.value.integer)
+    result_after = bits_to_fp32(int(dut.acc_out.value))
     assert result_after == 0.0, f"Accumulator should be 0 after clear, got {result_after}"
     dut._log.info(f"PASS: clear works (was {result_before}, now {result_after})")

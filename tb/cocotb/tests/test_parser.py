@@ -44,7 +44,7 @@ async def wait_for_msg_valid(dut, timeout=50):
 @cocotb.test()
 async def test_single_add_order(dut):
     """Encode one Add Order, send via AXI4-Stream, verify extracted fields."""
-    clock = Clock(dut.clk, 10, units='ns')
+    clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
@@ -70,10 +70,10 @@ async def test_single_add_order(dut):
     assert found, "fields_valid never asserted"
 
     # Check extracted fields
-    got_type = dut.message_type.value.integer
-    got_ref = dut.order_ref.value.integer
-    got_side = dut.side.value.integer
-    got_price = dut.price.value.integer
+    got_type = int(dut.message_type.value)
+    got_ref = int(dut.order_ref.value)
+    got_side = int(dut.side.value)
+    got_price = int(dut.price.value)
 
     dut._log.info(f"message_type=0x{got_type:02x}, order_ref=0x{got_ref:016x}, "
                   f"side={got_side}, price={got_price}")
@@ -91,7 +91,7 @@ async def test_single_add_order(dut):
 @cocotb.test()
 async def test_multi_beat_message(dut):
     """Add Order spanning 5 AXI beats (38 bytes with length prefix)."""
-    clock = Clock(dut.clk, 10, units='ns')
+    clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
@@ -117,9 +117,9 @@ async def test_multi_beat_message(dut):
     found = await wait_for_fields_valid(dut)
     assert found, "fields_valid never asserted for multi-beat message"
 
-    got_ref = dut.order_ref.value.integer
-    got_side = dut.side.value.integer
-    got_price = dut.price.value.integer
+    got_ref = int(dut.order_ref.value)
+    got_side = int(dut.side.value)
+    got_price = int(dut.price.value)
 
     assert got_ref == expected_order_ref, \
         f"order_ref mismatch: got 0x{got_ref:016x}, expected 0x{expected_order_ref:016x}"
@@ -133,7 +133,7 @@ async def test_multi_beat_message(dut):
 @cocotb.test()
 async def test_non_add_order_passthrough(dut):
     """Send a System Event ('S') message, verify parser discards it."""
-    clock = Clock(dut.clk, 10, units='ns')
+    clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
@@ -157,7 +157,7 @@ async def test_non_add_order_passthrough(dut):
 @cocotb.test()
 async def test_back_to_back_messages(dut):
     """Two Add Orders in rapid succession, verify both parsed correctly."""
-    clock = Clock(dut.clk, 10, units='ns')
+    clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
@@ -179,9 +179,9 @@ async def test_back_to_back_messages(dut):
         found = await wait_for_fields_valid(dut)
         assert found, f"fields_valid never asserted for message {idx}"
 
-        got_ref = dut.order_ref.value.integer
-        got_side = dut.side.value.integer
-        got_price = dut.price.value.integer
+        got_ref = int(dut.order_ref.value)
+        got_side = int(dut.side.value)
+        got_price = int(dut.price.value)
 
         expected_side_val = 1 if m['side'] == 'B' else 0
 

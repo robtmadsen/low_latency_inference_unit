@@ -48,7 +48,7 @@ async def run_inference(dut, features, weights):
     for _ in range(10):
         await RisingEdge(dut.clk)
         if dut.result_valid.value == 1:
-            return bits_to_fp32(dut.result.value.integer)
+            return bits_to_fp32(int(dut.result.value))
 
     raise AssertionError("result_valid never asserted")
 
@@ -56,7 +56,7 @@ async def run_inference(dut, features, weights):
 @cocotb.test()
 async def test_dot_product_basic(dut):
     """Load weights via direct port drive, compare result to golden model."""
-    clock = Clock(dut.clk, 10, units='ns')
+    clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
@@ -75,7 +75,7 @@ async def test_dot_product_basic(dut):
 @cocotb.test()
 async def test_dot_product_sweep(dut):
     """Randomized weight/feature pairs, batch of 100, checked against golden model."""
-    clock = Clock(dut.clk, 10, units='ns')
+    clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
 
     rng = random.Random(42)
@@ -105,7 +105,7 @@ async def test_dot_product_sweep(dut):
 @cocotb.test()
 async def test_dot_product_back_to_back(dut):
     """Two consecutive inferences without reset, verify accumulator clears."""
-    clock = Clock(dut.clk, 10, units='ns')
+    clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 

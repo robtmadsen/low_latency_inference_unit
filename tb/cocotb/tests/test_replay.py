@@ -106,7 +106,7 @@ async def test_replay_non_add_orders(dut):
 
     Verifies the parser doesn't hang or assert fields_valid for non-Add-Order messages.
     """
-    cocotb.start_soon(Clock(dut.clk, 10, units='ns').start())
+    cocotb.start_soon(Clock(dut.clk, 10, unit='ns').start())
     await reset_dut(dut)
 
     axis = AXI4StreamDriver(dut, prefix="s_axis")
@@ -142,7 +142,7 @@ async def test_replay_with_injected_add_orders(dut):
     Sends real non-Add-Order messages interspersed with Add Orders,
     checking that the pipeline correctly processes through the noise.
     """
-    cocotb.start_soon(Clock(dut.clk, 10, units='ns').start())
+    cocotb.start_soon(Clock(dut.clk, 10, unit='ns').start())
     await reset_dut(dut)
 
     axis = AXI4StreamDriver(dut, prefix="s_axis")

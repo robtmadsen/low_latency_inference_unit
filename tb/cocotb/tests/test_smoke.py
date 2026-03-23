@@ -119,7 +119,7 @@ async def wait_for_new_result(axil, timeout_cycles=300):
 @cocotb.test()
 async def test_single_inference(dut):
     """Full pipeline: load weights → send Add Order → read result."""
-    cocotb.start_soon(Clock(dut.clk, 10, units='ns').start())
+    cocotb.start_soon(Clock(dut.clk, 10, unit='ns').start())
     await reset_dut(dut)
 
     axis = AXI4StreamDriver(dut, prefix="s_axis")
@@ -161,7 +161,7 @@ async def test_single_inference(dut):
 @cocotb.test()
 async def test_two_sequential_inferences(dut):
     """Two Add Orders back-to-back, verify both results."""
-    cocotb.start_soon(Clock(dut.clk, 10, units='ns').start())
+    cocotb.start_soon(Clock(dut.clk, 10, unit='ns').start())
     await reset_dut(dut)
 
     axis = AXI4StreamDriver(dut, prefix="s_axis")

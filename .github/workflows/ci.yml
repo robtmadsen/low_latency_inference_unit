@@ -101,7 +101,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install cocotb
-        run: pip install cocotb
+        run: pip install 'cocotb>=2.0' numpy
 
       - name: Run ${{ matrix.module.top }} tests
         working-directory: tb/cocotb

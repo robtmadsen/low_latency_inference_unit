@@ -30,9 +30,9 @@ async def test_bfloat16_mul_basic(dut):
 
         dut.a.value = a_bf16
         dut.b.value = b_bf16
-        await Timer(1, units='ns')
+        await Timer(1, unit='ns')
 
-        result_bits = dut.result.value.integer
+        result_bits = int(dut.result.value)
         result_float = bits_to_fp32(result_bits)
         expected = bfloat16_mul_ref(a_float, b_float)
 
@@ -53,37 +53,37 @@ async def test_bfloat16_mul_special_cases(dut):
     # Zero × nonzero
     dut.a.value = float_to_bfloat16(0.0)
     dut.b.value = float_to_bfloat16(5.0)
-    await Timer(1, units='ns')
-    result = bits_to_fp32(dut.result.value.integer)
+    await Timer(1, unit='ns')
+    result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"0.0 * 5.0 should be 0.0, got {result}"
 
     # Nonzero × zero
     dut.a.value = float_to_bfloat16(5.0)
     dut.b.value = float_to_bfloat16(0.0)
-    await Timer(1, units='ns')
-    result = bits_to_fp32(dut.result.value.integer)
+    await Timer(1, unit='ns')
+    result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"5.0 * 0.0 should be 0.0, got {result}"
 
     # Zero × zero
     dut.a.value = float_to_bfloat16(0.0)
     dut.b.value = float_to_bfloat16(0.0)
-    await Timer(1, units='ns')
-    result = bits_to_fp32(dut.result.value.integer)
+    await Timer(1, unit='ns')
+    result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"0.0 * 0.0 should be 0.0, got {result}"
 
     # Large values
     dut.a.value = float_to_bfloat16(256.0)
     dut.b.value = float_to_bfloat16(256.0)
-    await Timer(1, units='ns')
-    result = bits_to_fp32(dut.result.value.integer)
+    await Timer(1, unit='ns')
+    result = bits_to_fp32(int(dut.result.value))
     expected = bfloat16_mul_ref(256.0, 256.0)
     assert abs(result - expected) < 1.0, f"256*256: expected {expected}, got {result}"
 
     # Negative × positive
     dut.a.value = float_to_bfloat16(-4.0)
     dut.b.value = float_to_bfloat16(2.0)
-    await Timer(1, units='ns')
-    result = bits_to_fp32(dut.result.value.integer)
+    await Timer(1, unit='ns')
+    result = bits_to_fp32(int(dut.result.value))
     assert result < 0, f"-4.0 * 2.0 should be negative, got {result}"
 
     dut._log.info("PASS: all special cases")

@@ -76,7 +76,7 @@ async def read_features(dut):
 @cocotb.test()
 async def test_price_delta(dut):
     """Verify price delta feature: second order should show delta from first."""
-    cocotb.start_soon(Clock(dut.clk, 10, units='ns').start())
+    cocotb.start_soon(Clock(dut.clk, 10, unit='ns').start())
     await reset_dut(dut)
 
     price1 = 10000
@@ -100,7 +100,7 @@ async def test_price_delta(dut):
 @cocotb.test()
 async def test_side_encoding(dut):
     """Verify buy → +1.0 bfloat16, sell → -1.0 bfloat16."""
-    cocotb.start_soon(Clock(dut.clk, 10, units='ns').start())
+    cocotb.start_soon(Clock(dut.clk, 10, unit='ns').start())
     await reset_dut(dut)
 
     bf16_plus1 = int_to_bf16_ref(1)   # +1.0 = 0x3F80
@@ -122,7 +122,7 @@ async def test_side_encoding(dut):
 @cocotb.test()
 async def test_order_flow_imbalance(dut):
     """Verify running buy - sell imbalance counter."""
-    cocotb.start_soon(Clock(dut.clk, 10, units='ns').start())
+    cocotb.start_soon(Clock(dut.clk, 10, unit='ns').start())
     await reset_dut(dut)
 
     # Sequence: buy, buy, sell, buy → flow = +1, +2, +1, +2
@@ -141,7 +141,7 @@ async def test_order_flow_imbalance(dut):
 @cocotb.test()
 async def test_feature_vector_format(dut):
     """Verify full feature vector matches golden model reference."""
-    cocotb.start_soon(Clock(dut.clk, 10, units='ns').start())
+    cocotb.start_soon(Clock(dut.clk, 10, unit='ns').start())
     await reset_dut(dut)
 
     price = 25000
