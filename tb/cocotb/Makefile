@@ -34,5 +34,54 @@ MODULE = tests.$(TEST_MODULE)
 EXTRA_ARGS += --trace
 EXTRA_ARGS += -Wno-IMPORTSTAR -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL
 
+# Coverage: enable with VL_COVERAGE=1 (not COVERAGE — that's cocotb Python coverage)
+ifeq ($(VL_COVERAGE),1)
+EXTRA_ARGS += --coverage
+endif
+
 # cocotb Makefile.sim
 include $(shell cocotb-config --makefiles)/Makefile.sim
+
+# ---- Coverage collection targets ----
+COV_DIR    := $(PWD)/coverage_data
+COV_TESTS  := \
+	bfloat16_mul:test_bfloat16_mul \
+	fp32_acc:test_fp32_acc \
+	dot_product_engine:test_dot_product_engine \
+	itch_parser:test_parser \
+	feature_extractor:test_feature_extractor \
+	lliu_top:test_smoke \
+	lliu_top:test_constrained_random \
+	lliu_top:test_backpressure \
+	lliu_top:test_latency \
+	lliu_top:test_error_injection \
+	lliu_top:test_replay
+
+.PHONY: coverage-run coverage-merge coverage-report coverage-clean
+
+coverage-clean:
+	rm -rf $(COV_DIR)
+	mkdir -p $(COV_DIR)
+
+coverage-run: coverage-clean
+	@for spec in $(COV_TESTS); do \
+		top=$$(echo $$spec | cut -d: -f1); \
+		mod=$$(echo $$spec | cut -d: -f2); \
+		echo "==== Running $$top / $$mod ===="; \
+		rm -rf sim_build; \
+		$(MAKE) SIM=verilator TOPLEVEL=$$top MODULE=tests.$$mod VL_COVERAGE=1 || true; \
+		if [ -f coverage.dat ]; then \
+			cp coverage.dat $(COV_DIR)/$${top}__$${mod}.dat; \
+		fi; \
+	done
+
+coverage-merge:
+	@mkdir -p $(COV_DIR)
+	verilator_coverage --write $(COV_DIR)/merged.dat \
+		$$(find $(COV_DIR) -name '*.dat' ! -name 'merged.dat' | sort)
+
+coverage-report: coverage-merge
+	@mkdir -p $(COV_DIR)/annotate
+	verilator_coverage --annotate $(COV_DIR)/annotate \
+		--annotate-min 1 $(COV_DIR)/merged.dat
+	@echo "Coverage report written to $(COV_DIR)/annotate/"

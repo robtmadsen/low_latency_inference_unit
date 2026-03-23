@@ -10,6 +10,10 @@ __pycache__/
 # Test results
 results.xml
 
+# Coverage data (large binary .dat files)
+coverage_data/
+coverage.dat
+
 # OS files
 .DS_Store
 

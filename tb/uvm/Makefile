@@ -133,6 +133,9 @@ VERILATOR  ?= verilator
 UVM_HOME   ?= $(error UVM_HOME is not set. Point it to the Accellera UVM source tree, e.g. /path/to/uvm-1.2/src)
 
 # Verilator flags for UVM class-based testbench
+# Coverage: enable with COVERAGE=1
+COVERAGE   ?= 0
+
 VL_FLAGS   := --binary --timing --trace -sv \
               -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
               -Wno-UNUSEDSIGNAL -Wno-IMPORTSTAR -Wno-CONSTRAINTIGN \
@@ -143,6 +146,10 @@ VL_FLAGS   := --binary --timing --trace -sv \
               +define+UVM_NO_DPI \
               -j 0 \
               -o simv
+
+ifeq ($(COVERAGE),1)
+VL_FLAGS   += --coverage
+endif
 
 UVM_PKG    := $(UVM_HOME)/uvm_pkg.sv
 
@@ -167,6 +174,47 @@ run: compile
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
+
+# ---- Coverage collection targets ----
+COV_DIR    := $(TB_DIR)/coverage_data
+UVM_TESTS  := lliu_smoke_test lliu_replay_test lliu_random_test \
+              lliu_stress_test lliu_error_test
+
+.PHONY: coverage-run coverage-merge coverage-report coverage-clean
+
+coverage-clean:
+	rm -rf $(COV_DIR)
+	mkdir -p $(COV_DIR)
+
+coverage-run: coverage-clean
+	@# Rebuild with coverage enabled
+	$(MAKE) SIM=verilator UVM_HOME=$(UVM_HOME) COVERAGE=1 clean compile
+	@for t in $(UVM_TESTS); do \
+		echo "==== Running UVM test: $$t ===="; \
+		cd $(BUILD_DIR) && ./simv \
+		    +UVM_TESTNAME=$$t \
+		    +UVM_VERBOSITY=$(VERBOSITY) \
+		    +DATA_DIR=$(DATA_DIR) \
+		    +GOLDEN_MODEL=$(GM_PY) \
+		    2>&1 | tee $$t.log || true; \
+		for loc in $(BUILD_DIR)/coverage.dat coverage.dat; do \
+		    if [ -f "$$loc" ]; then \
+		        cp "$$loc" $(COV_DIR)/$$t.dat; \
+		        break; \
+		    fi; \
+		done; \
+	done
+
+coverage-merge:
+	@mkdir -p $(COV_DIR)
+	verilator_coverage --write $(COV_DIR)/merged.dat \
+		$$(find $(COV_DIR) -name '*.dat' ! -name 'merged.dat' | sort)
+
+coverage-report: coverage-merge
+	@mkdir -p $(COV_DIR)/annotate
+	verilator_coverage --annotate $(COV_DIR)/annotate \
+		--annotate-min 1 $(COV_DIR)/merged.dat
+	@echo "Coverage report written to $(COV_DIR)/annotate/"
 
 # ==============================================================================
 # Unsupported simulator
