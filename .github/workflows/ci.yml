@@ -105,8 +105,6 @@ jobs:
 
       - name: Run ${{ matrix.module.top }} tests
         working-directory: tb/cocotb
-        env:
-          PATH: /tmp/verilator-install/bin:${{ env.PATH }}
         run: |
           export PATH="/tmp/verilator-install/bin:$PATH"
           make SIM=verilator \
