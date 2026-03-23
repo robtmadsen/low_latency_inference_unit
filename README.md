@@ -1,5 +1,7 @@
 # Low-Latency Inference Unit (LLIU)
 
+[![CI](https://github.com/robtmadsen/low_latency_inference_unit/actions/workflows/ci.yml/badge.svg)](https://github.com/robtmadsen/low_latency_inference_unit/actions/workflows/ci.yml)
+
 A hardware accelerator for real-time inference on streaming NASDAQ ITCH 5.0 market data, verified independently with both UVM and cocotb.
 
 ## What It Does
@@ -35,23 +37,36 @@ Both environments are fully independent and self-sufficient — each can verify 
 
 - AXI4-Stream + AXI4-Lite agents with full scoreboard
 - DPI-C bridge to shared Python golden model (NumPy)
-- SVA bind files for protocol compliance and FSM safety
-- Functional coverage: message type × price range × side × backpressure
-- Real ITCH data replay + constrained-random + error injection
+- Real ITCH data replay with synthetic Add Order injection
+- Smoke test: single Add Order end-to-end with scoreboard check
+
+**Planned (Stage 4):** SVA bind files, functional coverage, constrained-random sequences, backpressure + error injection, latency profiling
 
 ### cocotb (Python-Native)
 
 - AXI4-Stream + AXI4-Lite drivers/monitors with transaction scoreboard
 - Shared golden model called natively from Python
-- Protocol compliance checkers as concurrent coroutines
-- Functional coverage with bin tracking and closure reporting
 - Block-level and system-level tests via Makefile TOPLEVEL selection
+- 6 test modules, 17 tests covering all RTL blocks
+
+**Planned (Stage 4):** Protocol compliance checkers, functional coverage with bin tracking, constrained-random stimulus, backpressure modeling, latency profiling
 
 ### Shared
 
 - **Golden model**: Single Python/NumPy reference used by both environments
 - **Sample data**: Real NASDAQ ITCH 5.0 binary (`data/tvagg_sample.bin`) from [NASDAQ TotalView-ITCH](https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/)
-- **Latency profiling**: Cycle-accurate per-message timing, p50/p99/p99.9 percentiles, jitter
+
+## CI
+
+GitHub Actions runs on every push and PR to `main`. All jobs use Verilator 5.046 built from source (cached).
+
+| Job | What it does |
+|-----|-------------|
+| **lint** | `verilator --lint-only` on all RTL |
+| **cocotb** | 6-module test matrix (17 tests) via cocotb 2.0 + Verilator |
+| **uvm** | Compile + run `lliu_base_test` and `lliu_smoke_test` via Verilator |
+
+Waveforms (VCD) are uploaded as artifacts on UVM test failure.
 
 ## Project Structure
 
@@ -63,6 +78,7 @@ tb/
 data/
 ├── tvagg_sample.bin          # Decompressed ITCH 5.0 binary (~3.7 MB)
 └── tvagg_sample.gz           # Compressed source
+.github/workflows/ci.yml     # CI pipeline
 ```
 
 ## Toolchain
@@ -70,9 +86,10 @@ data/
 | Category | Tool |
 |----------|------|
 | HDL | SystemVerilog 2017 |
-| Simulation | Verilator 5.0+ / Synopsys VCS |
-| UVM Verification | UVM 1.2, SVA, DPI-C |
-| cocotb Verification | cocotb, Python 3.12, NumPy |
+| Simulation | Verilator 5.046 / Synopsys VCS |
+| UVM Verification | Accellera uvm-core (IEEE 1800.2), DPI-C |
+| cocotb Verification | cocotb 2.0+, Python 3.12, NumPy |
+| CI | GitHub Actions (Ubuntu), Verilator built from source |
 
 ## Design Choices
 
