@@ -120,17 +120,17 @@ Stage 3: UVM Environment Bring-Up
   [x] #19 UVM Phase 6 — replay test
 
 Stage 4: Advanced Verification
-  [ ] #20 cocotb Phase 7 — protocol checkers
-  [ ] #21 UVM Phase 7 — constrained-random
-  [ ] #22 cocotb Phase 8 — random + coverage
-  [ ] #23 UVM Phase 8 — functional coverage
-  [ ] #24 UVM Phase 9 — SVA bind files
-  [ ] #25 cocotb Phase 9 — backpressure + errors
-  [ ] #26 UVM Phase 10 — stress + errors
+  [x] #20 cocotb Phase 7 — protocol checkers
+  [x] #21 UVM Phase 7 — constrained-random
+  [x] #22 cocotb Phase 8 — random + coverage
+  [x] #23 UVM Phase 8 — functional coverage
+  [x] #24 UVM Phase 9 — SVA bind files
+  [x] #25 cocotb Phase 9 — backpressure + errors
+  [x] #26 UVM Phase 10 — stress + errors
   [ ] #27 cocotb Phase 10 — latency profiling
   [ ] #28 UVM Phase 11 — latency profiling
 
 Stage 5: CI
-  [ ] #29 cocotb Phase 11 — CI workflow
-  [ ] #30 UVM Phase 12 — CI workflow
+  [x] #29 cocotb Phase 11 — CI workflow
+  [x] #30 UVM Phase 12 — CI workflow
 ```

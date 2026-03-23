@@ -38,18 +38,26 @@ Both environments are fully independent and self-sufficient — each can verify 
 - AXI4-Stream + AXI4-Lite agents with full scoreboard
 - DPI-C bridge to shared Python golden model (NumPy)
 - Real ITCH data replay with synthetic Add Order injection
-- Smoke test: single Add Order end-to-end with scoreboard check
+- Constrained-random ITCH sequences (price, side, shares constraints)
+- Functional coverage model (message type, price range, side, cross-coverage)
+- SVA bind files for protocol compliance and FSM safety (AXI4-Lite, AXI4-Stream, dot-product, parser)
+- Backpressure sequences, error injection, stress tests
+- Smoke, replay, random, error, and stress test classes
 
-**Planned (Stage 4):** SVA bind files, functional coverage, constrained-random sequences, backpressure + error injection, latency profiling
+**Remaining:** Cycle-accurate latency + jitter profiling monitor
 
 ### cocotb (Python-Native)
 
 - AXI4-Stream + AXI4-Lite drivers/monitors with transaction scoreboard
 - Shared golden model called natively from Python
 - Block-level and system-level tests via Makefile TOPLEVEL selection
-- 6 test modules, 17 tests covering all RTL blocks
+- Protocol compliance checkers (AXI4-Stream, AXI4-Lite, parser, dot-product)
+- Functional coverage with bin tracking and cross-coverage reporting
+- Constrained-random stimulus with adversarial edge cases
+- Backpressure modeling and error injection tests
+- 12 test modules covering all RTL blocks and system scenarios
 
-**Planned (Stage 4):** Protocol compliance checkers, functional coverage with bin tracking, constrained-random stimulus, backpressure modeling, latency profiling
+**Remaining:** Latency profiler and latency + jitter tests
 
 ### Shared
 
