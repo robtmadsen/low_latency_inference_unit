@@ -87,6 +87,7 @@ jobs:
           - { top: itch_parser,        test: test_parser }
           - { top: feature_extractor,  test: test_feature_extractor }
           - { top: lliu_top,           test: test_smoke }
+          - { top: lliu_top,           test: test_constrained_random }
     steps:
       - uses: actions/checkout@v4
 
