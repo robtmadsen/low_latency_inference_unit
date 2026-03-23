@@ -127,8 +127,8 @@ Stage 4: Advanced Verification
   [x] #24 UVM Phase 9 — SVA bind files
   [x] #25 cocotb Phase 9 — backpressure + errors
   [x] #26 UVM Phase 10 — stress + errors
-  [ ] #27 cocotb Phase 10 — latency profiling
-  [ ] #28 UVM Phase 11 — latency profiling
+  [x] #27 cocotb Phase 10 — latency profiling
+  [x] #28 UVM Phase 11 — latency profiling
 
 Stage 5: CI
   [x] #29 cocotb Phase 11 — CI workflow

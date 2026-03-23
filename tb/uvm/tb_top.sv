@@ -185,4 +185,16 @@ module tb_top;
         .acc_clear     (acc_clear)
     );
 
+    // ----------------------------------------------------------------
+    // Latency profiling monitor — measures ingress-to-egress latency
+    // ----------------------------------------------------------------
+    bind lliu_top lliu_latency_monitor u_latency_mon (
+        .clk              (clk),
+        .rst              (rst),
+        .s_axis_tvalid    (s_axis_tvalid),
+        .s_axis_tready    (s_axis_tready),
+        .s_axis_tlast     (s_axis_tlast),
+        .dp_result_valid  (dp_result_valid)
+    );
+
 endmodule
