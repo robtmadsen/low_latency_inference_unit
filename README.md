@@ -4,6 +4,8 @@
 
 A hardware accelerator for real-time inference on streaming NASDAQ ITCH 5.0 market data, verified independently with both UVM and cocotb.
 
+> **100% AI-agent built.** Every RTL module, testbench, golden model, CI workflow, and this README was authored by a GitHub Copilot agent — no hand-written code.
+
 ## What It Does
 
 Parses live-format NASDAQ ITCH 5.0 binary data, extracts trading features, and runs single-sample inference through a pipelined bfloat16 dot-product engine — all in under 5 cycles at 300 MHz.
@@ -43,8 +45,7 @@ Both environments are fully independent and self-sufficient — each can verify 
 - SVA bind files for protocol compliance and FSM safety (AXI4-Lite, AXI4-Stream, dot-product, parser)
 - Backpressure sequences, error injection, stress tests
 - Smoke, replay, random, error, and stress test classes
-
-**Remaining:** Cycle-accurate latency + jitter profiling monitor
+- Cycle-accurate latency profiling monitor (bind module, reports min/max/mean/median/p99/stddev)
 
 ### cocotb (Python-Native)
 
@@ -55,9 +56,8 @@ Both environments are fully independent and self-sufficient — each can verify 
 - Functional coverage with bin tracking and cross-coverage reporting
 - Constrained-random stimulus with adversarial edge cases
 - Backpressure modeling and error injection tests
+- Latency profiler with histogram + statistical report (min/max/mean/p99/stddev)
 - 12 test modules covering all RTL blocks and system scenarios
-
-**Remaining:** Latency profiler and latency + jitter tests
 
 ### Shared
 
@@ -71,7 +71,7 @@ GitHub Actions runs on every push and PR to `main`. All jobs use Verilator 5.046
 | Job | What it does |
 |-----|-------------|
 | **lint** | `verilator --lint-only` on all RTL |
-| **cocotb** | 6-module test matrix (17 tests) via cocotb 2.0 + Verilator |
+| **cocotb** | 7-job test matrix (block-level + system-level) via cocotb 2.0 + Verilator |
 | **uvm** | Compile + run `lliu_base_test` and `lliu_smoke_test` via Verilator |
 
 Waveforms (VCD) are uploaded as artifacts on UVM test failure.
