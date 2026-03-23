@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
 
 env:
-  VERILATOR_CACHE_KEY: verilator-v5.046
+  VERILATOR_CACHE_KEY: verilator-v5.046-noccache
 
 jobs:
   # ── Build Verilator (shared cache for all jobs) ───────────────────
@@ -36,7 +36,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y git autoconf g++ flex bison \
-            libfl2 libfl-dev zlib1g-dev help2man ccache
+            libfl2 libfl-dev zlib1g-dev help2man
 
       - name: Build Verilator from source
         if: steps.cache.outputs.cache-hit != 'true'
