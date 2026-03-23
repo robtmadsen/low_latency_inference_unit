@@ -23,7 +23,8 @@ class axi4_lite_monitor extends uvm_monitor;
     endfunction
 
     task run_phase(uvm_phase phase);
-        @(negedge vif.rst);
+        // Wait for reset deassertion (Verilator-safe: poll on monitor_cb ticks)
+        do @(vif.monitor_cb); while (vif.rst);
 
         fork
             monitor_writes();

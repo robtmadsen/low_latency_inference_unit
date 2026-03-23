@@ -25,9 +25,9 @@ class axi4_lite_driver extends uvm_driver #(axi4_lite_transaction);
         // Initialize bus to idle
         reset_bus();
 
-        // Wait for reset deassertion
-        @(negedge vif.rst);
-        @(posedge vif.clk);
+        // Wait for reset deassertion (poll on clock edges — Verilator-safe)
+        do @(vif.driver_cb); while (vif.rst);
+        @(vif.driver_cb);  // one extra cycle for clocking-block output settling
 
         forever begin
             seq_item_port.get_next_item(tx);
@@ -90,26 +90,41 @@ class axi4_lite_driver extends uvm_driver #(axi4_lite_transaction);
         `uvm_info("AXIL_DRV", tx.convert2string(), UVM_HIGH)
     endtask
 
-    // Drive AR, wait for R response
+    // Drive AR, wait for R response.
+    // Note on output #0 clocking-block timing: outputs propagate to the wire
+    // only when driver_cb.isTriggered() (posedge eval_step Observable region),
+    // which is AFTER the DUT Active region. To ensure the DUT sees arvalid=1
+    // at its next Active region, arvalid must be driven in the previous
+    // Reactive region with isTriggered()=true at that time.
+    //
+    // If the driver wakes on a stale posedge trigger (from get_next_item
+    // completing mid-cycle), the first @(driver_cb) fires immediately but
+    // isTriggered()=false (cleared by clearTriggeredEvents). Using repeat(2)
+    // guarantees the second @(driver_cb) fires on a fresh posedge with
+    // isTriggered()=true, so arvalid propagates to the wire correctly.
     task drive_read(axi4_lite_transaction tx);
-        // Present AR channel
+        repeat(2) @(vif.driver_cb);     // 1st may be stale; 2nd is fresh posedge
+
         vif.driver_cb.araddr  <= tx.addr[7:0];
         vif.driver_cb.arvalid <= 1'b1;
+        vif.driver_cb.rready  <= 1'b1;
 
-        // Wait for AR handshake
+        // Wait until arready (DUT accepts AR) or rvalid (DUT already responding)
         do begin
             @(vif.driver_cb);
-        end while (!vif.driver_cb.arready);
+        end while (!vif.driver_cb.arready && !vif.driver_cb.rvalid);
+
         vif.driver_cb.arvalid <= 1'b0;
 
-        // Collect R response
-        vif.driver_cb.rready <= 1'b1;
-        do begin
-            @(vif.driver_cb);
-        end while (!vif.driver_cb.rvalid);
+        if (!vif.driver_cb.rvalid) begin
+            do begin
+                @(vif.driver_cb);
+            end while (!vif.driver_cb.rvalid);
+        end
 
         tx.rdata = vif.driver_cb.rdata;
         tx.resp  = vif.driver_cb.rresp;
+        @(vif.driver_cb);
         vif.driver_cb.rready <= 1'b0;
 
         `uvm_info("AXIL_DRV", tx.convert2string(), UVM_HIGH)

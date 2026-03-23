@@ -44,13 +44,11 @@ class itch_random_seq extends uvm_sequence #(axi4_stream_transaction);
                   num_messages, min_price, max_price), UVM_LOW)
 
         for (int i = 0; i < num_messages; i++) begin
-            if (!this.randomize(m_rand_price, m_rand_side, m_rand_shares) with {
-                m_rand_price >= min_price;
-                m_rand_price <= max_price;
-            }) begin
-                `uvm_error("RANDOM_SEQ", "Randomization failed")
-                return;
-            end
+            // Use $urandom directly: Verilator 5.x does not support
+            // partial randomize() with inline constraints.
+            m_rand_price  = min_price + ($urandom() % (max_price - min_price + 1));
+            m_rand_side   = $urandom_range(0, 1);
+            m_rand_shares = 1 + ($urandom() % 10000);
 
             send_add_order(m_next_order_ref, m_rand_side, m_rand_price, m_rand_shares);
             m_next_order_ref++;

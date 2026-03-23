@@ -26,9 +26,9 @@ class axi4_stream_driver extends uvm_driver #(axi4_stream_transaction);
         vif.driver_cb.tvalid <= 1'b0;
         vif.driver_cb.tlast  <= 1'b0;
 
-        // Wait for reset deassertion
-        @(negedge vif.rst);
-        @(posedge vif.clk);
+        // Wait for reset deassertion (poll on clock edges — Verilator-safe)
+        do @(vif.driver_cb); while (vif.rst);
+        @(vif.driver_cb);  // one extra cycle for clocking-block output settling
 
         forever begin
             seq_item_port.get_next_item(tx);
@@ -38,6 +38,10 @@ class axi4_stream_driver extends uvm_driver #(axi4_stream_transaction);
     endtask
 
     task drive_transaction(axi4_stream_transaction tx);
+        // Advance one clock before the first beat so that the output-#0 drive
+        // takes effect AFTER the DUT's current posedge evaluation, preventing
+        // beat[0] from being sampled as zeros.
+        @(vif.driver_cb);
         foreach (tx.tdata[i]) begin
             vif.driver_cb.tdata  <= tx.tdata[i];
             vif.driver_cb.tvalid <= 1'b1;
@@ -49,8 +53,7 @@ class axi4_stream_driver extends uvm_driver #(axi4_stream_transaction);
             end while (!vif.driver_cb.tready);
         end
 
-        // Deassert after final beat accepted
-        @(vif.driver_cb);
+        // Deassert after the final beat is accepted.
         vif.driver_cb.tdata  <= '0;
         vif.driver_cb.tvalid <= 1'b0;
         vif.driver_cb.tlast  <= 1'b0;

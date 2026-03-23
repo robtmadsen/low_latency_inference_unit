@@ -131,4 +131,58 @@ module tb_top;
         `uvm_fatal("TIMEOUT", "Simulation timed out at 10ms")
     end
 
+    // ----------------------------------------------------------------
+    // SVA bind statements — protocol compliance & FSM safety
+    // ----------------------------------------------------------------
+    bind lliu_top axi4_stream_sva u_axis_sva (
+        .clk    (clk),
+        .rst    (rst),
+        .tdata  (s_axis_tdata),
+        .tvalid (s_axis_tvalid),
+        .tready (s_axis_tready),
+        .tlast  (s_axis_tlast)
+    );
+
+    bind lliu_top axi4_lite_sva u_axil_sva (
+        .clk     (clk),
+        .rst     (rst),
+        .awaddr  (s_axil_awaddr),
+        .awvalid (s_axil_awvalid),
+        .awready (s_axil_awready),
+        .wdata   (s_axil_wdata),
+        .wstrb   (s_axil_wstrb),
+        .wvalid  (s_axil_wvalid),
+        .wready  (s_axil_wready),
+        .bresp   (s_axil_bresp),
+        .bvalid  (s_axil_bvalid),
+        .bready  (s_axil_bready),
+        .araddr  (s_axil_araddr),
+        .arvalid (s_axil_arvalid),
+        .arready (s_axil_arready),
+        .rdata   (s_axil_rdata),
+        .rresp   (s_axil_rresp),
+        .rvalid  (s_axil_rvalid),
+        .rready  (s_axil_rready)
+    );
+
+    bind itch_parser parser_sva u_parser_sva (
+        .clk            (clk),
+        .rst            (rst),
+        .state          (state),
+        .s_axis_tvalid  (s_axis_tvalid),
+        .s_axis_tready  (s_axis_tready),
+        .msg_valid      (msg_valid),
+        .fields_valid   (fields_valid)
+    );
+
+    bind dot_product_engine dot_product_sva u_dp_sva (
+        .clk           (clk),
+        .rst           (rst),
+        .state         (state),
+        .start         (start),
+        .result_valid  (result_valid),
+        .feature_valid (feature_valid),
+        .acc_clear     (acc_clear)
+    );
+
 endmodule

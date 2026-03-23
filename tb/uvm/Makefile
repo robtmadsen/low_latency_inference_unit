@@ -40,6 +40,9 @@ TB_PKGS   := $(TB_DIR)/agents/axi4_stream_agent/axi4_stream_agent_pkg.sv \
 
 TB_TOP    := $(TB_DIR)/tb_top.sv
 
+# ---- SVA assertion bind modules ----
+TB_SVA    := $(wildcard $(TB_DIR)/sva/*.sv)
+
 # ---- DPI-C golden model ----
 DPI_SRC   := $(TB_DIR)/golden_model/dpi_bridge.c
 GM_PY     := $(TB_DIR)/golden_model/golden_model.py
@@ -55,7 +58,7 @@ PY_LDFLAGS:= $(shell $(PYTHON)-config --ldflags --embed 2>/dev/null || echo "-L$
 BUILD_DIR := $(TB_DIR)/sim_build/$(SIM)
 
 # ---- All SV sources in compile order ----
-ALL_SV    := $(RTL_PKG) $(RTL_SRC) $(TB_IFS) $(TB_PKGS) $(TB_TOP)
+ALL_SV    := $(RTL_PKG) $(RTL_SRC) $(TB_IFS) $(TB_PKGS) $(TB_SVA) $(TB_TOP)
 
 # ==============================================================================
 # VCS
@@ -141,7 +144,7 @@ VL_FLAGS   := --binary --timing --trace -sv \
 UVM_PKG    := $(UVM_HOME)/uvm_pkg.sv
 
 # All SV sources in compile order: RTL, interfaces, packages, tb_top.
-VL_SV      := $(RTL_PKG) $(RTL_SRC) $(TB_IFS) $(TB_PKGS) $(TB_TOP)
+VL_SV      := $(RTL_PKG) $(RTL_SRC) $(TB_IFS) $(TB_PKGS) $(TB_SVA) $(TB_TOP)
 
 .PHONY: compile run clean help
 

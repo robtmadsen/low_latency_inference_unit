@@ -10,5 +10,7 @@ package lliu_seq_pkg;
     `include "sequences/axil_rw_seq.sv"
     `include "sequences/itch_replay_seq.sv"
     `include "sequences/itch_random_seq.sv"
+    `include "sequences/backpressure_seq.sv"
+    `include "sequences/itch_error_seq.sv"
 
 endpackage

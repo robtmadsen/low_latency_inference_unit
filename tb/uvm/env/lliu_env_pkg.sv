@@ -8,6 +8,7 @@ package lliu_env_pkg;
 
     `include "env/lliu_predictor.sv"
     `include "env/lliu_scoreboard.sv"
+    `include "env/lliu_coverage.sv"
     `include "env/lliu_env.sv"
 
 endpackage
