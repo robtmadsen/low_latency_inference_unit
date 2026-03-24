@@ -5,6 +5,8 @@
 **Framework:** cocotb (Python)  
 **Scope:** Source-level line coverage (every RTL source line hit ≥1 time)
 
+> **[View interactive HTML coverage report](https://htmlpreview.github.io/?https://github.com/robtmadsen/low_latency_inference_unit/blob/main/reports/cocotb_coverage_html/index.html)**
+
 ---
 
 ## Result Summary

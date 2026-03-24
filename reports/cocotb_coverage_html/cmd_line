@@ -1,0 +1,1 @@
+genhtml coverage_data/merged.info -o coverage_data/html --title 'LLIU cocotb Line Coverage'

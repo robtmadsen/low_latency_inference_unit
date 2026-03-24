@@ -1,0 +1,111 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - LLIU cocotb Line Coverage - rtl/output_buffer.sv</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory rtl">rtl</a> - output_buffer.sv</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">LLIU cocotb Line Coverage</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntry">14</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-03-23 20:25:09</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">-</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // output_buffer.sv — Single float32 register for inference result</span>
+<span id="L2"><span class="lineNum">       2</span>              : //</span>
+<span id="L3"><span class="lineNum">       3</span>              : // Latches result on result_valid strobe from dot-product engine.</span>
+<span id="L4"><span class="lineNum">       4</span>              : // Presents value for AXI4-Lite readout.</span>
+<span id="L5"><span class="lineNum">       5</span>              : </span>
+<span id="L6"><span class="lineNum">       6</span>              : import lliu_pkg::*;</span>
+<span id="L7"><span class="lineNum">       7</span>              : </span>
+<span id="L8"><span class="lineNum">       8</span>              : module output_buffer (</span>
+<span id="L9"><span class="lineNum">       9</span> <span class="tlaGNC">       46279 :     input  logic     clk,</span></span>
+<span id="L10"><span class="lineNum">      10</span> <span class="tlaGNC">          37 :     input  logic     rst,</span></span>
+<span id="L11"><span class="lineNum">      11</span>              : </span>
+<span id="L12"><span class="lineNum">      12</span>              :     // From dot-product engine</span>
+<span id="L13"><span class="lineNum">      13</span> <span class="tlaGNC">         461 :     input  float32_t result_in,</span></span>
+<span id="L14"><span class="lineNum">      14</span> <span class="tlaGNC">         425 :     input  logic     result_valid,</span></span>
+<span id="L15"><span class="lineNum">      15</span>              : </span>
+<span id="L16"><span class="lineNum">      16</span>              :     // To AXI4-Lite read path</span>
+<span id="L17"><span class="lineNum">      17</span> <span class="tlaGNC">         125 :     output float32_t result_out,</span></span>
+<span id="L18"><span class="lineNum">      18</span> <span class="tlaGNC">          31 :     output logic     result_ready  // indicates a valid result is available</span></span>
+<span id="L19"><span class="lineNum">      19</span>              : );</span>
+<span id="L20"><span class="lineNum">      20</span>              : </span>
+<span id="L21"><span class="lineNum">      21</span> <span class="tlaGNC">          31 :     logic result_ready_reg;</span></span>
+<span id="L22"><span class="lineNum">      22</span>              : </span>
+<span id="L23"><span class="lineNum">      23</span> <span class="tlaGNC">       46279 :     always_ff @(posedge clk) begin</span></span>
+<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">         352 :         if (rst) begin</span></span>
+<span id="L25"><span class="lineNum">      25</span> <span class="tlaGNC">         352 :             result_out  &lt;= '0;</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">         352 :             result_ready_reg &lt;= 1'b0;</span></span>
+<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">       45502 :         end else if (result_valid) begin</span></span>
+<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC">         425 :             result_out  &lt;= result_in;</span></span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">         425 :             result_ready_reg &lt;= 1'b1;</span></span>
+<span id="L30"><span class="lineNum">      30</span>              :         end</span>
+<span id="L31"><span class="lineNum">      31</span>              :     end</span>
+<span id="L32"><span class="lineNum">      32</span>              : </span>
+<span id="L33"><span class="lineNum">      33</span>              :     assign result_ready = result_ready_reg;</span>
+<span id="L34"><span class="lineNum">      34</span>              : </span>
+<span id="L35"><span class="lineNum">      35</span>              : endmodule</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.4-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
