@@ -19,6 +19,14 @@ import lliu_test_pkg::*;
 module tb_top;
 
     // ----------------------------------------------------------------
+    // Waveform dump (Verilator --trace / VCS -debug)
+    // ----------------------------------------------------------------
+    initial begin
+        $dumpfile("dump.vcd");
+        $dumpvars(0, tb_top);
+    end
+
+    // ----------------------------------------------------------------
     // Clock generation — 300 MHz (3.33 ns period)
     // ----------------------------------------------------------------
     localparam real CLK_PERIOD = 3.33;

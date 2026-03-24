@@ -1,0 +1,98 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Tue Mar 24 14:06:48 2026
+[*]
+[dumpfile] "/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/dump.vcd"
+[dumpfile_mtime] "Tue Mar 24 13:49:53 2026"
+[dumpfile_size] 4787858
+[savefile] "/Users/robertmadsen/Documents/projects/low_latency_inference_unit/reports/backpressue.gtkw"
+[timestart] 417600
+[size] 1344 717
+[pos] -1 -1
+*-16.295876 660000 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+[treeopen] lliu_top.
+[treeopen] lliu_top.u_dp_engine.
+[treeopen] lliu_top.u_parser.
+[sst_width] 253
+[signals_width] 257
+[sst_expanded] 1
+[sst_vpaned_height] 200
+@29
+lliu_top.u_dp_engine.clk
+@28
+lliu_top.s_axis_tvalid
+lliu_top.s_axis_tready
+lliu_top.s_axis_tlast
+@c00022
+lliu_top.s_axis_tdata[63:0]
+@28
+(0)lliu_top.s_axis_tdata[63:0]
+(1)lliu_top.s_axis_tdata[63:0]
+(2)lliu_top.s_axis_tdata[63:0]
+(3)lliu_top.s_axis_tdata[63:0]
+(4)lliu_top.s_axis_tdata[63:0]
+(5)lliu_top.s_axis_tdata[63:0]
+(6)lliu_top.s_axis_tdata[63:0]
+(7)lliu_top.s_axis_tdata[63:0]
+(8)lliu_top.s_axis_tdata[63:0]
+(9)lliu_top.s_axis_tdata[63:0]
+(10)lliu_top.s_axis_tdata[63:0]
+(11)lliu_top.s_axis_tdata[63:0]
+(12)lliu_top.s_axis_tdata[63:0]
+(13)lliu_top.s_axis_tdata[63:0]
+(14)lliu_top.s_axis_tdata[63:0]
+(15)lliu_top.s_axis_tdata[63:0]
+(16)lliu_top.s_axis_tdata[63:0]
+(17)lliu_top.s_axis_tdata[63:0]
+(18)lliu_top.s_axis_tdata[63:0]
+(19)lliu_top.s_axis_tdata[63:0]
+(20)lliu_top.s_axis_tdata[63:0]
+(21)lliu_top.s_axis_tdata[63:0]
+(22)lliu_top.s_axis_tdata[63:0]
+(23)lliu_top.s_axis_tdata[63:0]
+(24)lliu_top.s_axis_tdata[63:0]
+(25)lliu_top.s_axis_tdata[63:0]
+(26)lliu_top.s_axis_tdata[63:0]
+(27)lliu_top.s_axis_tdata[63:0]
+(28)lliu_top.s_axis_tdata[63:0]
+(29)lliu_top.s_axis_tdata[63:0]
+(30)lliu_top.s_axis_tdata[63:0]
+(31)lliu_top.s_axis_tdata[63:0]
+(32)lliu_top.s_axis_tdata[63:0]
+(33)lliu_top.s_axis_tdata[63:0]
+(34)lliu_top.s_axis_tdata[63:0]
+(35)lliu_top.s_axis_tdata[63:0]
+(36)lliu_top.s_axis_tdata[63:0]
+(37)lliu_top.s_axis_tdata[63:0]
+(38)lliu_top.s_axis_tdata[63:0]
+(39)lliu_top.s_axis_tdata[63:0]
+(40)lliu_top.s_axis_tdata[63:0]
+(41)lliu_top.s_axis_tdata[63:0]
+(42)lliu_top.s_axis_tdata[63:0]
+(43)lliu_top.s_axis_tdata[63:0]
+(44)lliu_top.s_axis_tdata[63:0]
+(45)lliu_top.s_axis_tdata[63:0]
+(46)lliu_top.s_axis_tdata[63:0]
+(47)lliu_top.s_axis_tdata[63:0]
+(48)lliu_top.s_axis_tdata[63:0]
+(49)lliu_top.s_axis_tdata[63:0]
+(50)lliu_top.s_axis_tdata[63:0]
+(51)lliu_top.s_axis_tdata[63:0]
+(52)lliu_top.s_axis_tdata[63:0]
+(53)lliu_top.s_axis_tdata[63:0]
+(54)lliu_top.s_axis_tdata[63:0]
+(55)lliu_top.s_axis_tdata[63:0]
+(56)lliu_top.s_axis_tdata[63:0]
+(57)lliu_top.s_axis_tdata[63:0]
+(58)lliu_top.s_axis_tdata[63:0]
+(59)lliu_top.s_axis_tdata[63:0]
+(60)lliu_top.s_axis_tdata[63:0]
+(61)lliu_top.s_axis_tdata[63:0]
+(62)lliu_top.s_axis_tdata[63:0]
+(63)lliu_top.s_axis_tdata[63:0]
+@1401202
+-group_end
+@100000028
+lliu_top.seq_state[1:0]
+[pattern_trace] 1
+[pattern_trace] 0

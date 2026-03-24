@@ -49,6 +49,23 @@
 | 18 | `lliu_top : test_integration_sweep` | 10 | PASS |
 | | **Total** | **113** | **all PASS** |
 
+### Backpressure waveform
+
+The `test_backpressure` suite exercises the `s_axis_tready=0` stall path. The
+waveform below confirms `tvalid` held high while `tready` is deasserted, and
+that the pipeline resumes correctly once `tready` is reasserted.
+
+![Backpressure waveform — cocotb](cocotb_backpressure.png)
+
+### Coverage approach
+
+A **unit-test per module** strategy was used: each RTL module is compiled as its
+own Verilator top-level and exercised by a dedicated test suite before system
+integration testing closes inter-module paths. No constrained-random weight
+generation was needed — exhaustive per-module parameterization combined with the
+integration sweep is sufficient to reach every executable line with deterministic
+stimuli.
+
 ### Lines of code
 
 | Category | Files | LOC |
