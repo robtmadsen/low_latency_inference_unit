@@ -1,0 +1,260 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - LLIU UVM Line Coverage - tb/uvm/tests/lliu_coverage_test.sv</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory tb/uvm/tests">tb/uvm/tests</a> - lliu_coverage_test.sv</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">LLIU UVM Line Coverage</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">98.1&nbsp;%</td>
+            <td class="headerCovTableEntry">105</td>
+            <td class="headerCovTableEntry">103</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-03-23 22:31:29</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">-</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+                  <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // lliu_coverage_test.sv — Constrained-random coverage-closure test</span>
+<span id="L2"><span class="lineNum">       2</span>              : //</span>
+<span id="L3"><span class="lineNum">       3</span>              : // Closes remaining line-coverage gaps via weight randomization.</span>
+<span id="L4"><span class="lineNum">       4</span>              : // The existing tests (smoke, replay, random, stress, error) use fixed</span>
+<span id="L5"><span class="lineNum">       5</span>              : // weights with zero mantissa {1.0, 0.5, 0.25, 0.125}, which prevents:</span>
+<span id="L6"><span class="lineNum">       6</span>              : //   - bfloat16_mul norm_shift (needs non-trivial mantissa product)</span>
+<span id="L7"><span class="lineNum">       7</span>              : //   - fp32_acc deep renormalization (needs sign-diverse accumulation)</span>
+<span id="L8"><span class="lineNum">       8</span>              : //   - fp32_acc exact cancellation (needs precisely opposing products)</span>
+<span id="L9"><span class="lineNum">       9</span>              : //</span>
+<span id="L10"><span class="lineNum">      10</span>              : // Strategy:</span>
+<span id="L11"><span class="lineNum">      11</span>              : //   Phase 1 — Constrained-random weight loop:</span>
+<span id="L12"><span class="lineNum">      12</span>              : //     Re-randomize weights across N_ITERS iterations with four constraint</span>
+<span id="L13"><span class="lineNum">      13</span>              : //     flavours, send random orders, let natural diversity exercise all</span>
+<span id="L14"><span class="lineNum">      14</span>              : //     arithmetic paths.</span>
+<span id="L15"><span class="lineNum">      15</span>              : //   Phase 2 — Protocol edges (directed, one-shot):</span>
+<span id="L16"><span class="lineNum">      16</span>              : //     Register-map corners (CTRL, unmapped) and parser truncation.</span>
+<span id="L17"><span class="lineNum">      17</span>              : //     CR can't reach these — they need specific AXI-Lite / AXI-Stream ops.</span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span>              : class lliu_coverage_test extends lliu_base_test;</span>
+<span id="L20"><span class="lineNum">      20</span> <span class="tlaGNC">           1 :     `uvm_component_utils(lliu_coverage_test)</span></span>
+<span id="L21"><span class="lineNum">      21</span>              : </span>
+<span id="L22"><span class="lineNum">      22</span>              :     localparam int N_ITERS      = 128;</span>
+<span id="L23"><span class="lineNum">      23</span>              :     localparam int ORDERS_PER   = 4;</span>
+<span id="L24"><span class="lineNum">      24</span>              : </span>
+<span id="L25"><span class="lineNum">      25</span> <span class="tlaGNC">           1 :     function new(string name = &quot;lliu_coverage_test&quot;, uvm_component parent = null);</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">           1 :         super.new(name, parent);</span></span>
+<span id="L27"><span class="lineNum">      27</span>              :     endfunction</span>
+<span id="L28"><span class="lineNum">      28</span>              : </span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">           1 :     task run_phase(uvm_phase phase);</span></span>
+<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC">           1 :         weight_load_seq       wgt_seq;</span></span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">           1 :         itch_replay_seq       order_seq;</span></span>
+<span id="L32"><span class="lineNum">      32</span> <span class="tlaGNC">           1 :         axil_poll_status_seq  poll_seq;</span></span>
+<span id="L33"><span class="lineNum">      33</span> <span class="tlaGNC">           1 :         axil_read_seq         rd_seq;</span></span>
+<span id="L34"><span class="lineNum">      34</span> <span class="tlaGNC">           1 :         regmap_edge_seq       regmap_seq;</span></span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">           1 :         itch_edge_seq         itch_seq;</span></span>
+<span id="L36"><span class="lineNum">      36</span>              : </span>
+<span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">           1 :         shortint unsigned     w[4];</span></span>
+<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">           1 :         longint unsigned      order_ref;</span></span>
+<span id="L39"><span class="lineNum">      39</span>              : </span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">           1 :         phase.raise_objection(this, &quot;lliu_coverage_test&quot;);</span></span>
+<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">           1 :         m_env.m_predictor.init_golden_model();</span></span>
+<span id="L42"><span class="lineNum">      42</span>              : </span>
+<span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC">           1 :         order_ref = 64'hCC00_0000_0000_0001;</span></span>
+<span id="L44"><span class="lineNum">      44</span>              : </span>
+<span id="L45"><span class="lineNum">      45</span>              :         // ================================================================</span>
+<span id="L46"><span class="lineNum">      46</span>              :         // Phase 1: Constrained-random arithmetic coverage</span>
+<span id="L47"><span class="lineNum">      47</span>              :         // ================================================================</span>
+<span id="L48"><span class="lineNum">      48</span> <span class="tlaGNC">           1 :         `uvm_info(&quot;COV_TEST&quot;, &quot;Phase 1: Constrained-random weight loop&quot;, UVM_LOW)</span></span>
+<span id="L49"><span class="lineNum">      49</span>              : </span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">         128 :         for (int iter = 0; iter &lt; N_ITERS; iter++) begin</span></span>
+<span id="L51"><span class="lineNum">      51</span>              :             // ---- Constrained weight generation ----</span>
+<span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">           4 :             if (iter &lt; 4) begin</span></span>
+<span id="L53"><span class="lineNum">      53</span>              :                 // Exact-cancellation: w[0] = +V, w[1] = -V, w[2..3] = 0</span>
+<span id="L54"><span class="lineNum">      54</span>              :                 // Guarantees sum_man == 0 on second MAC element</span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">           4 :                 bit [7:0] e = 8'($urandom_range(126, 140));</span></span>
+<span id="L56"><span class="lineNum">      56</span> <span class="tlaGNC">           4 :                 bit [6:0] m = 7'($urandom_range(0, 127));</span></span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">           4 :                 w[0] = {1'b0, e, m};</span></span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">           4 :                 w[1] = {1'b1, e, m};</span></span>
+<span id="L59"><span class="lineNum">      59</span> <span class="tlaGNC">           4 :                 w[2] = 16'h0000;</span></span>
+<span id="L60"><span class="lineNum">      60</span> <span class="tlaGNC">           4 :                 w[3] = 16'h0000;</span></span>
+<span id="L61"><span class="lineNum">      61</span> <span class="tlaGNC">          32 :             end else if (iter &lt; 36) begin</span></span>
+<span id="L62"><span class="lineNum">      62</span>              :                 // Cancellation-biased: same exponent, opposite signs, random mantissa</span>
+<span id="L63"><span class="lineNum">      63</span>              :                 // Diverse mantissa differences → different renorm depths</span>
+<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">          32 :                 bit [7:0] e = 8'($urandom_range(124, 142));</span></span>
+<span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">          32 :                 w[0] = {1'b0, e, 7'($urandom_range(0, 127))};</span></span>
+<span id="L66"><span class="lineNum">      66</span> <span class="tlaGNC">          32 :                 w[1] = {1'b1, e, 7'($urandom_range(0, 127))};</span></span>
+<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">          32 :                 w[2] = {1'b0, 8'($urandom_range(120, 145)), 7'($urandom_range(0, 127))};</span></span>
+<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">          32 :                 w[3] = {1'b1, 8'($urandom_range(120, 145)), 7'($urandom_range(0, 127))};</span></span>
+<span id="L69"><span class="lineNum">      69</span> <span class="tlaGNC">          16 :             end else if (iter &lt; 52) begin</span></span>
+<span id="L70"><span class="lineNum">      70</span>              :                 // Exponent-diverse: different exponents create alignment shifts</span>
+<span id="L71"><span class="lineNum">      71</span>              :                 // Alignment shifts fill low mantissa bits → deeper renorm</span>
+<span id="L72"><span class="lineNum">      72</span> <span class="tlaGNC">          16 :                 bit [7:0] e0 = 8'($urandom_range(128, 145));</span></span>
+<span id="L73"><span class="lineNum">      73</span> <span class="tlaGNC">          16 :                 bit [7:0] e1 = e0 - 8'($urandom_range(1, 14));</span></span>
+<span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">          16 :                 w[0] = {1'b0, e0, 7'($urandom_range(32, 127))};</span></span>
+<span id="L75"><span class="lineNum">      75</span> <span class="tlaGNC">          16 :                 w[1] = {1'b1, e1, 7'($urandom_range(32, 127))};</span></span>
+<span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC">          16 :                 w[2] = {1'b0, 8'($urandom_range(125, 140)), 7'($urandom_range(0, 127))};</span></span>
+<span id="L77"><span class="lineNum">      77</span> <span class="tlaGNC">          16 :                 w[3] = {1'b1, 8'($urandom_range(125, 140)), 7'($urandom_range(0, 127))};</span></span>
+<span id="L78"><span class="lineNum">      78</span> <span class="tlaGNC">          68 :             end else if (iter &lt; 60) begin</span></span>
+<span id="L79"><span class="lineNum">      79</span>              :                 // Large-exponent: overflow path (r_exp_wide[8] in bfloat16_mul)</span>
+<span id="L80"><span class="lineNum">      80</span>              :                 // Needs weight_exp + feature_exp - 127 &gt;= 256</span>
+<span id="L81"><span class="lineNum">      81</span>              :                 // Features from int_to_bf16(price) top out at exp ~157</span>
+<span id="L82"><span class="lineNum">      82</span>              :                 // So weight_exp &gt;= 226 to reach overflow</span>
+<span id="L83"><span class="lineNum">      83</span> <span class="tlaGNC">          32 :                 for (int k = 0; k &lt; 4; k++) begin</span></span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">          32 :                     w[k] = {1'($urandom_range(0,1)),</span></span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC">          32 :                             8'($urandom_range(220, 250)),</span></span>
+<span id="L86"><span class="lineNum">      86</span> <span class="tlaGNC">          32 :                             7'($urandom_range(0, 127))};</span></span>
+<span id="L87"><span class="lineNum">      87</span>              :                 end</span>
+<span id="L88"><span class="lineNum">      88</span> <span class="tlaGNC">          68 :             end else begin</span></span>
+<span id="L89"><span class="lineNum">      89</span>              :                 // Pure random: broad coverage, non-zero mantissa for norm_shift</span>
+<span id="L90"><span class="lineNum">      90</span> <span class="tlaGNC">         272 :                 for (int k = 0; k &lt; 4; k++) begin</span></span>
+<span id="L91"><span class="lineNum">      91</span> <span class="tlaGNC">         272 :                     w[k] = {1'($urandom_range(0,1)),</span></span>
+<span id="L92"><span class="lineNum">      92</span> <span class="tlaGNC">         272 :                             8'($urandom_range(115, 160)),</span></span>
+<span id="L93"><span class="lineNum">      93</span> <span class="tlaGNC">         272 :                             7'($urandom_range(0, 127))};</span></span>
+<span id="L94"><span class="lineNum">      94</span>              :                 end</span>
+<span id="L95"><span class="lineNum">      95</span>              :             end</span>
+<span id="L96"><span class="lineNum">      96</span>              : </span>
+<span id="L97"><span class="lineNum">      97</span>              :             // ---- Load weights ----</span>
+<span id="L98"><span class="lineNum">      98</span> <span class="tlaGNC">         128 :             wgt_seq = weight_load_seq::type_id::create(&quot;wgt_seq&quot;);</span></span>
+<span id="L99"><span class="lineNum">      99</span> <span class="tlaGNC">         128 :             wgt_seq.weights = new[4];</span></span>
+<span id="L100"><span class="lineNum">     100</span> <span class="tlaGNC">         512 :             for (int k = 0; k &lt; 4; k++) wgt_seq.weights[k] = w[k];</span></span>
+<span id="L101"><span class="lineNum">     101</span> <span class="tlaGNC">         128 :             begin</span></span>
+<span id="L102"><span class="lineNum">     102</span> <span class="tlaGNC">         128 :                 shortint unsigned pred_w[4];</span></span>
+<span id="L103"><span class="lineNum">     103</span> <span class="tlaGNC">         512 :                 for (int k = 0; k &lt; 4; k++) pred_w[k] = w[k];</span></span>
+<span id="L104"><span class="lineNum">     104</span> <span class="tlaGNC">         128 :                 m_env.m_predictor.set_weights(pred_w);</span></span>
+<span id="L105"><span class="lineNum">     105</span>              :             end</span>
+<span id="L106"><span class="lineNum">     106</span> <span class="tlaGNC">         128 :             wgt_seq.start(m_env.m_axil_agent.m_sequencer);</span></span>
+<span id="L107"><span class="lineNum">     107</span>              : </span>
+<span id="L108"><span class="lineNum">     108</span>              :             // ---- Send random orders ----</span>
+<span id="L109"><span class="lineNum">     109</span> <span class="tlaGNC">         128 :             order_seq = itch_replay_seq::type_id::create(&quot;orders&quot;);</span></span>
+<span id="L110"><span class="lineNum">     110</span> <span class="tlaGNC">         512 :             for (int j = 0; j &lt; ORDERS_PER; j++) begin</span></span>
+<span id="L111"><span class="lineNum">     111</span> <span class="tlaGNC">         512 :                 int unsigned price = $urandom_range(1, 500000);</span></span>
+<span id="L112"><span class="lineNum">     112</span> <span class="tlaGNC">         512 :                 bit          side  = $urandom_range(0, 1);</span></span>
+<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">         512 :                 order_seq.add_order(order_ref, side, price, 100, &quot;COV     &quot;);</span></span>
+<span id="L114"><span class="lineNum">     114</span> <span class="tlaGNC">         512 :                 order_ref++;</span></span>
+<span id="L115"><span class="lineNum">     115</span>              :             end</span>
+<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC">         128 :             order_seq.start(m_env.m_axis_agent.m_sequencer);</span></span>
+<span id="L117"><span class="lineNum">     117</span>              : </span>
+<span id="L118"><span class="lineNum">     118</span>              :             // ---- Poll and read results ----</span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">         512 :             for (int j = 0; j &lt; ORDERS_PER; j++) begin</span></span>
+<span id="L120"><span class="lineNum">     120</span> <span class="tlaGNC">         512 :                 poll_seq = axil_poll_status_seq::type_id::create(&quot;poll&quot;);</span></span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">         512 :                 poll_seq.max_polls = 500;</span></span>
+<span id="L122"><span class="lineNum">     122</span> <span class="tlaGNC">         512 :                 poll_seq.start(m_env.m_axil_agent.m_sequencer);</span></span>
+<span id="L123"><span class="lineNum">     123</span> <span class="tlaGNC">         512 :                 if (poll_seq.timed_out)</span></span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaUNC">           0 :                     `uvm_warning(&quot;COV_TEST&quot;, $sformatf(&quot;iter=%0d order=%0d timeout&quot;, iter, j))</span></span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">         512 :                 rd_seq = axil_read_seq::type_id::create(&quot;rd&quot;);</span></span>
+<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">         512 :                 rd_seq.addr = 32'h10;</span></span>
+<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">         512 :                 rd_seq.start(m_env.m_axil_agent.m_sequencer);</span></span>
+<span id="L128"><span class="lineNum">     128</span>              :             end</span>
+<span id="L129"><span class="lineNum">     129</span>              : </span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">         124 :             if (iter % 32 == 31)</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">           4 :                 `uvm_info(&quot;COV_TEST&quot;, $sformatf(&quot;Progress: %0d/%0d iterations&quot;, iter+1, N_ITERS), UVM_LOW)</span></span>
+<span id="L132"><span class="lineNum">     132</span>              :         end</span>
+<span id="L133"><span class="lineNum">     133</span>              : </span>
+<span id="L134"><span class="lineNum">     134</span>              :         // ================================================================</span>
+<span id="L135"><span class="lineNum">     135</span>              :         // Phase 2: Protocol / control-path edges (directed)</span>
+<span id="L136"><span class="lineNum">     136</span>              :         // ================================================================</span>
+<span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC">           1 :         `uvm_info(&quot;COV_TEST&quot;, &quot;Phase 2: Protocol edges (regmap + parser)&quot;, UVM_LOW)</span></span>
+<span id="L138"><span class="lineNum">     138</span>              : </span>
+<span id="L139"><span class="lineNum">     139</span>              :         // Reload known-good weights for parser edge cases</span>
+<span id="L140"><span class="lineNum">     140</span> <span class="tlaGNC">           1 :         wgt_seq = weight_load_seq::type_id::create(&quot;wgt_proto&quot;);</span></span>
+<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">           1 :         wgt_seq.weights = new[4];</span></span>
+<span id="L142"><span class="lineNum">     142</span> <span class="tlaGNC">           1 :         wgt_seq.weights[0] = 16'h3F80;</span></span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">           1 :         wgt_seq.weights[1] = 16'h3F00;</span></span>
+<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC">           1 :         wgt_seq.weights[2] = 16'h3E80;</span></span>
+<span id="L145"><span class="lineNum">     145</span> <span class="tlaGNC">           1 :         wgt_seq.weights[3] = 16'h3E00;</span></span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">           1 :         begin</span></span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">           1 :             shortint unsigned pred_w[4];</span></span>
+<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">           1 :             pred_w[0] = 16'h3F80; pred_w[1] = 16'h3F00;</span></span>
+<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">           1 :             pred_w[2] = 16'h3E80; pred_w[3] = 16'h3E00;</span></span>
+<span id="L150"><span class="lineNum">     150</span> <span class="tlaGNC">           1 :             m_env.m_predictor.set_weights(pred_w);</span></span>
+<span id="L151"><span class="lineNum">     151</span>              :         end</span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">           1 :         wgt_seq.start(m_env.m_axil_agent.m_sequencer);</span></span>
+<span id="L153"><span class="lineNum">     153</span>              : </span>
+<span id="L154"><span class="lineNum">     154</span>              :         // Parser edge cases (truncation, non-Add-Order, back-to-back)</span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">           1 :         itch_seq = itch_edge_seq::type_id::create(&quot;itch_seq&quot;);</span></span>
+<span id="L156"><span class="lineNum">     156</span> <span class="tlaGNC">           1 :         itch_seq.start(m_env.m_axis_agent.m_sequencer);</span></span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">           7 :         repeat (7) begin</span></span>
+<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">           7 :             poll_seq = axil_poll_status_seq::type_id::create(&quot;poll&quot;);</span></span>
+<span id="L159"><span class="lineNum">     159</span> <span class="tlaGNC">           7 :             poll_seq.max_polls = 500;</span></span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">           7 :             poll_seq.start(m_env.m_axil_agent.m_sequencer);</span></span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">           7 :             if (poll_seq.timed_out)</span></span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaUNC">           0 :                 `uvm_warning(&quot;COV_TEST&quot;, &quot;Poll timeout during parser edges&quot;)</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">           7 :             rd_seq = axil_read_seq::type_id::create(&quot;rd&quot;);</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">           7 :             rd_seq.addr = 32'h10;</span></span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">           7 :             rd_seq.start(m_env.m_axil_agent.m_sequencer);</span></span>
+<span id="L166"><span class="lineNum">     166</span>              :         end</span>
+<span id="L167"><span class="lineNum">     167</span>              : </span>
+<span id="L168"><span class="lineNum">     168</span>              :         // Register-map edge cases (CTRL, unmapped, read-only writes)</span>
+<span id="L169"><span class="lineNum">     169</span>              :         // LAST: soft_reset disrupts pipeline state</span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">           1 :         regmap_seq = regmap_edge_seq::type_id::create(&quot;regmap_seq&quot;);</span></span>
+<span id="L171"><span class="lineNum">     171</span> <span class="tlaGNC">           1 :         regmap_seq.start(m_env.m_axil_agent.m_sequencer);</span></span>
+<span id="L172"><span class="lineNum">     172</span>              : </span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">           1 :         `uvm_info(&quot;COV_TEST&quot;, &quot;Coverage closure complete&quot;, UVM_LOW)</span></span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">           1 :         #1us;</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">           1 :         phase.drop_objection(this, &quot;lliu_coverage_test&quot;);</span></span>
+<span id="L176"><span class="lineNum">     176</span>              :     endtask</span>
+<span id="L177"><span class="lineNum">     177</span>              : </span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">           1 :     function void check_phase(uvm_phase phase);</span></span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">           1 :         super.check_phase(phase);</span></span>
+<span id="L180"><span class="lineNum">     180</span>              :         `uvm_info(&quot;COV_TEST&quot;, $sformatf(&quot;Coverage test: %0d comparisons, %0d mismatches&quot;,</span>
+<span id="L181"><span class="lineNum">     181</span>              :                   m_env.m_scoreboard.m_total_compared,</span>
+<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC">           1 :                   m_env.m_scoreboard.m_total_mismatches), UVM_NONE)</span></span>
+<span id="L183"><span class="lineNum">     183</span>              :     endfunction</span>
+<span id="L184"><span class="lineNum">     184</span>              : endclass</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.4-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

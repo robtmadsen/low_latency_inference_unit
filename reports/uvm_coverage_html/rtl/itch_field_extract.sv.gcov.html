@@ -1,0 +1,138 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - LLIU UVM Line Coverage - rtl/itch_field_extract.sv</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory rtl">rtl</a> - itch_field_extract.sv</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">LLIU UVM Line Coverage</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">6</td>
+            <td class="headerCovTableEntry">6</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-03-23 22:31:29</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">-</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // itch_field_extract.sv — Combinational field slicer for ITCH 5.0 Add Order</span>
+<span id="L2"><span class="lineNum">       2</span>              : //</span>
+<span id="L3"><span class="lineNum">       3</span>              : // Pure combinational: extracts fields from an aligned message byte buffer.</span>
+<span id="L4"><span class="lineNum">       4</span>              : // Only asserts fields_valid for Add Order messages (type 'A' = 0x41).</span>
+<span id="L5"><span class="lineNum">       5</span>              : //</span>
+<span id="L6"><span class="lineNum">       6</span>              : // ITCH Add Order layout (36 bytes):</span>
+<span id="L7"><span class="lineNum">       7</span>              : //   [0]     message_type (1 byte)</span>
+<span id="L8"><span class="lineNum">       8</span>              : //   [1:2]   stock_locate (2 bytes)</span>
+<span id="L9"><span class="lineNum">       9</span>              : //   [3:4]   tracking_number (2 bytes)</span>
+<span id="L10"><span class="lineNum">      10</span>              : //   [5:10]  timestamp (6 bytes)</span>
+<span id="L11"><span class="lineNum">      11</span>              : //   [11:18] order_reference_number (8 bytes, big-endian)</span>
+<span id="L12"><span class="lineNum">      12</span>              : //   [19]    buy_sell_indicator (1 byte, 'B' or 'S')</span>
+<span id="L13"><span class="lineNum">      13</span>              : //   [20:23] shares (4 bytes)</span>
+<span id="L14"><span class="lineNum">      14</span>              : //   [24:31] stock (8 bytes)</span>
+<span id="L15"><span class="lineNum">      15</span>              : //   [32:35] price (4 bytes, big-endian)</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              : import lliu_pkg::*;</span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span>              : module itch_field_extract (</span>
+<span id="L20"><span class="lineNum">      20</span>              :     // Packed message data: byte N = msg_data[(B-1-N)*8 +: 8], B = ITCH_ADD_ORDER_LEN</span>
+<span id="L21"><span class="lineNum">      21</span>              :     input  logic [ITCH_ADD_ORDER_LEN*8-1:0] msg_data,</span>
+<span id="L22"><span class="lineNum">      22</span> <span class="tlaGNC">         730 :     input  logic       msg_valid,</span></span>
+<span id="L23"><span class="lineNum">      23</span>              : </span>
+<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">          15 :     output logic [7:0]  message_type,</span></span>
+<span id="L25"><span class="lineNum">      25</span> <span class="tlaGNC">         322 :     output logic [63:0] order_ref,</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">         167 :     output logic        side,       // 1 = buy ('B'), 0 = sell ('S')</span></span>
+<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">         173 :     output logic [31:0] price,</span></span>
+<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC">         640 :     output logic        fields_valid</span></span>
+<span id="L29"><span class="lineNum">      29</span>              : );</span>
+<span id="L30"><span class="lineNum">      30</span>              : </span>
+<span id="L31"><span class="lineNum">      31</span>              :     localparam int B = ITCH_ADD_ORDER_LEN; // 36</span>
+<span id="L32"><span class="lineNum">      32</span>              : </span>
+<span id="L33"><span class="lineNum">      33</span>              :     // Byte 0: message type</span>
+<span id="L34"><span class="lineNum">      34</span>              :     assign message_type = msg_data[(B-1)*8 +: 8];</span>
+<span id="L35"><span class="lineNum">      35</span>              : </span>
+<span id="L36"><span class="lineNum">      36</span>              :     // Bytes 11–18: order reference number (8 bytes, big-endian)</span>
+<span id="L37"><span class="lineNum">      37</span>              :     assign order_ref = {</span>
+<span id="L38"><span class="lineNum">      38</span>              :         msg_data[(B-1-11)*8 +: 8],</span>
+<span id="L39"><span class="lineNum">      39</span>              :         msg_data[(B-1-12)*8 +: 8],</span>
+<span id="L40"><span class="lineNum">      40</span>              :         msg_data[(B-1-13)*8 +: 8],</span>
+<span id="L41"><span class="lineNum">      41</span>              :         msg_data[(B-1-14)*8 +: 8],</span>
+<span id="L42"><span class="lineNum">      42</span>              :         msg_data[(B-1-15)*8 +: 8],</span>
+<span id="L43"><span class="lineNum">      43</span>              :         msg_data[(B-1-16)*8 +: 8],</span>
+<span id="L44"><span class="lineNum">      44</span>              :         msg_data[(B-1-17)*8 +: 8],</span>
+<span id="L45"><span class="lineNum">      45</span>              :         msg_data[(B-1-18)*8 +: 8]</span>
+<span id="L46"><span class="lineNum">      46</span>              :     };</span>
+<span id="L47"><span class="lineNum">      47</span>              : </span>
+<span id="L48"><span class="lineNum">      48</span>              :     // Byte 19: buy/sell indicator ('B' = 0x42 → buy, anything else → sell)</span>
+<span id="L49"><span class="lineNum">      49</span>              :     assign side = (msg_data[(B-1-19)*8 +: 8] == 8'h42);</span>
+<span id="L50"><span class="lineNum">      50</span>              : </span>
+<span id="L51"><span class="lineNum">      51</span>              :     // Bytes 32–35: price (4 bytes, big-endian)</span>
+<span id="L52"><span class="lineNum">      52</span>              :     assign price = {</span>
+<span id="L53"><span class="lineNum">      53</span>              :         msg_data[(B-1-32)*8 +: 8],</span>
+<span id="L54"><span class="lineNum">      54</span>              :         msg_data[(B-1-33)*8 +: 8],</span>
+<span id="L55"><span class="lineNum">      55</span>              :         msg_data[(B-1-34)*8 +: 8],</span>
+<span id="L56"><span class="lineNum">      56</span>              :         msg_data[(B-1-35)*8 +: 8]</span>
+<span id="L57"><span class="lineNum">      57</span>              :     };</span>
+<span id="L58"><span class="lineNum">      58</span>              : </span>
+<span id="L59"><span class="lineNum">      59</span>              :     // Only assert fields_valid for Add Order messages</span>
+<span id="L60"><span class="lineNum">      60</span>              :     assign fields_valid = msg_valid &amp;&amp; (message_type == ITCH_MSG_ADD_ORDER);</span>
+<span id="L61"><span class="lineNum">      61</span>              : </span>
+<span id="L62"><span class="lineNum">      62</span>              : endmodule</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.4-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

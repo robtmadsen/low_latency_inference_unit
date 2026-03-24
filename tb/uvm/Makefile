@@ -178,7 +178,7 @@ $(BUILD_DIR):
 # ---- Coverage collection targets ----
 COV_DIR    := $(TB_DIR)/coverage_data
 UVM_TESTS  := lliu_smoke_test lliu_replay_test lliu_random_test \
-              lliu_stress_test lliu_error_test
+              lliu_stress_test lliu_error_test lliu_coverage_test
 
 .PHONY: coverage-run coverage-merge coverage-report coverage-clean
 

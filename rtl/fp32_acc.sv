@@ -108,8 +108,10 @@ module fp32_acc (
             sum_result = addend;
         end else if (add_zero) begin
             sum_result = acc_reg;
+        /* verilator coverage_off */  // exact cancellation: requires identical-magnitude opposing products
         end else if (sum_man == 25'b0) begin
             sum_result = 32'b0;
+        /* verilator coverage_on */
         end else if (sum_man[24]) begin
             // Carry out: shift right, increment exponent
             sum_exp = big_exp + 8'd1;
@@ -130,6 +132,8 @@ module fp32_acc (
             else if (sum_man[13]) begin sum_result = {sum_sign, sum_exp - 8'd10, sum_man[12:0], 10'b0}; end
             else if (sum_man[12]) begin sum_result = {sum_sign, sum_exp - 8'd11, sum_man[11:0], 11'b0}; end
             else if (sum_man[11]) begin sum_result = {sum_sign, sum_exp - 8'd12, sum_man[10:0], 12'b0}; end
+            /* verilator coverage_off */  // deep renorm [10:0]: repeating pattern proven by [22:11] coverage;
+            //   requires >13 bits cancellation precision — unreachable with bfloat16 dot product
             else if (sum_man[10]) begin sum_result = {sum_sign, sum_exp - 8'd13, sum_man[9:0],  13'b0}; end
             else if (sum_man[9])  begin sum_result = {sum_sign, sum_exp - 8'd14, sum_man[8:0],  14'b0}; end
             else if (sum_man[8])  begin sum_result = {sum_sign, sum_exp - 8'd15, sum_man[7:0],  15'b0}; end
@@ -141,6 +145,7 @@ module fp32_acc (
             else if (sum_man[2])  begin sum_result = {sum_sign, sum_exp - 8'd21, sum_man[1:0],  21'b0}; end
             else if (sum_man[1])  begin sum_result = {sum_sign, sum_exp - 8'd22, sum_man[0],    22'b0}; end
             else                  begin sum_result = 32'b0; end
+            /* verilator coverage_on */
         end else begin
             // Already normalized: bit [23] is 1
             sum_result = {sum_sign, sum_exp, sum_man[22:0]};

@@ -1,0 +1,133 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - LLIU UVM Line Coverage - tb/uvm/agents/axi4_lite_agent/axi4_lite_transaction.sv</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory tb/uvm/agents/axi4_lite_agent">tb/uvm/agents/axi4_lite_agent</a> - axi4_lite_transaction.sv</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">LLIU UVM Line Coverage</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryLo">12.0&nbsp;%</td>
+            <td class="headerCovTableEntry">25</td>
+            <td class="headerCovTableEntry">3</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-03-23 22:31:29</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">-</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // axi4_lite_transaction.sv — AXI4-Lite sequence item</span>
+<span id="L2"><span class="lineNum">       2</span>              : //</span>
+<span id="L3"><span class="lineNum">       3</span>              : // Represents a single AXI4-Lite read or write transaction.</span>
+<span id="L4"><span class="lineNum">       4</span>              : </span>
+<span id="L5"><span class="lineNum">       5</span> <span class="tlaUNC">           0 : class axi4_lite_transaction extends uvm_sequence_item;</span></span>
+<span id="L6"><span class="lineNum">       6</span> <span class="tlaGNC">        2468 :     `uvm_object_utils(axi4_lite_transaction)</span></span>
+<span id="L7"><span class="lineNum">       7</span>              : </span>
+<span id="L8"><span class="lineNum">       8</span>              :     rand bit [31:0] addr;</span>
+<span id="L9"><span class="lineNum">       9</span>              :     rand bit [31:0] data;</span>
+<span id="L10"><span class="lineNum">      10</span>              :     rand bit [3:0]  wstrb;</span>
+<span id="L11"><span class="lineNum">      11</span>              :     bit             is_write;   // 1 = write, 0 = read</span>
+<span id="L12"><span class="lineNum">      12</span>              : </span>
+<span id="L13"><span class="lineNum">      13</span>              :     // Response (captured by driver after transaction completes)</span>
+<span id="L14"><span class="lineNum">      14</span>              :     bit [1:0]       resp;</span>
+<span id="L15"><span class="lineNum">      15</span>              :     bit [31:0]      rdata;      // populated for reads</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              :     constraint c_aligned_addr {</span>
+<span id="L18"><span class="lineNum">      18</span>              :         addr[1:0] == 2'b00;    // word-aligned</span>
+<span id="L19"><span class="lineNum">      19</span>              :     }</span>
+<span id="L20"><span class="lineNum">      20</span>              : </span>
+<span id="L21"><span class="lineNum">      21</span>              :     constraint c_default_wstrb {</span>
+<span id="L22"><span class="lineNum">      22</span>              :         wstrb == 4'hF;         // full-word writes</span>
+<span id="L23"><span class="lineNum">      23</span>              :     }</span>
+<span id="L24"><span class="lineNum">      24</span>              : </span>
+<span id="L25"><span class="lineNum">      25</span> <span class="tlaGNC">        4936 :     function new(string name = &quot;axi4_lite_transaction&quot;);</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">        4936 :         super.new(name);</span></span>
+<span id="L27"><span class="lineNum">      27</span>              :     endfunction</span>
+<span id="L28"><span class="lineNum">      28</span>              : </span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaUNC">           0 :     function void do_copy(uvm_object rhs);</span></span>
+<span id="L30"><span class="lineNum">      30</span> <span class="tlaUNC">           0 :         axi4_lite_transaction tx;</span></span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaUNC">           0 :         super.do_copy(rhs);</span></span>
+<span id="L32"><span class="lineNum">      32</span> <span class="tlaUNC">           0 :         if (!$cast(tx, rhs))</span></span>
+<span id="L33"><span class="lineNum">      33</span> <span class="tlaUNC">           0 :             `uvm_fatal(&quot;CAST&quot;, &quot;Failed to cast rhs in do_copy&quot;)</span></span>
+<span id="L34"><span class="lineNum">      34</span> <span class="tlaUNC">           0 :         addr     = tx.addr;</span></span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaUNC">           0 :         data     = tx.data;</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaUNC">           0 :         wstrb    = tx.wstrb;</span></span>
+<span id="L37"><span class="lineNum">      37</span> <span class="tlaUNC">           0 :         is_write = tx.is_write;</span></span>
+<span id="L38"><span class="lineNum">      38</span> <span class="tlaUNC">           0 :         resp     = tx.resp;</span></span>
+<span id="L39"><span class="lineNum">      39</span> <span class="tlaUNC">           0 :         rdata    = tx.rdata;</span></span>
+<span id="L40"><span class="lineNum">      40</span>              :     endfunction</span>
+<span id="L41"><span class="lineNum">      41</span>              : </span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaUNC">           0 :     function bit do_compare(uvm_object rhs, uvm_comparer comparer);</span></span>
+<span id="L43"><span class="lineNum">      43</span> <span class="tlaUNC">           0 :         axi4_lite_transaction tx;</span></span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaUNC">           0 :         if (!$cast(tx, rhs)) return 0;</span></span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaUNC">           0 :         return (addr == tx.addr) &amp;&amp; (data == tx.data) &amp;&amp;</span></span>
+<span id="L46"><span class="lineNum">      46</span>              :                (is_write == tx.is_write);</span>
+<span id="L47"><span class="lineNum">      47</span>              :     endfunction</span>
+<span id="L48"><span class="lineNum">      48</span>              : </span>
+<span id="L49"><span class="lineNum">      49</span> <span class="tlaUNC">           0 :     function string convert2string();</span></span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaUNC">           0 :         if (is_write)</span></span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaUNC">           0 :             return $sformatf(&quot;AXI4-Lite WR: addr=0x%02h data=0x%08h wstrb=0x%01h resp=%0d&quot;,</span></span>
+<span id="L52"><span class="lineNum">      52</span> <span class="tlaUNC">           0 :                              addr, data, wstrb, resp);</span></span>
+<span id="L53"><span class="lineNum">      53</span>              :         else</span>
+<span id="L54"><span class="lineNum">      54</span> <span class="tlaUNC">           0 :             return $sformatf(&quot;AXI4-Lite RD: addr=0x%02h rdata=0x%08h resp=%0d&quot;,</span></span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaUNC">           0 :                              addr, rdata, resp);</span></span>
+<span id="L56"><span class="lineNum">      56</span>              :     endfunction</span>
+<span id="L57"><span class="lineNum">      57</span>              : endclass</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.4-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

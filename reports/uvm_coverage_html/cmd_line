@@ -1,0 +1,1 @@
+genhtml tb/uvm/coverage_data/merged.info -o reports/uvm_coverage_html --title 'LLIU UVM Line Coverage' --prefix /Users/robertmadsen/Documents/projects/low_latency_inference_unit

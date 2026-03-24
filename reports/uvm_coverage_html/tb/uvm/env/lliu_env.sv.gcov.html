@@ -1,0 +1,119 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - LLIU UVM Line Coverage - tb/uvm/env/lliu_env.sv</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory tb/uvm/env">tb/uvm/env</a> - lliu_env.sv</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">LLIU UVM Line Coverage</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">93.8&nbsp;%</td>
+            <td class="headerCovTableEntry">16</td>
+            <td class="headerCovTableEntry">15</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-03-23 22:31:29</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">-</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+                  <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // lliu_env.sv — Top-level UVM environment for Low-Latency Inference Unit</span>
+<span id="L2"><span class="lineNum">       2</span>              : //</span>
+<span id="L3"><span class="lineNum">       3</span>              : // Contains: AXI4-Stream agent, AXI4-Lite agent, predictor, scoreboard, coverage</span>
+<span id="L4"><span class="lineNum">       4</span>              : </span>
+<span id="L5"><span class="lineNum">       5</span>              : class lliu_env extends uvm_env;</span>
+<span id="L6"><span class="lineNum">       6</span> <span class="tlaUNC">           0 :     `uvm_component_utils(lliu_env)</span></span>
+<span id="L7"><span class="lineNum">       7</span>              : </span>
+<span id="L8"><span class="lineNum">       8</span>              :     // Agents</span>
+<span id="L9"><span class="lineNum">       9</span>              :     axi4_stream_agent  m_axis_agent;</span>
+<span id="L10"><span class="lineNum">      10</span>              :     axi4_lite_agent    m_axil_agent;</span>
+<span id="L11"><span class="lineNum">      11</span>              : </span>
+<span id="L12"><span class="lineNum">      12</span>              :     // Checking</span>
+<span id="L13"><span class="lineNum">      13</span>              :     lliu_predictor     m_predictor;</span>
+<span id="L14"><span class="lineNum">      14</span>              :     lliu_scoreboard    m_scoreboard;</span>
+<span id="L15"><span class="lineNum">      15</span>              : </span>
+<span id="L16"><span class="lineNum">      16</span>              :     // Coverage</span>
+<span id="L17"><span class="lineNum">      17</span>              :     lliu_coverage      m_coverage;</span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span> <span class="tlaGNC">           6 :     function new(string name = &quot;lliu_env&quot;, uvm_component parent = null);</span></span>
+<span id="L20"><span class="lineNum">      20</span> <span class="tlaGNC">           6 :         super.new(name, parent);</span></span>
+<span id="L21"><span class="lineNum">      21</span>              :     endfunction</span>
+<span id="L22"><span class="lineNum">      22</span>              : </span>
+<span id="L23"><span class="lineNum">      23</span> <span class="tlaGNC">           6 :     function void build_phase(uvm_phase phase);</span></span>
+<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">           6 :         super.build_phase(phase);</span></span>
+<span id="L25"><span class="lineNum">      25</span> <span class="tlaGNC">           6 :         m_axis_agent = axi4_stream_agent::type_id::create(&quot;m_axis_agent&quot;, this);</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">           6 :         m_axil_agent = axi4_lite_agent::type_id::create(&quot;m_axil_agent&quot;, this);</span></span>
+<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">           6 :         m_predictor  = lliu_predictor::type_id::create(&quot;m_predictor&quot;, this);</span></span>
+<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC">           6 :         m_scoreboard = lliu_scoreboard::type_id::create(&quot;m_scoreboard&quot;, this);</span></span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">           6 :         m_coverage   = lliu_coverage::type_id::create(&quot;m_coverage&quot;, this);</span></span>
+<span id="L30"><span class="lineNum">      30</span>              :     endfunction</span>
+<span id="L31"><span class="lineNum">      31</span>              : </span>
+<span id="L32"><span class="lineNum">      32</span> <span class="tlaGNC">           6 :     function void connect_phase(uvm_phase phase);</span></span>
+<span id="L33"><span class="lineNum">      33</span> <span class="tlaGNC">           6 :         super.connect_phase(phase);</span></span>
+<span id="L34"><span class="lineNum">      34</span>              :         // Stream monitor → predictor (to compute expected inference result)</span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">           6 :         m_axis_agent.m_monitor.ap.connect(m_predictor.analysis_export);</span></span>
+<span id="L36"><span class="lineNum">      36</span>              :         // Predictor → scoreboard expected FIFO</span>
+<span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">           6 :         m_predictor.result_ap.connect(m_scoreboard.expected_fifo.analysis_export);</span></span>
+<span id="L38"><span class="lineNum">      38</span>              :         // AXI-Lite monitor → scoreboard actual FIFO (result reads)</span>
+<span id="L39"><span class="lineNum">      39</span> <span class="tlaGNC">           6 :         m_axil_agent.m_monitor.ap.connect(m_scoreboard.actual_fifo.analysis_export);</span></span>
+<span id="L40"><span class="lineNum">      40</span>              :         // Stream monitor → coverage collector</span>
+<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">           6 :         m_axis_agent.m_monitor.ap.connect(m_coverage.analysis_export);</span></span>
+<span id="L42"><span class="lineNum">      42</span>              :     endfunction</span>
+<span id="L43"><span class="lineNum">      43</span>              : endclass</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.4-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
