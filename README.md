@@ -8,7 +8,7 @@ A hardware accelerator for real-time inference on streaming NASDAQ ITCH 5.0 mark
 
 ## What It Does
 
-Parses live-format NASDAQ ITCH 5.0 binary data, extracts trading features, and runs single-sample inference through a pipelined bfloat16 dot-product engine — all in under 5 cycles at 300 MHz.
+Parses live-format NASDAQ ITCH 5.0 binary data, extracts trading features, and runs single-sample inference through a pipelined bfloat16 dot-product engine with a verified full-path latency of fewer than 12 cycles at 300 MHz, measured from final AXI4-Stream beat accepted to `dp_result_valid`.
 
 ```
 AXI4-Stream → ITCH Parser → Feature Extractor → Dot-Product Engine → Result
@@ -57,6 +57,7 @@ Both environments are fully independent and self-sufficient — each can verify 
 - Constrained-random stimulus with adversarial edge cases
 - Backpressure modeling and error injection tests
 - Latency profiler with histogram + statistical report (min/max/mean/p99/stddev)
+- End-to-end latency contract check for final AXI beat accepted to `dp_result_valid` (< 12 cycles)
 - 12 test modules covering all RTL blocks and system scenarios
 
 ### Shared
@@ -72,7 +73,12 @@ GitHub Actions runs on every push and PR to `main`. All jobs use Verilator 5.046
 |-----|-------------|
 | **lint** | `verilator --lint-only` on all RTL |
 | **cocotb** | 7-job test matrix (block-level + system-level) via cocotb 2.0 + Verilator |
-| **uvm** | Compile + run `lliu_base_test` and `lliu_smoke_test` via Verilator |
+| **uvm** | Compile + run `lliu_base_test` and `lliu_smoke_test` with the bound end-to-end latency checker via Verilator |
+
+Primary performance contract in CI:
+
+- Full hardware datapath latency: final AXI4-Stream beat accepted to `dp_result_valid` in fewer than 12 cycles
+- Stage-level latency: `parser_fields_valid` to `feat_valid` in fewer than 5 cycles
 
 Waveforms (VCD) are uploaded as artifacts on UVM test failure.
 
