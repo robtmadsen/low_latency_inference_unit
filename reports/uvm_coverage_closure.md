@@ -35,7 +35,16 @@
 | 5 | `lliu_stress_test` | High-throughput with backpressure | PASS |
 | 6 | `lliu_coverage_test` | Hybrid constrained-random + directed | PASS |
 
-### Coverage test structure (the key coverage-closure test)
+### Backpressure waveform
+
+The `lliu_stress_test` drives backpressure via `backpressure_seq` (pattern=1,
+`ready_every=4`, `stall_ns=50 ns`, 20 messages). The waveform below confirms
+`s_axis_tvalid` is held high while `s_axis_tready` is deasserted, and the
+pipeline drains correctly once `tready` is reasserted.
+
+![Backpressure waveform — UVM](uvm_backpressure.png)
+
+### Coverage approach
 
 The `lliu_coverage_test` uses a **hybrid** approach:
 
@@ -58,6 +67,21 @@ Order messages. Weight randomization uses 5 constraint categories:
 |----------|---------|
 | `itch_edge_seq` | Parser truncation, non-Add-Order messages, back-to-back orders |
 | `regmap_edge_seq` | CTRL register (soft-reset, enable toggles), unmapped address writes |
+
+**Constrained-random vs. directed** — the coverage test demonstrates that
+constrained random is effective for exercising arithmetic datapath corners:
+
+| Coverage gap | Approach | Result |
+|-------------|----------|---------|
+| `norm_shift` in bfloat16_mul | Random weights with non-zero mantissa | ✓ Covered |
+| `eff_sub` subtraction paths in fp32_acc | Sign-diverse weight randomization | ✓ Covered |
+| Renormalization chain `[22:11]` | Exponent-diverse + cancel-biased weights | ✓ Covered (all 12 branches) |
+| `acc_larger` / `!acc_larger` branches | Natural from random accumulation | ✓ Covered |
+| Carry-out `sum_man[24]` | Large-exponent weights | ✓ Covered |
+
+Protocol edges still require **directed sequences** because they exercise
+specific bus protocol corners (truncated messages, unmapped registers, FSM resets)
+that constrained-random weight/order generation cannot target.
 
 ### Lines of code
 
@@ -91,23 +115,6 @@ Order messages. Weight randomization uses 5 constraint categories:
 > combinational or simple register logic — inlined by Verilator during
 > UVM hierarchy compilation; their logic is covered within parent modules.
 > `lliu_pkg.sv` defines only parameters and types — no executable lines.
-
----
-
-## Reconciliation with cocotb Report
-
-The companion [cocotb coverage closure report](cocotb_coverage_closure.md)
-reports **502** coverable lines vs the **449** reported here. The delta of 53
-lines breaks down as follows:
-
-| Cause | Lines | Detail |
-|-------|------:|--------|
-| Verilator module inlining | −36 | cocotb compiles each module as its own top-level (unit tests), so Verilator annotates all 10 modules individually. The UVM flow compiles a single system-level top (`tb_top` → `lliu_top`), and Verilator inlines 3 small leaf modules: `itch_field_extract.sv` (6), `output_buffer.sv` (14), `weight_mem.sv` (16). Their logic is still exercised and covered — it is simply counted under the parent module rather than in a separate file. |
-| Additional coverage pragmas | −17 | 5 pragmas were added to the shared RTL during UVM closure (see "Added during UVM stage" below). These exclude 17 lines that were counted as coverable in the cocotb report because the pragmas did not yet exist at that time. |
-| **Total** | **−53** | 502 − 53 = **449** ✓ |
-
-Both reports cover the **same 11-file, 1,342-LOC RTL**. The denominators differ
-only because of tooling artifacts (inlining) and the timing of pragma additions.
 
 ---
 
@@ -147,22 +154,20 @@ shift-and-rebuild logic is proven by the 12 exercised entries.
 
 ---
 
-## Approach: Constrained-Random vs. Directed
+## Reconciliation with cocotb Report
 
-The coverage test demonstrates that **constrained random** is effective for
-exercising arithmetic datapath corners:
+The companion [cocotb coverage closure report](cocotb_coverage_closure.md)
+reports **502** coverable lines vs the **449** reported here. The delta of 53
+lines breaks down as follows:
 
-| Coverage gap | Approach | Result |
-|-------------|----------|--------|
-| `norm_shift` in bfloat16_mul | Random weights with non-zero mantissa | ✓ Covered |
-| `eff_sub` subtraction paths in fp32_acc | Sign-diverse weight randomization | ✓ Covered |
-| Renormalization chain `[22:11]` | Exponent-diverse + cancel-biased weights | ✓ Covered (all 12 branches) |
-| `acc_larger` / `!acc_larger` branches | Natural from random accumulation | ✓ Covered |
-| Carry-out `sum_man[24]` | Large-exponent weights | ✓ Covered |
+| Cause | Lines | Detail |
+|-------|------:|--------|
+| Verilator module inlining | −36 | cocotb compiles each module as its own top-level (unit tests), so Verilator annotates all 10 modules individually. The UVM flow compiles a single system-level top (`tb_top` → `lliu_top`), and Verilator inlines 3 small leaf modules: `itch_field_extract.sv` (6), `output_buffer.sv` (14), `weight_mem.sv` (16). Their logic is still exercised and covered — it is simply counted under the parent module rather than in a separate file. |
+| Additional coverage pragmas | −17 | 5 pragmas were added to the shared RTL during UVM closure (see "Added during UVM stage" above). These exclude 17 lines that were counted as coverable in the cocotb report because the pragmas did not yet exist at that time. |
+| **Total** | **−53** | 502 − 53 = **449** ✓ |
 
-Protocol edges still require **directed sequences** because they exercise
-specific bus protocol corners (truncated messages, unmapped registers, FSM resets)
-that constrained-random weight/order generation cannot target.
+Both reports cover the **same 11-file, 1,342-LOC RTL**. The denominators differ
+only because of tooling artifacts (inlining) and the timing of pragma additions.
 
 ---
 

@@ -52,6 +52,28 @@ if [ -n "$DAT_FILES" ]; then
     echo "==== Coverage Summary ===="
     verilator_coverage --annotate "$COV_DIR/annotate" --annotate-min 1 "$COV_DIR/merged.dat"
     echo "Annotated files in $COV_DIR/annotate/"
+
+    echo ""
+    echo "==== Generating HTML report (RTL only) ===="
+    INFO_FILE="$COV_DIR/merged.info"
+    RTL_INFO="$COV_DIR/rtl_only.info"
+    HTML_DIR="$PROJ_ROOT/reports/uvm_coverage_html"
+
+    # Convert Verilator .dat to LCOV .info format
+    verilator_coverage --write-info "$INFO_FILE" "$COV_DIR/merged.dat"
+
+    # Filter to only RTL source files
+    lcov --extract "$INFO_FILE" "*/rtl/*.sv" -o "$RTL_INFO"
+
+    # Generate HTML
+    rm -rf "$HTML_DIR"
+    mkdir -p "$HTML_DIR"
+    genhtml \
+        --title "LLIU UVM RTL Line Coverage" \
+        --prefix "$PROJ_ROOT" \
+        --output-directory "$HTML_DIR" \
+        "$RTL_INFO"
+    echo "HTML report -> $HTML_DIR/index.html"
 else
     echo "No .dat files found!"
 fi

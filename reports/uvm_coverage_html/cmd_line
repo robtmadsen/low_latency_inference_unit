@@ -1,1 +1,1 @@
-genhtml tb/uvm/coverage_data/merged.info -o reports/uvm_coverage_html --title 'LLIU UVM Line Coverage' --prefix /Users/robertmadsen/Documents/projects/low_latency_inference_unit
+genhtml --title 'LLIU UVM RTL Line Coverage' --prefix /Users/robertmadsen/Documents/projects/low_latency_inference_unit --output-directory /Users/robertmadsen/Documents/projects/low_latency_inference_unit/reports/uvm_coverage_html /Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/uvm/coverage_data/rtl_only.info
