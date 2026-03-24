@@ -17,6 +17,9 @@ coverage.dat
 # OS files
 .DS_Store
 
+# Private directories
+JDs/
+
 # Editor
 *.swp
 *.swo

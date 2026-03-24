@@ -1,0 +1,126 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - LLIU UVM Line Coverage - tb/uvm/sequences/weight_load_seq.sv</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory tb/uvm/sequences">tb/uvm/sequences</a> - weight_load_seq.sv</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">LLIU UVM Line Coverage</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">23</td>
+            <td class="headerCovTableEntry">23</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-03-23 22:31:29</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">-</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+                  <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // weight_load_seq.sv — Sequence to load weights via AXI4-Lite</span>
+<span id="L2"><span class="lineNum">       2</span>              : //</span>
+<span id="L3"><span class="lineNum">       3</span>              : // Writes bfloat16 weights into the weight memory through the register map:</span>
+<span id="L4"><span class="lineNum">       4</span>              : //   WGT_ADDR (0x08) — set target address</span>
+<span id="L5"><span class="lineNum">       5</span>              : //   WGT_DATA (0x0C) — write data (triggers wr_en)</span>
+<span id="L6"><span class="lineNum">       6</span>              : </span>
+<span id="L7"><span class="lineNum">       7</span>              : class weight_load_seq extends uvm_sequence #(axi4_lite_transaction);</span>
+<span id="L8"><span class="lineNum">       8</span> <span class="tlaGNC">         134 :     `uvm_object_utils(weight_load_seq)</span></span>
+<span id="L9"><span class="lineNum">       9</span>              : </span>
+<span id="L10"><span class="lineNum">      10</span>              :     // Register addresses (matching axi4_lite_slave register map)</span>
+<span id="L11"><span class="lineNum">      11</span>              :     localparam bit [31:0] REG_WGT_ADDR = 32'h08;</span>
+<span id="L12"><span class="lineNum">      12</span>              :     localparam bit [31:0] REG_WGT_DATA = 32'h0C;</span>
+<span id="L13"><span class="lineNum">      13</span>              : </span>
+<span id="L14"><span class="lineNum">      14</span>              :     // Weight values to load (bfloat16 packed in lower 16 bits of 32-bit word)</span>
+<span id="L15"><span class="lineNum">      15</span>              :     bit [15:0] weights[];</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span> <span class="tlaGNC">         134 :     function new(string name = &quot;weight_load_seq&quot;);</span></span>
+<span id="L18"><span class="lineNum">      18</span> <span class="tlaGNC">         134 :         super.new(name);</span></span>
+<span id="L19"><span class="lineNum">      19</span>              :     endfunction</span>
+<span id="L20"><span class="lineNum">      20</span>              : </span>
+<span id="L21"><span class="lineNum">      21</span> <span class="tlaGNC">         134 :     task body();</span></span>
+<span id="L22"><span class="lineNum">      22</span> <span class="tlaGNC">         134 :         axi4_lite_transaction tx;</span></span>
+<span id="L23"><span class="lineNum">      23</span>              : </span>
+<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">         134 :         `uvm_info(&quot;WGT_LOAD&quot;, $sformatf(&quot;Loading %0d weights&quot;, weights.size()), UVM_MEDIUM)</span></span>
+<span id="L25"><span class="lineNum">      25</span>              : </span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">         536 :         foreach (weights[i]) begin</span></span>
+<span id="L27"><span class="lineNum">      27</span>              :             // Write weight address</span>
+<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC">         536 :             tx = axi4_lite_transaction::type_id::create(&quot;tx&quot;);</span></span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">         536 :             start_item(tx);</span></span>
+<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC">         536 :             tx.is_write = 1;</span></span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">         536 :             tx.addr     = REG_WGT_ADDR;</span></span>
+<span id="L32"><span class="lineNum">      32</span> <span class="tlaGNC">         536 :             tx.data     = i;</span></span>
+<span id="L33"><span class="lineNum">      33</span> <span class="tlaGNC">         536 :             tx.wstrb    = 4'hF;</span></span>
+<span id="L34"><span class="lineNum">      34</span> <span class="tlaGNC">         536 :             finish_item(tx);</span></span>
+<span id="L35"><span class="lineNum">      35</span>              : </span>
+<span id="L36"><span class="lineNum">      36</span>              :             // Write weight data (triggers wr_en in RTL)</span>
+<span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">         536 :             tx = axi4_lite_transaction::type_id::create(&quot;tx&quot;);</span></span>
+<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">         536 :             start_item(tx);</span></span>
+<span id="L39"><span class="lineNum">      39</span> <span class="tlaGNC">         536 :             tx.is_write = 1;</span></span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">         536 :             tx.addr     = REG_WGT_DATA;</span></span>
+<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">         536 :             tx.data     = {16'b0, weights[i]};</span></span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaGNC">         536 :             tx.wstrb    = 4'hF;</span></span>
+<span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC">         536 :             finish_item(tx);</span></span>
+<span id="L44"><span class="lineNum">      44</span>              : </span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">         536 :             `uvm_info(&quot;WGT_LOAD&quot;, $sformatf(&quot;  [%0d] = 0x%04h&quot;, i, weights[i]), UVM_HIGH)</span></span>
+<span id="L46"><span class="lineNum">      46</span>              :         end</span>
+<span id="L47"><span class="lineNum">      47</span>              : </span>
+<span id="L48"><span class="lineNum">      48</span> <span class="tlaGNC">         134 :         `uvm_info(&quot;WGT_LOAD&quot;, &quot;Weight load complete&quot;, UVM_MEDIUM)</span></span>
+<span id="L49"><span class="lineNum">      49</span>              :     endtask</span>
+<span id="L50"><span class="lineNum">      50</span>              : endclass</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.4-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

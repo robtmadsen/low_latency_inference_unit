@@ -1,0 +1,137 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - LLIU UVM Line Coverage - tb/uvm/agents/axi4_stream_agent/axi4_stream_driver.sv</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory tb/uvm/agents/axi4_stream_agent">tb/uvm/agents/axi4_stream_agent</a> - axi4_stream_driver.sv</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">LLIU UVM Line Coverage</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryLo">73.3&nbsp;%</td>
+            <td class="headerCovTableEntry">30</td>
+            <td class="headerCovTableEntry">22</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-03-23 22:31:29</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">-</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // axi4_stream_driver.sv — AXI4-Stream UVM driver</span>
+<span id="L2"><span class="lineNum">       2</span>              : //</span>
+<span id="L3"><span class="lineNum">       3</span>              : // Drives AXI4-Stream transactions onto the bus.</span>
+<span id="L4"><span class="lineNum">       4</span>              : // Respects tready handshake: tdata/tvalid held until tready sampled.</span>
+<span id="L5"><span class="lineNum">       5</span>              : </span>
+<span id="L6"><span class="lineNum">       6</span>              : class axi4_stream_driver extends uvm_driver #(axi4_stream_transaction);</span>
+<span id="L7"><span class="lineNum">       7</span> <span class="tlaUNC">           0 :     `uvm_component_utils(axi4_stream_driver)</span></span>
+<span id="L8"><span class="lineNum">       8</span>              : </span>
+<span id="L9"><span class="lineNum">       9</span>              :     virtual axi4_stream_if vif;</span>
+<span id="L10"><span class="lineNum">      10</span>              : </span>
+<span id="L11"><span class="lineNum">      11</span> <span class="tlaGNC">           6 :     function new(string name = &quot;axi4_stream_driver&quot;, uvm_component parent = null);</span></span>
+<span id="L12"><span class="lineNum">      12</span> <span class="tlaGNC">           6 :         super.new(name, parent);</span></span>
+<span id="L13"><span class="lineNum">      13</span>              :     endfunction</span>
+<span id="L14"><span class="lineNum">      14</span>              : </span>
+<span id="L15"><span class="lineNum">      15</span> <span class="tlaGNC">           6 :     function void build_phase(uvm_phase phase);</span></span>
+<span id="L16"><span class="lineNum">      16</span> <span class="tlaGNC">           6 :         super.build_phase(phase);</span></span>
+<span id="L17"><span class="lineNum">      17</span> <span class="tlaGNC">           6 :         if (!uvm_config_db#(virtual axi4_stream_if)::get(this, &quot;&quot;, &quot;vif&quot;, vif))</span></span>
+<span id="L18"><span class="lineNum">      18</span> <span class="tlaUNC">           0 :             `uvm_fatal(&quot;NOVIF&quot;, &quot;Virtual interface not found for axi4_stream_driver&quot;)</span></span>
+<span id="L19"><span class="lineNum">      19</span>              :     endfunction</span>
+<span id="L20"><span class="lineNum">      20</span>              : </span>
+<span id="L21"><span class="lineNum">      21</span> <span class="tlaUNC">           0 :     task run_phase(uvm_phase phase);</span></span>
+<span id="L22"><span class="lineNum">      22</span> <span class="tlaUNC">           0 :         axi4_stream_transaction tx;</span></span>
+<span id="L23"><span class="lineNum">      23</span>              : </span>
+<span id="L24"><span class="lineNum">      24</span>              :         // Initialize bus to idle</span>
+<span id="L25"><span class="lineNum">      25</span> <span class="tlaUNC">           0 :         vif.driver_cb.tdata  &lt;= '0;</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaUNC">           0 :         vif.driver_cb.tvalid &lt;= 1'b0;</span></span>
+<span id="L27"><span class="lineNum">      27</span> <span class="tlaUNC">           0 :         vif.driver_cb.tlast  &lt;= 1'b0;</span></span>
+<span id="L28"><span class="lineNum">      28</span>              : </span>
+<span id="L29"><span class="lineNum">      29</span>              :         // Wait for reset deassertion (poll on clock edges — Verilator-safe)</span>
+<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC">          60 :         do @(vif.driver_cb); while (vif.rst);</span></span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaUNC">           0 :         @(vif.driver_cb);  // one extra cycle for clocking-block output settling</span></span>
+<span id="L32"><span class="lineNum">      32</span>              : </span>
+<span id="L33"><span class="lineNum">      33</span> <span class="tlaGNC">         733 :         forever begin</span></span>
+<span id="L34"><span class="lineNum">      34</span> <span class="tlaGNC">         733 :             seq_item_port.get_next_item(tx);</span></span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">         733 :             drive_transaction(tx);</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">         733 :             seq_item_port.item_done();</span></span>
+<span id="L37"><span class="lineNum">      37</span>              :         end</span>
+<span id="L38"><span class="lineNum">      38</span>              :     endtask</span>
+<span id="L39"><span class="lineNum">      39</span>              : </span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">         733 :     task drive_transaction(axi4_stream_transaction tx);</span></span>
+<span id="L41"><span class="lineNum">      41</span>              :         // Advance one clock before the first beat so that the output-#0 drive</span>
+<span id="L42"><span class="lineNum">      42</span>              :         // takes effect AFTER the DUT's current posedge evaluation, preventing</span>
+<span id="L43"><span class="lineNum">      43</span>              :         // beat[0] from being sampled as zeros.</span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">         733 :         @(vif.driver_cb);</span></span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">        3522 :         foreach (tx.tdata[i]) begin</span></span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaGNC">        3522 :             vif.driver_cb.tdata  &lt;= tx.tdata[i];</span></span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">        3522 :             vif.driver_cb.tvalid &lt;= 1'b1;</span></span>
+<span id="L48"><span class="lineNum">      48</span> <span class="tlaGNC">        3522 :             vif.driver_cb.tlast  &lt;= (i == tx.tdata.size() - 1) ? 1'b1 : 1'b0;</span></span>
+<span id="L49"><span class="lineNum">      49</span>              : </span>
+<span id="L50"><span class="lineNum">      50</span>              :             // Wait for handshake (tvalid &amp; tready)</span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC">        3528 :             do begin</span></span>
+<span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">        3528 :                 @(vif.driver_cb);</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">        3528 :             end while (!vif.driver_cb.tready);</span></span>
+<span id="L54"><span class="lineNum">      54</span>              :         end</span>
+<span id="L55"><span class="lineNum">      55</span>              : </span>
+<span id="L56"><span class="lineNum">      56</span>              :         // Deassert after the final beat is accepted.</span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">         733 :         vif.driver_cb.tdata  &lt;= '0;</span></span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">         733 :         vif.driver_cb.tvalid &lt;= 1'b0;</span></span>
+<span id="L59"><span class="lineNum">      59</span> <span class="tlaGNC">         733 :         vif.driver_cb.tlast  &lt;= 1'b0;</span></span>
+<span id="L60"><span class="lineNum">      60</span>              :     endtask</span>
+<span id="L61"><span class="lineNum">      61</span>              : endclass</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.4-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

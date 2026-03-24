@@ -1,0 +1,135 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - LLIU UVM Line Coverage - Users/robertmadsen/Documents/projects/uvm-reference/src/comps/uvm_env.svh</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../../../../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory /Users/robertmadsen/Documents/projects/uvm-reference/src/comps">/Users/robertmadsen/Documents/projects/uvm-reference/src/comps</a> - uvm_env.svh</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">LLIU UVM Line Coverage</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryLo">66.7&nbsp;%</td>
+            <td class="headerCovTableEntry">3</td>
+            <td class="headerCovTableEntry">2</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-03-23 22:31:29</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">-</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+                  <tr><td><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : //</span>
+<span id="L2"><span class="lineNum">       2</span>              : //------------------------------------------------------------------------------</span>
+<span id="L3"><span class="lineNum">       3</span>              : // Copyright 2007-2018 Cadence Design Systems, Inc.</span>
+<span id="L4"><span class="lineNum">       4</span>              : // Copyright 2007-2011 Mentor Graphics Corporation</span>
+<span id="L5"><span class="lineNum">       5</span>              : // Copyright 2015-2024 NVIDIA Corporation</span>
+<span id="L6"><span class="lineNum">       6</span>              : //   All Rights Reserved Worldwide</span>
+<span id="L7"><span class="lineNum">       7</span>              : //</span>
+<span id="L8"><span class="lineNum">       8</span>              : //   Licensed under the Apache License, Version 2.0 (the</span>
+<span id="L9"><span class="lineNum">       9</span>              : //   &quot;License&quot;); you may not use this file except in</span>
+<span id="L10"><span class="lineNum">      10</span>              : //   compliance with the License.  You may obtain a copy of</span>
+<span id="L11"><span class="lineNum">      11</span>              : //   the License at</span>
+<span id="L12"><span class="lineNum">      12</span>              : //</span>
+<span id="L13"><span class="lineNum">      13</span>              : //       http://www.apache.org/licenses/LICENSE-2.0</span>
+<span id="L14"><span class="lineNum">      14</span>              : //</span>
+<span id="L15"><span class="lineNum">      15</span>              : //   Unless required by applicable law or agreed to in</span>
+<span id="L16"><span class="lineNum">      16</span>              : //   writing, software distributed under the License is</span>
+<span id="L17"><span class="lineNum">      17</span>              : //   distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR</span>
+<span id="L18"><span class="lineNum">      18</span>              : //   CONDITIONS OF ANY KIND, either express or implied.  See</span>
+<span id="L19"><span class="lineNum">      19</span>              : //   the License for the specific language governing</span>
+<span id="L20"><span class="lineNum">      20</span>              : //   permissions and limitations under the License.</span>
+<span id="L21"><span class="lineNum">      21</span>              : //------------------------------------------------------------------------------</span>
+<span id="L22"><span class="lineNum">      22</span>              : </span>
+<span id="L23"><span class="lineNum">      23</span>              : //----------------------------------------------------------------------</span>
+<span id="L24"><span class="lineNum">      24</span>              : // Git details (see DEVELOPMENT.md):</span>
+<span id="L25"><span class="lineNum">      25</span>              : //</span>
+<span id="L26"><span class="lineNum">      26</span>              : // $File$</span>
+<span id="L27"><span class="lineNum">      27</span>              : // $Rev$</span>
+<span id="L28"><span class="lineNum">      28</span>              : // $Hash$</span>
+<span id="L29"><span class="lineNum">      29</span>              : //</span>
+<span id="L30"><span class="lineNum">      30</span>              : //----------------------------------------------------------------------</span>
+<span id="L31"><span class="lineNum">      31</span>              : </span>
+<span id="L32"><span class="lineNum">      32</span>              : </span>
+<span id="L33"><span class="lineNum">      33</span>              : //------------------------------------------------------------------------------</span>
+<span id="L34"><span class="lineNum">      34</span>              : //</span>
+<span id="L35"><span class="lineNum">      35</span>              : // CLASS -- NODOCS -- uvm_env</span>
+<span id="L36"><span class="lineNum">      36</span>              : //</span>
+<span id="L37"><span class="lineNum">      37</span>              : // The base class for hierarchical containers of other components that</span>
+<span id="L38"><span class="lineNum">      38</span>              : // together comprise a complete environment. The environment may</span>
+<span id="L39"><span class="lineNum">      39</span>              : // initially consist of the entire testbench. Later, it can be reused as</span>
+<span id="L40"><span class="lineNum">      40</span>              : // a sub-environment in even larger system-level environments.</span>
+<span id="L41"><span class="lineNum">      41</span>              : //------------------------------------------------------------------------------</span>
+<span id="L42"><span class="lineNum">      42</span>              : </span>
+<span id="L43"><span class="lineNum">      43</span>              : // @uvm-ieee 1800.2-2020 auto 13.3.1</span>
+<span id="L44"><span class="lineNum">      44</span>              : virtual class uvm_env extends uvm_component;</span>
+<span id="L45"><span class="lineNum">      45</span>              : </span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaUNC">           0 :   `uvm_component_abstract_utils(uvm_env)</span></span>
+<span id="L47"><span class="lineNum">      47</span>              :   </span>
+<span id="L48"><span class="lineNum">      48</span>              :   // Function -- NODOCS -- new</span>
+<span id="L49"><span class="lineNum">      49</span>              :   //</span>
+<span id="L50"><span class="lineNum">      50</span>              :   // Creates and initializes an instance of this class using the normal</span>
+<span id="L51"><span class="lineNum">      51</span>              :   // constructor arguments for &lt;uvm_component&gt;: ~name~ is the name of the</span>
+<span id="L52"><span class="lineNum">      52</span>              :   // instance, and ~parent~ is the handle to the hierarchical parent, if any.</span>
+<span id="L53"><span class="lineNum">      53</span>              : </span>
+<span id="L54"><span class="lineNum">      54</span>              :   // @uvm-ieee 1800.2-2020 auto 13.3.2</span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">           6 :   function new (string name=&quot;env&quot;, uvm_component parent=null);</span></span>
+<span id="L56"><span class="lineNum">      56</span> <span class="tlaGNC">           6 :     super.new(name,parent);</span></span>
+<span id="L57"><span class="lineNum">      57</span>              :   endfunction</span>
+<span id="L58"><span class="lineNum">      58</span>              : </span>
+<span id="L59"><span class="lineNum">      59</span>              : endclass</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.4-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

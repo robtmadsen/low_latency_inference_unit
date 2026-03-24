@@ -14,5 +14,6 @@ package lliu_test_pkg;
     `include "tests/lliu_random_test.sv"
     `include "tests/lliu_stress_test.sv"
     `include "tests/lliu_error_test.sv"
+    `include "tests/lliu_coverage_test.sv"
 
 endpackage
