@@ -193,6 +193,22 @@ module tb_top;
         .acc_clear     (acc_clear)
     );
 
+    bind lliu_top feature_latency_sva u_feature_latency_sva (
+        .clk                 (clk),
+        .rst                 (sys_rst),
+        .parser_fields_valid (parser_fields_valid),
+        .feat_valid          (feat_valid)
+    );
+
+    bind lliu_top end_to_end_latency_sva u_end_to_end_latency_sva (
+        .clk             (clk),
+        .rst             (sys_rst),
+        .s_axis_tvalid   (s_axis_tvalid),
+        .s_axis_tready   (s_axis_tready),
+        .s_axis_tlast    (s_axis_tlast),
+        .dp_result_valid (dp_result_valid)
+    );
+
     // ----------------------------------------------------------------
     // Latency profiling monitor — measures ingress-to-egress latency
     // ----------------------------------------------------------------

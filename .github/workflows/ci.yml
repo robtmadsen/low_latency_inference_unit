@@ -87,6 +87,7 @@ jobs:
           - { top: itch_parser,        test: test_parser }
           - { top: feature_extractor,  test: test_feature_extractor }
           - { top: lliu_top,           test: test_smoke }
+          - { top: lliu_top,           test: test_latency, testcase: test_end_to_end_latency_spec }
           - { top: lliu_top,           test: test_constrained_random }
     steps:
       - uses: actions/checkout@v4
@@ -108,9 +109,16 @@ jobs:
         working-directory: tb/cocotb
         run: |
           export PATH="/tmp/verilator-install/bin:$PATH"
-          make SIM=verilator \
-               TOPLEVEL=${{ matrix.module.top }} \
-               MODULE=tests.${{ matrix.module.test }}
+          if [ -n "${{ matrix.module.testcase }}" ]; then \
+            make SIM=verilator \
+                 TOPLEVEL=${{ matrix.module.top }} \
+                 MODULE=tests.${{ matrix.module.test }} \
+                 TESTCASE=${{ matrix.module.testcase }}; \
+          else \
+            make SIM=verilator \
+                 TOPLEVEL=${{ matrix.module.top }} \
+                 MODULE=tests.${{ matrix.module.test }}; \
+          fi
 
   # ── UVM compile + run ─────────────────────────────────────────────
   uvm:
@@ -151,6 +159,7 @@ jobs:
         run: |
           export PATH="/tmp/verilator-install/bin:$PATH"
           make -C tb/uvm SIM=verilator UVM_HOME=$UVM_HOME \
+               VERBOSITY=UVM_MEDIUM \
                TEST=${{ matrix.test }} run
 
       - name: Upload waveform on failure
