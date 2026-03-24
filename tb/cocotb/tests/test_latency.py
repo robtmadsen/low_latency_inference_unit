@@ -26,6 +26,8 @@ REG_CTRL   = 0x00
 REG_STATUS = 0x04
 REG_RESULT = 0x10
 
+DEFAULT_MAX_END_TO_END_LATENCY = int(os.getenv("LLIU_MAX_LATENCY", "12"))
+
 
 def bits_to_float32(bits: int) -> float:
     return struct.unpack('>f', struct.pack('>I', bits & 0xFFFFFFFF))[0]
@@ -55,6 +57,48 @@ async def reset_dut(dut, cycles=10):
 async def get_cycle(dut):
     """Return the current simulation time in clock cycles (10 ns period)."""
     return int(cocotb.utils.get_sim_time(units='ns') // 10)
+
+
+async def measure_feature_latency(dut, timeout_cycles=8):
+    """Measure parser_fields_valid -> feat_valid latency using internal DUT signals."""
+    for _ in range(timeout_cycles):
+        await RisingEdge(dut.clk)
+        if int(dut.parser_fields_valid.value) == 1:
+            start_cycle = await get_cycle(dut)
+            break
+    else:
+        raise TimeoutError("parser_fields_valid did not assert within timeout")
+
+    for _ in range(timeout_cycles):
+        await RisingEdge(dut.clk)
+        if int(dut.feat_valid.value) == 1:
+            end_cycle = await get_cycle(dut)
+            return end_cycle - start_cycle
+
+    raise TimeoutError("feat_valid did not assert within timeout after parser_fields_valid")
+
+
+async def measure_end_to_end_latency(dut, timeout_cycles=64):
+    """Measure final AXIS beat accepted -> dp_result_valid using internal DUT signals."""
+    for _ in range(timeout_cycles):
+        await RisingEdge(dut.clk)
+        if (
+            int(dut.s_axis_tvalid.value) == 1
+            and int(dut.s_axis_tready.value) == 1
+            and int(dut.s_axis_tlast.value) == 1
+        ):
+            start_cycle = await get_cycle(dut)
+            break
+    else:
+        raise TimeoutError("final AXI4-Stream beat was not accepted within timeout")
+
+    for _ in range(timeout_cycles):
+        await RisingEdge(dut.clk)
+        if int(dut.dp_result_valid.value) == 1:
+            end_cycle = await get_cycle(dut)
+            return end_cycle - start_cycle
+
+    raise TimeoutError("dp_result_valid did not assert within timeout after final AXI beat")
 
 
 async def send_and_measure(dut, axis, axil, profiler, msg_id, msg,
@@ -93,6 +137,70 @@ async def send_and_measure(dut, axis, axil, profiler, msg_id, msg,
             await RisingEdge(dut.clk)
 
     raise TimeoutError(f"Inference result not ready within {timeout_cycles} cycles for msg {msg_id}")
+
+
+@cocotb.test()
+async def test_feature_latency_spec(dut):
+    """Verify the parser_fields_valid -> feat_valid contract stays under 5 cycles."""
+    cocotb.start_soon(Clock(dut.clk, 10, unit='ns').start())
+    await reset_dut(dut)
+
+    axis = AXI4StreamDriver(dut, prefix="s_axis")
+    await axis.reset()
+    await RisingEdge(dut.clk)
+
+    latencies = []
+    for index in range(8):
+        msg = encode_add_order(
+            order_ref=index + 1,
+            side='B' if index % 2 == 0 else 'S',
+            price=10_000 + index * 250,
+        )
+        await axis.send(msg)
+        latency = await measure_feature_latency(dut)
+        latencies.append(latency)
+        await ClockCycles(dut.clk, 2)
+
+    dut._log.info(f"Feature latency samples: {latencies}")
+    assert max(latencies) < 5, f"parser_fields_valid -> feat_valid max latency {max(latencies)} cycles exceeds spec"
+
+
+@cocotb.test()
+async def test_end_to_end_latency_spec(dut):
+    """Verify final AXIS beat accepted -> dp_result_valid stays under the configured limit."""
+    cocotb.start_soon(Clock(dut.clk, 10, unit='ns').start())
+    await reset_dut(dut)
+
+    axis = AXI4StreamDriver(dut, prefix="s_axis")
+    axil = AXI4LiteDriver(dut, prefix="s_axil")
+    await axis.reset()
+    await axil.reset()
+    await RisingEdge(dut.clk)
+
+    weights = [1.0, 1.0, 1.0, 1.0]
+    await load_weights(axil, weights)
+    await ClockCycles(dut.clk, 5)
+
+    latencies = []
+    for index in range(4):
+        msg = encode_add_order(
+            order_ref=index + 1,
+            side='B' if index % 2 == 0 else 'S',
+            price=10_000 + index * 250,
+        )
+        latency_task = cocotb.start_soon(measure_end_to_end_latency(dut))
+        await axis.send(msg)
+        latency = await latency_task
+        latencies.append(latency)
+        await ClockCycles(dut.clk, 4)
+
+    dut._log.info(
+        f"End-to-end latency samples: {latencies} (limit={DEFAULT_MAX_END_TO_END_LATENCY} cycles)"
+    )
+    assert max(latencies) < DEFAULT_MAX_END_TO_END_LATENCY, (
+        f"final AXIS beat -> dp_result_valid max latency {max(latencies)} cycles exceeds "
+        f"spec {DEFAULT_MAX_END_TO_END_LATENCY}"
+    )
 
 
 @cocotb.test()
