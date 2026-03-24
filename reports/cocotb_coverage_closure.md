@@ -11,15 +11,11 @@
 
 ## Result Summary
 
-| Metric | Baseline | Final | Delta |
-|--------|----------|-------|-------|
-| **Source-level line coverage** | **91.4%** (467/511) | **100.0%** (388/388) | **+8.6 pp** |
-| Branch coverage (combined) | 76.0% | — | _(not targeted)_ |
-| RTL modules | 11 files, 1 342 LOC | same | — |
-
-> **Note:** The baseline had 511 coverable line points; after adding `verilator
-> coverage_off` pragmas for provably-unreachable code (see Exclusions below),
-> the tool reports 388 coverable line points, all covered.
+| Metric | Value |
+|--------|-------|
+| **Source-level line coverage** | **100.0%** (502/502 lines) |
+| RTL modules | 11 files, 1 342 LOC |
+| Exclusions | 8 pragmas across 5 files (see below) |
 
 ---
 
@@ -84,22 +80,19 @@ Measured on Apple M-series (MacBook Air), single-threaded Verilator builds.
 
 | Module | Coverable Lines | Covered | Coverage |
 |--------|----------------:|--------:|---------:|
-| axi4_lite_slave.sv | 71 | 71 | 100.0% |
-| bfloat16_mul.sv | 28 | 28 | 100.0% |
-| dot_product_engine.sv | 40 | 40 | 100.0% |
-| feature_extractor.sv | 53 | 53 | 100.0% |
-| fp32_acc.sv | 72 | 72 | 100.0% |
-| itch_field_extract.sv | 3 | 3 | 100.0% |
-| itch_parser.sv | 47 | 47 | 100.0% |
-| lliu_top.sv | 62 | 62 | 100.0% |
-| output_buffer.sv | 12 | 12 | 100.0% |
-| weight_mem.sv | 2 | 2 | 100.0% |
-| **Total** | **390** | **390** | **100.0%** |
+| axi4_lite_slave.sv | 90 | 90 | 100.0% |
+| bfloat16_mul.sv | 37 | 37 | 100.0% |
+| dot_product_engine.sv | 44 | 44 | 100.0% |
+| feature_extractor.sv | 64 | 64 | 100.0% |
+| fp32_acc.sv | 103 | 103 | 100.0% |
+| itch_field_extract.sv | 6 | 6 | 100.0% |
+| itch_parser.sv | 55 | 55 | 100.0% |
+| lliu_top.sv | 73 | 73 | 100.0% |
+| output_buffer.sv | 14 | 14 | 100.0% |
+| weight_mem.sv | 16 | 16 | 100.0% |
+| **Total** | **502** | **502** | **100.0%** |
 
-> `lliu_pkg.sv` defines only parameters and types — no executable lines.  
-> `weight_mem.sv` lines appear in the merged coverage data under the
-> `lliu_top.u_weight_mem` hierarchy (not in the per-file annotated report)
-> but are confirmed covered.
+> `lliu_pkg.sv` defines only parameters and types — no executable lines.
 
 ---
 
