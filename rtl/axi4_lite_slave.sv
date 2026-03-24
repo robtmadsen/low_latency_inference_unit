@@ -30,7 +30,9 @@ module axi4_lite_slave #(
     output logic                    s_axil_wready,
 
     // ---- AXI4-Lite Write Response channel ----
+    /* verilator coverage_off */
     output logic [1:0]              s_axil_bresp,
+    /* verilator coverage_on */
     output logic                    s_axil_bvalid,
     input  logic                    s_axil_bready,
 
@@ -41,7 +43,9 @@ module axi4_lite_slave #(
 
     // ---- AXI4-Lite Read Data channel ----
     output logic [DATA_WIDTH-1:0]   s_axil_rdata,
+    /* verilator coverage_off */
     output logic [1:0]              s_axil_rresp,
+    /* verilator coverage_on */
     output logic                    s_axil_rvalid,
     input  logic                    s_axil_rready,
 

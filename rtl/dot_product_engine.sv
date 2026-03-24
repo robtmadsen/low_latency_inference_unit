@@ -98,9 +98,11 @@ module dot_product_engine #(
                 state_next   = S_IDLE;
             end
 
+            /* verilator coverage_off */
             default: begin
                 state_next = S_IDLE;
             end
+            /* verilator coverage_on */
         endcase
     end
 

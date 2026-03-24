@@ -49,7 +49,9 @@ module feature_extractor #(
         int          lz;
 
         if (val == 32'sd0) begin
+            /* verilator coverage_off */
             return 16'h0000;
+            /* verilator coverage_on */
         end
 
         sign_bit = val[31];

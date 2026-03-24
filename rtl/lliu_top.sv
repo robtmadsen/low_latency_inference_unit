@@ -36,7 +36,9 @@ module lliu_top #(
     input  logic                    s_axil_wvalid,
     output logic                    s_axil_wready,
 
+    /* verilator coverage_off */
     output logic [1:0]              s_axil_bresp,
+    /* verilator coverage_on */
     output logic                    s_axil_bvalid,
     input  logic                    s_axil_bready,
 
@@ -45,7 +47,9 @@ module lliu_top #(
     output logic                    s_axil_arready,
 
     output logic [AXIL_DATA-1:0]   s_axil_rdata,
+    /* verilator coverage_off */
     output logic [1:0]              s_axil_rresp,
+    /* verilator coverage_on */
     output logic                    s_axil_rvalid,
     input  logic                    s_axil_rready
 );
@@ -182,7 +186,9 @@ module lliu_top #(
                     end
                 end
 
+                /* verilator coverage_off */
                 default: seq_state <= SEQ_IDLE;
+                /* verilator coverage_on */
             endcase
         end
     end

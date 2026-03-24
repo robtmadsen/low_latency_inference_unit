@@ -55,7 +55,14 @@ COV_TESTS  := \
 	lliu_top:test_backpressure \
 	lliu_top:test_latency \
 	lliu_top:test_error_injection \
-	lliu_top:test_replay
+	lliu_top:test_replay \
+	itch_parser:test_parser_edge \
+	feature_extractor:test_feat_edge \
+	bfloat16_mul:test_bf16_mul_edge \
+	fp32_acc:test_fp32_acc_edge \
+	axi4_lite_slave:test_axil_regmap \
+	lliu_top:test_wgtmem_outbuf \
+	lliu_top:test_integration_sweep
 
 .PHONY: coverage-run coverage-merge coverage-report coverage-clean
 

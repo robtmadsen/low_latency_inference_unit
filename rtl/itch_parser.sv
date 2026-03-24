@@ -146,7 +146,9 @@ module itch_parser (
                     state <= S_IDLE;
                 end
 
+                /* verilator coverage_off */
                 default: state <= S_IDLE;
+                /* verilator coverage_on */
             endcase
         end
     end
