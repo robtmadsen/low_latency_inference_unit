@@ -1,0 +1,162 @@
+# CI — Lint, cocotb tests, and UVM compile+run
+#
+# Runs on every push/PR to main. Uses GitHub-hosted Ubuntu runners
+# so the MacBook Air doesn't have to suffer through Verilator C++ builds.
+#
+# All jobs build Verilator from source (cached) because the apt package
+# on ubuntu-latest ships an ancient version (~5.006) that can't handle
+# our SystemVerilog features.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  VERILATOR_CACHE_KEY: verilator-v5.046-noccache
+
+jobs:
+  # ── Build Verilator (shared cache for all jobs) ───────────────────
+  build-verilator:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache Verilator
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/verilator-install
+          key: ${{ env.VERILATOR_CACHE_KEY }}-${{ runner.os }}
+
+      - name: Install build deps
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git autoconf g++ flex bison \
+            libfl2 libfl-dev zlib1g-dev help2man
+
+      - name: Build Verilator from source
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch v5.046 \
+            https://github.com/verilator/verilator.git /tmp/verilator-src
+          cd /tmp/verilator-src
+          autoconf
+          ./configure --prefix=/tmp/verilator-install
+          make -j$(nproc)
+          make install
+
+  # ── RTL lint ──────────────────────────────────────────────────────
+  lint:
+    needs: build-verilator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore Verilator
+        uses: actions/cache@v4
+        with:
+          path: /tmp/verilator-install
+          key: ${{ env.VERILATOR_CACHE_KEY }}-${{ runner.os }}
+
+      - name: Lint all RTL modules
+        run: |
+          export PATH="/tmp/verilator-install/bin:$PATH"
+          verilator --version
+          verilator --lint-only -sv \
+            -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \
+            --timescale 1ns/1ps \
+            +incdir+rtl \
+            rtl/lliu_pkg.sv \
+            $(find rtl -name '*.sv' ! -name 'lliu_pkg.sv' | sort)
+
+  # ── cocotb tests ──────────────────────────────────────────────────
+  cocotb:
+    needs: build-verilator
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - { top: bfloat16_mul,       test: test_bfloat16_mul }
+          - { top: fp32_acc,           test: test_fp32_acc }
+          - { top: dot_product_engine, test: test_dot_product_engine }
+          - { top: itch_parser,        test: test_parser }
+          - { top: feature_extractor,  test: test_feature_extractor }
+          - { top: lliu_top,           test: test_smoke }
+          - { top: lliu_top,           test: test_constrained_random }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore Verilator
+        uses: actions/cache@v4
+        with:
+          path: /tmp/verilator-install
+          key: ${{ env.VERILATOR_CACHE_KEY }}-${{ runner.os }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install cocotb
+        run: pip install 'cocotb>=2.0' numpy
+
+      - name: Run ${{ matrix.module.top }} tests
+        working-directory: tb/cocotb
+        run: |
+          export PATH="/tmp/verilator-install/bin:$PATH"
+          make SIM=verilator \
+               TOPLEVEL=${{ matrix.module.top }} \
+               MODULE=tests.${{ matrix.module.test }}
+
+  # ── UVM compile + run ─────────────────────────────────────────────
+  uvm:
+    needs: build-verilator
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [lliu_base_test, lliu_smoke_test]
+    env:
+      UVM_HOME: ${{ github.workspace }}/uvm-core/src
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore Verilator
+        uses: actions/cache@v4
+        with:
+          path: /tmp/verilator-install
+          key: ${{ env.VERILATOR_CACHE_KEY }}-${{ runner.os }}
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ libfl2 libfl-dev zlib1g-dev
+
+      - name: Clone UVM reference library
+        run: |
+          git clone --depth 1 https://github.com/accellera-official/uvm-core.git \
+            ${{ github.workspace }}/uvm-core
+
+      - name: Compile UVM testbench
+        run: |
+          export PATH="/tmp/verilator-install/bin:$PATH"
+          verilator --version
+          make -C tb/uvm SIM=verilator UVM_HOME=$UVM_HOME compile
+
+      - name: Run ${{ matrix.test }}
+        run: |
+          export PATH="/tmp/verilator-install/bin:$PATH"
+          make -C tb/uvm SIM=verilator UVM_HOME=$UVM_HOME \
+               TEST=${{ matrix.test }} run
+
+      - name: Upload waveform on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: waveform-${{ matrix.test }}
+          path: tb/uvm/sim_build/verilator/*.vcd
+          retention-days: 7

@@ -21,4 +21,5 @@ coverage.dat
 *.swp
 *.swo
 *~
-.github/
+.github/*
+!.github/workflows/
