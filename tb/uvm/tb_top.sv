@@ -201,24 +201,20 @@ module tb_top;
     );
 
     bind lliu_top end_to_end_latency_sva u_end_to_end_latency_sva (
-        .clk             (clk),
-        .rst             (sys_rst),
-        .s_axis_tvalid   (s_axis_tvalid),
-        .s_axis_tready   (s_axis_tready),
-        .s_axis_tlast    (s_axis_tlast),
-        .dp_result_valid (dp_result_valid)
+        .clk              (clk),
+        .rst              (sys_rst),
+        .add_order_accepted (parser_fields_valid),
+        .dp_result_valid  (dp_result_valid)
     );
 
     // ----------------------------------------------------------------
     // Latency profiling monitor — measures ingress-to-egress latency
     // ----------------------------------------------------------------
     bind lliu_top lliu_latency_monitor u_latency_mon (
-        .clk              (clk),
-        .rst              (rst),
-        .s_axis_tvalid    (s_axis_tvalid),
-        .s_axis_tready    (s_axis_tready),
-        .s_axis_tlast     (s_axis_tlast),
-        .dp_result_valid  (dp_result_valid)
+        .clk               (clk),
+        .rst               (rst),
+        .add_order_accepted (parser_fields_valid),
+        .dp_result_valid   (dp_result_valid)
     );
 
 endmodule

@@ -1,17 +1,20 @@
 // end_to_end_latency_sva.sv — Full datapath latency contract for lliu_top
 //
 // Performance contract:
-//   final AXI4-Stream beat accepted -> dp_result_valid must complete in
+//   Add-Order message accepted by parser -> dp_result_valid must complete in
 //   fewer than MAX_LATENCY_CYCLES cycles.
+//
+// Note: add_order_accepted is connected to parser_fields_valid in the bind.
+// This correctly gates the timer to Add-Order messages only; non-Add-Order
+// messages (System Event, Trade, etc.) never produce dp_result_valid and
+// must not start the latency countdown.
 
 module end_to_end_latency_sva #(
     parameter int unsigned DEFAULT_MAX_LATENCY_CYCLES = 12
 ) (
     input logic clk,
     input logic rst,
-    input logic s_axis_tvalid,
-    input logic s_axis_tready,
-    input logic s_axis_tlast,
+    input logic add_order_accepted,  // pulses once per Add-Order message (parser_fields_valid)
     input logic dp_result_valid
 );
 
@@ -38,7 +41,7 @@ module end_to_end_latency_sva #(
             pending_starts.delete();
             latencies.delete();
         end else begin
-            if (s_axis_tvalid && s_axis_tready && s_axis_tlast)
+            if (add_order_accepted)
                 pending_starts.push_back(cycle_count);
 
             if (dp_result_valid) begin

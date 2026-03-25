@@ -7,10 +7,10 @@
 module lliu_latency_monitor (
     input logic        clk,
     input logic        rst,
-    // AXI4-Stream ingress handshake
-    input logic        s_axis_tvalid,
-    input logic        s_axis_tready,
-    input logic        s_axis_tlast,
+    // Add-Order message accepted by parser (= parser_fields_valid in bind)
+    // Only Add-Order messages produce dp_result_valid; non-Add-Order messages
+    // (System Event, Trade, etc.) must not be enqueued as ingress timestamps.
+    input logic        add_order_accepted,
     // Dot-product result valid (egress)
     input logic        dp_result_valid
 );
@@ -38,9 +38,9 @@ module lliu_latency_monitor (
         msg_count = 0;
     end
 
-    // Record ingress on tlast handshake (message fully received)
+    // Record ingress when parser identifies and accepts an Add-Order message
     always_ff @(posedge clk) begin
-        if (!rst && s_axis_tvalid && s_axis_tready && s_axis_tlast) begin
+        if (!rst && add_order_accepted) begin
             ingress_queue.push_back(cycle_count);
         end
     end
