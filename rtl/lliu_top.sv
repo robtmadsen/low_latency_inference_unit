@@ -89,6 +89,9 @@ module lliu_top #(
     float32_t  out_result;
     logic      out_ready;
 
+    // Parser pipeline backpressure
+    logic      pipeline_hold;
+
     // AXI4-Lite control
     logic      ctrl_start;
     logic      ctrl_soft_reset;
@@ -101,6 +104,11 @@ module lliu_top #(
     // Parser Stage
     // ==================================================================
 
+    // Hold off new AXI-S messages while the sequencer is busy processing the
+    // previous Add-Order inference. This ensures 1:1 correspondence between
+    // parser_fields_valid pulses and dp_result_valid pulses.
+    assign pipeline_hold = feat_valid || (seq_state != SEQ_IDLE);
+
     itch_parser u_parser (
         .clk            (clk),
         .rst            (sys_rst),
@@ -108,6 +116,7 @@ module lliu_top #(
         .s_axis_tvalid  (s_axis_tvalid),
         .s_axis_tready  (s_axis_tready),
         .s_axis_tlast   (s_axis_tlast),
+        .pipeline_hold  (pipeline_hold),
         .msg_valid      (parser_msg_valid),
         .message_type   (parser_message_type),
         .order_ref      (parser_order_ref),

@@ -10,6 +10,11 @@
 //   IDLE:       Accept first beat, extract length prefix, store first 6 msg bytes
 //   ACCUMULATE: Store subsequent beats (8 bytes each) until message complete
 //   EMIT:       Assert msg_valid for one cycle, backpressure upstream
+//
+// pipeline_hold: external backpressure from lliu_top. When high, s_axis_tready
+// is de-asserted so no new message is accepted while the inference pipeline is
+// busy processing the previous Add-Order message. This ensures every
+// Add-Order that fires parser_fields_valid is actually processed by the DPE.
 
 import lliu_pkg::*;
 
@@ -22,6 +27,9 @@ module itch_parser (
     input  logic        s_axis_tvalid,
     output logic        s_axis_tready,
     input  logic        s_axis_tlast,
+
+    // Pipeline backpressure from lliu_top: hold off new messages when busy
+    input  logic        pipeline_hold,
 
     // Message-level strobe (any complete message)
     output logic        msg_valid,
@@ -50,7 +58,7 @@ module itch_parser (
     logic [15:0] msg_len;    // expected message body length (from length prefix)
 
     // ----- AXI4-Stream handshake -----
-    assign s_axis_tready = (state != S_EMIT);
+    assign s_axis_tready = (state != S_EMIT) && !pipeline_hold;
 
     // ----- Message valid strobe -----
     assign msg_valid = (state == S_EMIT);
@@ -88,7 +96,7 @@ module itch_parser (
                 // IDLE: wait for first beat, extract length + first 6 msg bytes
                 // -------------------------------------------------------
                 S_IDLE: begin
-                    if (s_axis_tvalid) begin
+                    if (s_axis_tvalid && s_axis_tready) begin
                         // 2-byte big-endian length prefix
                         msg_len <= {s_axis_tdata[63:56], s_axis_tdata[55:48]};
 
@@ -117,7 +125,7 @@ module itch_parser (
                 // ACCUMULATE: store 8 bytes per beat until message complete
                 // -------------------------------------------------------
                 S_ACCUMULATE: begin
-                    if (s_axis_tvalid) begin
+                    if (s_axis_tvalid && s_axis_tready) begin
                         // Write 8 bytes at byte_cnt .. byte_cnt+7
                         msg_buf[byte_cnt]         <= s_axis_tdata[63:56];
                         msg_buf[byte_cnt + 7'd1]  <= s_axis_tdata[55:48];
