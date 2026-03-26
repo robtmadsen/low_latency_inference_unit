@@ -144,6 +144,9 @@ VL_FLAGS   := --binary --timing --trace -sv \
               +incdir+$(RTL_DIR) +incdir+$(TB_DIR) \
               +incdir+$(UVM_HOME) \
               +define+UVM_NO_DPI \
+              +define+LLIU_ENABLE_DPI \
+              -CFLAGS "$(PY_CFLAGS)" \
+              -LDFLAGS "$(PY_LDFLAGS)" \
               -j 0 \
               -o simv
 
@@ -161,6 +164,7 @@ VL_SV      := $(RTL_PKG) $(RTL_SRC) $(TB_IFS) $(TB_PKGS) $(TB_SVA) $(TB_PERF) $(
 compile: $(BUILD_DIR)
 	$(VERILATOR) $(VL_FLAGS) \
 	    $(UVM_PKG) $(VL_SV) \
+	    --exe $(DPI_SRC) \
 	    --Mdir $(BUILD_DIR) \
 	    2>&1 | tee $(BUILD_DIR)/compile.log
 

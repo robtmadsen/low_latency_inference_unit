@@ -4,20 +4,19 @@
 // On each valid Add Order, calls DPI-C golden model to compute expected
 // inference result. Sends expected float32 result to scoreboard.
 
-// DPI-C function imports (disabled when UVM_NO_DPI is defined)
-`ifndef UVM_NO_DPI
+// DPI-C function imports (enabled when LLIU_ENABLE_DPI is defined)
+`ifdef LLIU_ENABLE_DPI
 import "DPI-C" function int dpi_golden_init(string model_path);
 import "DPI-C" function int dpi_golden_inference(
-    input  shortint unsigned features[], input int num_features,
-    input  shortint unsigned weights[],  input int num_weights,
+    input  longint unsigned features_packed,  // 4 x bfloat16 packed [63:0]
+    input  longint unsigned weights_packed,   // 4 x bfloat16 packed [63:0]
     output real result
 );
 import "DPI-C" function int dpi_golden_extract_features(
-    input  int unsigned price,
+    input  int unsigned     price,
     input  longint unsigned order_ref,
-    input  int side,
-    output shortint unsigned features_out[],
-    input  int num_features
+    input  int              side,
+    output longint unsigned features_packed   // 4 x bfloat16 packed [63:0]
 );
 import "DPI-C" function void dpi_golden_cleanup();
 `endif
@@ -45,7 +44,7 @@ class lliu_predictor extends uvm_subscriber #(axi4_stream_transaction);
 
     // Initialize DPI-C golden model
     function void init_golden_model();
-`ifndef UVM_NO_DPI
+`ifdef LLIU_ENABLE_DPI
         string model_path;
 
         if (m_dpi_initialized) return;
@@ -64,7 +63,7 @@ class lliu_predictor extends uvm_subscriber #(axi4_stream_transaction);
         m_dpi_initialized = 1;
         `uvm_info("PREDICTOR", $sformatf("DPI-C golden model initialized: %s", model_path), UVM_LOW)
 `else
-        `uvm_info("PREDICTOR", "DPI-C disabled (UVM_NO_DPI), using local computation", UVM_LOW)
+        `uvm_info("PREDICTOR", "LLIU_ENABLE_DPI not set, using local computation", UVM_LOW)
 `endif
     endfunction
 
@@ -107,7 +106,8 @@ class lliu_predictor extends uvm_subscriber #(axi4_stream_transaction);
 
     // Parse ITCH Add Order fields and compute expected inference result
     function void compute_expected(byte unsigned msg_bytes[], int byte_count);
-        shortint unsigned features[4];
+        longint unsigned features_packed;
+        longint unsigned weights_packed;
         real expected_result;
         int status;
 
@@ -147,16 +147,20 @@ class lliu_predictor extends uvm_subscriber #(axi4_stream_transaction);
                   price, side, order_ref), UVM_MEDIUM)
 
         // Compute expected features via DPI-C
-`ifndef UVM_NO_DPI
-        if (m_dpi_initialized && m_weights.size() > 0) begin
-            status = dpi_golden_extract_features(price, order_ref, side, features, 4);
+`ifdef LLIU_ENABLE_DPI
+        if (m_dpi_initialized && m_weights.size() >= 4) begin
+            status = dpi_golden_extract_features(price, order_ref, side, features_packed);
             if (status != 0) begin
                 `uvm_error("PREDICTOR", "DPI-C extract_features failed")
                 return;
             end
 
-            status = dpi_golden_inference(features, 4, m_weights, m_weights.size(),
-                                          expected_result);
+            // Pack first 4 bfloat16 weights into a 64-bit scalar
+            weights_packed = 0;
+            for (int i = 0; i < 4; i++)
+                weights_packed |= ({48'b0, m_weights[i]} << (16*i));
+
+            status = dpi_golden_inference(features_packed, weights_packed, expected_result);
             if (status != 0) begin
                 `uvm_error("PREDICTOR", "DPI-C inference failed")
                 return;
@@ -182,7 +186,7 @@ class lliu_predictor extends uvm_subscriber #(axi4_stream_transaction);
     endfunction
 
     function void final_phase(uvm_phase phase);
-`ifndef UVM_NO_DPI
+`ifdef LLIU_ENABLE_DPI
         if (m_dpi_initialized)
             dpi_golden_cleanup();
 `endif
