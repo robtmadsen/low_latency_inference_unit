@@ -105,7 +105,83 @@ data/
 | cocotb Verification | cocotb 2.0+, Python 3.12, NumPy |
 | CI | GitHub Actions (Ubuntu), Verilator built from source |
 
+## v1 DUT — First Iteration Complete
+
+The first complete DUT iteration is archived under [`reports/v1_dut/`](reports/v1_dut/).
+
+### What It Was
+
+A minimal but end-to-end ITCH 5.0 inference pipeline: ITCH parser → field extractor → feature extractor → bfloat16 dot-product engine → AXI4-Lite result readout. 11 RTL modules, ~1,340 RTL LOC, parameterised for a 4-element feature vector.
+
+### Verification Summary
+
+Both testbenches achieved **100% line coverage** independently.
+
+| Metric | cocotb | UVM |
+|--------|--------|-----|
+| Tests | 113 tests, 18 suites | 6 tests |
+| Line coverage | 100% (502 / 502 lines) | 100% (449 / 449 lines) |
+| Baseline line coverage (before closure) | 91.4% | 91.4% |
+
+> Coverable line counts differ because UVM closed 13 pragma-excluded lines vs. 8 for cocotb.
+
+#### cocotb test suites (113 tests, 18 suites)
+
+| Suite | Tests |
+|-------|------:|
+| `bfloat16_mul` | 2 |
+| `bfloat16_mul` edge cases | 12 |
+| `fp32_acc` | 2 |
+| `fp32_acc` edge cases | 21 |
+| `dot_product_engine` | 3 |
+| `itch_parser` | 4 |
+| `itch_parser` edge cases | 13 |
+| `feature_extractor` | 4 |
+| `feature_extractor` edge cases | 8 |
+| `axi4_lite_slave` register map | 11 |
+| `lliu_top` smoke | 2 |
+| `lliu_top` constrained random | 2 |
+| `lliu_top` backpressure | 3 |
+| `lliu_top` latency contract | 4 |
+| `lliu_top` error injection | 3 |
+| `lliu_top` replay | 2 |
+| `lliu_top` weight mem / output buffer | 7 |
+| `lliu_top` integration sweep | 10 |
+
+#### UVM tests (6 tests)
+
+| Test | Strategy |
+|------|----------|
+| `lliu_smoke_test` | Single order, basic sanity |
+| `lliu_random_test` | Random orders with fixed weights |
+| `lliu_replay_test` | Captured ITCH data replay |
+| `lliu_error_test` | AXI protocol error injection |
+| `lliu_stress_test` | High-throughput with backpressure |
+| `lliu_coverage_test` | Hybrid constrained-random + directed |
+
+### Mutation Testing — 10/10 Bugs Detected (Both TBs)
+
+10 bugs were injected one at a time; both testbenches detected all 10 (100% kill rate).
+
+| Bug | Module | Mutation |
+|-----|--------|----------|
+| 1 | `itch_parser` | Byte-swapped length prefix |
+| 2 | `itch_parser` | ACCUMULATE stride 7 instead of 8 |
+| 3 | `itch_field_extract` | Price MSB off-by-one byte |
+| 4 | `itch_field_extract` | Side decode checks `'S'` not `'B'` |
+| 5 | `feature_extractor` | Price delta uses `+` instead of `−` |
+| 6 | `feature_extractor` | Side encoding sign inverted |
+| 7 | `bfloat16_mul` | Exponent bias 126 instead of 127 |
+| 8 | `fp32_acc` | Accumulator clear disabled |
+| 9 | `dot_product_engine` | Early termination at element N−2 |
+| 10 | `weight_mem` | Read address stuck at 0 |
+
+Full campaign notes: [`reports/v1_dut/bug_detection.md`](reports/v1_dut/bug_detection.md)
+
+---
+
 ## Design Choices
+
 
 - **ITCH 5.0**: Real HFT protocol, not a toy — validated against actual NASDAQ sample data
 - **bfloat16 multiply + float32 accumulate**: Mixed-precision arithmetic used in production ML accelerators

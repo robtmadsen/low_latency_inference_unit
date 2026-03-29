@@ -1,0 +1,25 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="uvm_regression">
+  <summary timestamp="2026-03-25T22:05:56" tests="7" passed="1" failed="6" skipped="0" />
+  <testsuite name="uvm" tests="7" failures="6" skipped="0">
+    <testcase name="lliu_base_test" classname="uvm" time="0" sim_time_ns="0" uvm_errors="0" uvm_warnings="2" uvm_fatals="0" log="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/uvm/sim_build/verilator/lliu_base_test.log" />
+    <testcase name="lliu_smoke_test" classname="uvm" time="0" sim_time_ns="0" uvm_errors="3" uvm_warnings="2" uvm_fatals="0" log="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/uvm/sim_build/verilator/lliu_smoke_test.log">
+      <failure error_type="UVM_ERROR" error_msg="** TEST FAILED **" />
+    </testcase>
+    <testcase name="lliu_replay_test" classname="uvm" time="0" sim_time_ns="0" uvm_errors="3" uvm_warnings="3" uvm_fatals="0" log="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/uvm/sim_build/verilator/lliu_replay_test.log">
+      <failure error_type="UVM_ERROR" error_msg="** TEST FAILED **" />
+    </testcase>
+    <testcase name="lliu_random_test" classname="uvm" time="0" sim_time_ns="0" uvm_errors="102" uvm_warnings="2" uvm_fatals="0" log="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/uvm/sim_build/verilator/lliu_random_test.log">
+      <failure error_type="UVM_ERROR" error_msg="** TEST FAILED **" />
+    </testcase>
+    <testcase name="lliu_stress_test" classname="uvm" time="0" sim_time_ns="0" uvm_errors="2" uvm_warnings="2" uvm_fatals="0" log="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/uvm/sim_build/verilator/lliu_stress_test.log">
+      <failure error_type="UVM_ERROR" error_msg="** TEST FAILED **" />
+    </testcase>
+    <testcase name="lliu_error_test" classname="uvm" time="0" sim_time_ns="0" uvm_errors="2" uvm_warnings="2" uvm_fatals="0" log="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/uvm/sim_build/verilator/lliu_error_test.log">
+      <failure error_type="UVM_ERROR" error_msg="** TEST FAILED **" />
+    </testcase>
+    <testcase name="lliu_coverage_test" classname="uvm" time="0" sim_time_ns="0" uvm_errors="519" uvm_warnings="5" uvm_fatals="0" log="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/uvm/sim_build/verilator/lliu_coverage_test.log">
+      <failure error_type="UVM_ERROR" error_msg="** TEST FAILED **" />
+    </testcase>
+  </testsuite>
+</testsuites>
