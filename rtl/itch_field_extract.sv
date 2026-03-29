@@ -14,7 +14,9 @@
 //   [24:31] stock (8 bytes)
 //   [32:35] price (4 bytes, big-endian)
 
+/* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 module itch_field_extract (
     // Packed message data: byte N = msg_data[(B-1-N)*8 +: 8], B = ITCH_ADD_ORDER_LEN
@@ -25,6 +27,7 @@ module itch_field_extract (
     output logic [63:0] order_ref,
     output logic        side,       // 1 = buy ('B'), 0 = sell ('S')
     output logic [31:0] price,
+    output logic [63:0] stock,      // 8-byte ASCII ticker (bytes 24–31)
     output logic        fields_valid
 );
 
@@ -56,7 +59,26 @@ module itch_field_extract (
         msg_data[(B-1-35)*8 +: 8]
     };
 
+    // Bytes 24–31: stock symbol (8-byte ASCII, zero-padded right)
+    assign stock = {
+        msg_data[(B-1-24)*8 +: 8],
+        msg_data[(B-1-25)*8 +: 8],
+        msg_data[(B-1-26)*8 +: 8],
+        msg_data[(B-1-27)*8 +: 8],
+        msg_data[(B-1-28)*8 +: 8],
+        msg_data[(B-1-29)*8 +: 8],
+        msg_data[(B-1-30)*8 +: 8],
+        msg_data[(B-1-31)*8 +: 8]
+    };
+
     // Only assert fields_valid for Add Order messages
     assign fields_valid = msg_valid && (message_type == ITCH_MSG_ADD_ORDER);
+
+    // Bytes 1–10 (timestamp/locate) and 20–23 (shares) are not used in the
+    // current feature set; sink them to suppress Verilator UNUSEDSIGNAL.
+    /* verilator lint_off UNUSED */
+    logic _unused_msg_bytes;
+    assign _unused_msg_bytes = |{msg_data[279:200], msg_data[127:96]};
+    /* verilator lint_on UNUSED */
 
 endmodule

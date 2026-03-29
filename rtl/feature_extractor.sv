@@ -9,7 +9,9 @@
 //
 // Registered outputs for timing closure.
 
+/* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 module feature_extractor #(
     parameter int VEC_LEN = FEATURE_VEC_LEN
@@ -19,7 +21,9 @@ module feature_extractor #(
 
     // From itch_field_extract
     input  logic [31:0] price,
+    /* verilator lint_off UNUSED */
     input  logic [63:0] order_ref,    // not used in current feature set (reserved)
+    /* verilator lint_on UNUSED */
     input  logic        side,        // 1 = buy, 0 = sell
     input  logic        fields_valid,
 

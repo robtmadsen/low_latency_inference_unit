@@ -16,4 +16,8 @@ package lliu_seq_pkg;
     `include "sequences/arith_edge_seq.sv"
     `include "sequences/itch_edge_seq.sv"
 
+    // KC705 / kintex-7 sequences
+    `include "sequences/moldupp64_seq.sv"
+    `include "sequences/cam_load_seq.sv"
+
 endpackage

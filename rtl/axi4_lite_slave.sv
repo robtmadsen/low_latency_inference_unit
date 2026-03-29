@@ -1,15 +1,26 @@
 // axi4_lite_slave.sv — AXI4-Lite control-plane interface
 //
-// Register map:
-//   0x00  CTRL    — [0] start, [1] soft_reset   (write-only, self-clearing)
-//   0x04  STATUS  — [0] result_ready, [1] busy   (read-only)
-//   0x08  WGT_ADDR — weight write address         (write)
-//   0x0C  WGT_DATA — weight write data (bfloat16) (write, triggers wr_en)
-//   0x10  RESULT  — inference result (float32)    (read-only)
+// Register map (see lliu_pkg::AXIL_REG_* for address constants):
+//   0x00  CTRL          — [0] start, [1] soft_reset          (write-only, self-clearing)
+//   0x04  STATUS        — [0] result_ready, [1] busy          (read-only)
+//   0x08  WGT_ADDR      — weight write address                (write)
+//   0x0C  WGT_DATA      — weight write data (bfloat16)        (write, triggers wr_en)
+//   0x10  RESULT        — inference result (float32)          (read-only)
+//   0x14  CAM_INDEX     — symbol-filter CAM entry index [7:0] (write)
+//   0x18  CAM_DATA_LO   — CAM key lower 32 bits               (write)
+//   0x1C  CAM_DATA_HI   — CAM key upper 32 bits               (write)
+//   0x20  CAM_CTRL      — [0] wr_valid (self-clearing), [1] en_bit (write)
+//   0x24  DROPPED_FRAMES— eth_axis_rx_wrap dropped frame cnt  (read-only)
+//   0x28  DROPPED_DGRAMS— moldupp64_strip dropped dgram cnt   (read-only)
+//   0x2C  SEQ_LO        — expected_seq_num[31:0]              (read-only)
+//   0x30  SEQ_HI        — expected_seq_num[63:32]             (read-only)
+//   0x34  GTX_LOCK      — [0] GTX PLL locked (tied 1 in sim) (read-only)
 //
 // Single outstanding transaction. No pipelining.
 
+/* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 module axi4_lite_slave #(
     parameter int ADDR_WIDTH = 8,
@@ -25,7 +36,9 @@ module axi4_lite_slave #(
 
     // ---- AXI4-Lite Write Data channel ----
     input  logic [DATA_WIDTH-1:0]   s_axil_wdata,
-    input  logic [DATA_WIDTH/8-1:0] s_axil_wstrb,
+    /* verilator lint_off UNUSED */
+    input  logic [DATA_WIDTH/8-1:0] s_axil_wstrb,  // byte enables (accepted, not enforced)
+    /* verilator lint_on UNUSED */
     input  logic                    s_axil_wvalid,
     output logic                    s_axil_wready,
 
@@ -63,18 +76,45 @@ module axi4_lite_slave #(
     input  logic                    status_busy,
 
     // ---- Result input ----
-    input  float32_t                result_data
+    input  float32_t                result_data,
+
+    // ---- KC705: symbol-filter CAM write port ----
+    output logic [7:0]  cam_wr_index,
+    output logic [63:0] cam_wr_data,
+    output logic        cam_wr_valid,
+    output logic        cam_wr_en_bit,
+
+    // ---- KC705: monitoring inputs (CDC'd to this clock domain by caller) ----
+    input  logic [31:0] dropped_frames,
+    input  logic [31:0] dropped_datagrams,
+    input  logic [63:0] expected_seq_num,
+    input  logic        gtx_lock
 );
 
     // ---- Register addresses ----
-    localparam logic [ADDR_WIDTH-1:0] REG_CTRL     = 8'h00;
-    localparam logic [ADDR_WIDTH-1:0] REG_STATUS   = 8'h04;
-    localparam logic [ADDR_WIDTH-1:0] REG_WGT_ADDR = 8'h08;
-    localparam logic [ADDR_WIDTH-1:0] REG_WGT_DATA = 8'h0C;
-    localparam logic [ADDR_WIDTH-1:0] REG_RESULT   = 8'h10;
+    localparam logic [ADDR_WIDTH-1:0] REG_CTRL          = 8'h00;
+    localparam logic [ADDR_WIDTH-1:0] REG_STATUS        = 8'h04;
+    localparam logic [ADDR_WIDTH-1:0] REG_WGT_ADDR      = 8'h08;
+    localparam logic [ADDR_WIDTH-1:0] REG_WGT_DATA      = 8'h0C;
+    localparam logic [ADDR_WIDTH-1:0] REG_RESULT        = 8'h10;
+    localparam logic [ADDR_WIDTH-1:0] REG_CAM_INDEX     = 8'h14;
+    localparam logic [ADDR_WIDTH-1:0] REG_CAM_DATA_LO   = 8'h18;
+    localparam logic [ADDR_WIDTH-1:0] REG_CAM_DATA_HI   = 8'h1C;
+    localparam logic [ADDR_WIDTH-1:0] REG_CAM_CTRL      = 8'h20;
+    localparam logic [ADDR_WIDTH-1:0] REG_DROPPED_FRAMES = 8'h24;
+    localparam logic [ADDR_WIDTH-1:0] REG_DROPPED_DGRAMS = 8'h28;
+    localparam logic [ADDR_WIDTH-1:0] REG_SEQ_LO        = 8'h2C;
+    localparam logic [ADDR_WIDTH-1:0] REG_SEQ_HI        = 8'h30;
+    localparam logic [ADDR_WIDTH-1:0] REG_GTX_LOCK      = 8'h34;
 
     // ---- Internal registers ----
     logic [$clog2(FEATURE_VEC_LEN)-1:0] wgt_addr_reg;
+
+    // KC705 CAM staging registers
+    logic [7:0]  cam_index_reg;
+    logic [31:0] cam_data_lo_reg;
+    logic [31:0] cam_data_hi_reg;
+    logic        cam_en_bit_reg;
 
     // ---- Write channel state machine ----
     // Accept AW and W simultaneously, then respond with B
@@ -101,11 +141,17 @@ module axi4_lite_slave #(
             wgt_wr_en       <= 1'b0;
             ctrl_start      <= 1'b0;
             ctrl_soft_reset <= 1'b0;
+            cam_wr_valid    <= 1'b0;
+            cam_index_reg   <= '0;
+            cam_data_lo_reg <= '0;
+            cam_data_hi_reg <= '0;
+            cam_en_bit_reg  <= 1'b0;
         end else begin
             // Self-clearing control pulses
             ctrl_start      <= 1'b0;
             ctrl_soft_reset <= 1'b0;
             wgt_wr_en       <= 1'b0;
+            cam_wr_valid    <= 1'b0;
 
             // B channel handshake
             if (s_axil_bvalid && s_axil_bready) begin
@@ -147,6 +193,20 @@ module axi4_lite_slave #(
                     REG_WGT_DATA: begin
                         wgt_wr_en <= 1'b1;
                     end
+                    REG_CAM_INDEX: begin
+                        cam_index_reg <= (w_captured ? wr_data_latched[7:0] : s_axil_wdata[7:0]);
+                    end
+                    REG_CAM_DATA_LO: begin
+                        cam_data_lo_reg <= (w_captured ? wr_data_latched : s_axil_wdata);
+                    end
+                    REG_CAM_DATA_HI: begin
+                        cam_data_hi_reg <= (w_captured ? wr_data_latched : s_axil_wdata);
+                    end
+                    REG_CAM_CTRL: begin
+                        if (w_captured ? wr_data_latched[0] : s_axil_wdata[0])
+                            cam_wr_valid <= 1'b1;  // self-clearing next cycle
+                        cam_en_bit_reg <= (w_captured ? wr_data_latched[1] : s_axil_wdata[1]);
+                    end
                     default: ;  // Ignore writes to read-only or unmapped regs
                 endcase
             end
@@ -156,6 +216,11 @@ module axi4_lite_slave #(
     // Weight write port
     assign wgt_wr_addr = wgt_addr_reg;
     assign wgt_wr_data = bfloat16_t'(wr_data_latched[BF16_WIDTH-1:0]);
+
+    // CAM write port
+    assign cam_wr_index  = cam_index_reg;
+    assign cam_wr_data   = {cam_data_hi_reg, cam_data_lo_reg};
+    assign cam_wr_en_bit = cam_en_bit_reg;
 
     // ---- Read channel state machine ----
     logic ar_captured;
@@ -188,9 +253,14 @@ module axi4_lite_slave #(
                 s_axil_rvalid <= 1'b1;
 
                 case (rd_addr_latched)
-                    REG_STATUS: s_axil_rdata <= {30'd0, status_busy, status_result_ready};
-                    REG_RESULT: s_axil_rdata <= result_data;
-                    default:    s_axil_rdata <= 32'hDEAD_BEEF;
+                    REG_STATUS:         s_axil_rdata <= {30'd0, status_busy, status_result_ready};
+                    REG_RESULT:         s_axil_rdata <= result_data;
+                    REG_DROPPED_FRAMES: s_axil_rdata <= dropped_frames;
+                    REG_DROPPED_DGRAMS: s_axil_rdata <= dropped_datagrams;
+                    REG_SEQ_LO:         s_axil_rdata <= expected_seq_num[31:0];
+                    REG_SEQ_HI:         s_axil_rdata <= expected_seq_num[63:32];
+                    REG_GTX_LOCK:       s_axil_rdata <= {31'd0, gtx_lock};
+                    default:            s_axil_rdata <= 32'hDEAD_BEEF;
                 endcase
             end
         end

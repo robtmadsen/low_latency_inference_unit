@@ -71,3 +71,23 @@ Use the `run_cocotb_test_suite` skill to run individual tests or the full suite.
 - **Secondary:** `parser_fields_valid` → `feat_valid` < **5 cycles**
 
 Latency tests must assert these bounds. Do not relax them without architect approval.
+
+## Kintex-7 Integration — Priority
+
+The project has moved to a full KC705 board-level top (`rtl/kc705_top.sv`). This is the **primary target** for all new verification work.
+
+### What changed in RTL
+
+- `kc705_top` is now the system-level DUT. It integrates the full KC705 pipeline: `eth_axis_rx_wrap` → `moldupp64_strip` → `itch_parser` → `symbol_filter` → `feature_extractor` → `dot_product_engine` → `output_buffer`, all controlled by an extended `axi4_lite_slave`.
+- New modules: `moldupp64_strip` (MoldUDP64 header strip + sequence gap detection), `symbol_filter` (64-entry LUT-CAM watchlist), `eth_axis_rx_wrap` (drop-on-full Ethernet RX framer).
+- `itch_parser` and `itch_field_extract` now export a `stock` output (8-byte ASCII ticker symbol).
+- `axi4_lite_slave` has new ports: CAM write (`cam_wr_index`, `cam_wr_data`, `cam_wr_valid`, `cam_wr_en_bit`) and monitoring readout (`dropped_frames`, `dropped_datagrams`, `expected_seq_num`, `gtx_lock`).
+- `KINTEX7_SIM_MAC_BYPASS` must be defined for Verilator simulation. Under this define, `kc705_top` exposes top-level ports: `clk_156_in`, `clk_300_in`, `mac_rx_tdata/tkeep/tvalid/tlast/tready`, `fifo_rd_tvalid`.
+- `lliu_top` still exists but is not the primary DUT; existing tests that target it are **not required to pass** and do not block new work.
+
+### No obligation to maintain v1 tests
+
+- Tests that target `lliu_top` (`test_smoke`, `test_latency`, `test_constrained_random`, etc.) are **stale** and do not need to be kept working.
+- Delete, rewrite, or repurpose them as needed when migrating to `kc705_top`.
+- Never add shims, stubs, or wrapper hacks purely to make a v1 test pass against the new RTL. **Write the correct test for the correct DUT.**
+- The CI gate is currently lint-only; there is no obligation to have any cocotb test passing while the migration is in progress.

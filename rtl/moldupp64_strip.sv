@@ -29,7 +29,9 @@
 //
 // Domain: 156.25 MHz network clock (clk_156 in kc705_top).
 
+/* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 module moldupp64_strip (
     input  logic        clk,

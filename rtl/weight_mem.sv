@@ -3,7 +3,9 @@
 // Write port: address + data + write-enable (for AXI4-Lite loads)
 // Read port: address → bfloat16 weight out (one per cycle)
 
+/* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 module weight_mem #(
     parameter int DEPTH = FEATURE_VEC_LEN

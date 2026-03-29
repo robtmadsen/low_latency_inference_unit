@@ -16,4 +16,9 @@ package lliu_test_pkg;
     `include "tests/lliu_error_test.sv"
     `include "tests/lliu_coverage_test.sv"
 
+    // KC705 / kintex-7 block-level tests
+    `include "tests/lliu_moldupp64_test.sv"
+    `include "tests/lliu_symfilter_test.sv"
+    `include "tests/lliu_dropfull_test.sv"
+
 endpackage

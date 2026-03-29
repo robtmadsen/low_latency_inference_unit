@@ -22,7 +22,9 @@
 //   Comparison tree ≈ 512 LUTs (64 × 8 XNOR gates collapsed to 64 × 1 LUT)
 //   Well within 203,800 LUT / 407,600 FF budget.
 
+/* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 module symbol_filter (
     input  logic        clk,

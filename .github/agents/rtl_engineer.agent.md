@@ -28,6 +28,12 @@ You implement and maintain the synthesizable RTL for the LLIU project. Your scop
 - After editing, run Verilator lint and fix all warnings: `verilator --lint-only -Wall -sv --top-module <module> rtl/lliu_pkg.sv rtl/<file>.sv`
 - **Lint and compile are the only checks you run.** Do not invoke cocotb or UVM tests — that is the responsibility of the `cocotb_engineer` and `uvm_engineer` agents.
 
+## DV Compatibility
+
+**Do not sacrifice correct RTL to preserve DV test compatibility.**
+RTL changes that break existing cocotb or UVM tests are acceptable and expected — the DV agents (`cocotb_engineer`, `uvm_engineer`) are responsible for updating tests to match updated RTL.
+Never add tie-offs, stubs, or backwards-compat shims to RTL modules purely to keep old tests compiling. Build the correct hardware; DV follows RTL, not the other way around.
+
 ## Shared Package — `lliu_pkg.sv`
 
 Always import this package at the top of every module:

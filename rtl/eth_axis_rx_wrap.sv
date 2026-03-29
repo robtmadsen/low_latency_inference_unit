@@ -24,7 +24,9 @@
 //
 // Domain: 156.25 MHz (clk_156 in kc705_top).
 
+/* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 module eth_axis_rx_wrap (
     input  logic        clk,       // 156.25 MHz

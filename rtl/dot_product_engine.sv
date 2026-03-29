@@ -13,7 +13,9 @@
 // result_valid.  Total latency from first feature_valid to result_valid
 // is 6 cycles at VEC_LEN = 4.
 
+/* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 module dot_product_engine #(
     parameter int VEC_LEN = FEATURE_VEC_LEN

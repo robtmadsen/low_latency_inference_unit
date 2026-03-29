@@ -53,9 +53,124 @@ module tb_top;
     axi4_stream_if axis_if (.clk(clk), .rst(rst));
     axi4_lite_if   axil_if (.clk(clk), .rst(rst));
 
+    // KC705 block-test control interface (extra DUT-specific pins)
+    kc705_ctrl_if  kc705_if (.clk(clk), .rst(rst));
+
     // ----------------------------------------------------------------
-    // DUT instantiation
+    // DUT instantiation — selected by compile-time define
+    //
+    //   Default (LLIU_TOP_DUT): instantiates lliu_top (v1 pipeline)
+    //   MOLDUPP64_DUT:          instantiates moldupp64_strip
+    //   SYMFILTER_DUT:          instantiates symbol_filter
+    //   DROPFULL_DUT:           instantiates eth_axis_rx_wrap
     // ----------------------------------------------------------------
+
+`ifdef MOLDUPP64_DUT
+    // === DUT: moldupp64_strip ======================================
+    // AXI4-S input from axis_if; tkeep tied to 0xFF (sequences always
+    // send full 8-byte beats).  Output side wired into kc705_if.
+    logic [7:0] s_tkeep_i;
+    assign s_tkeep_i = 8'hFF;
+
+    moldupp64_strip u_dut (
+        .clk              (clk),
+        .rst              (rst),
+        // Input stream
+        .s_tdata          (axis_if.tdata),
+        .s_tkeep          (s_tkeep_i),
+        .s_tvalid         (axis_if.tvalid),
+        .s_tlast          (axis_if.tlast),
+        .s_tready         (axis_if.tready),
+        // Output stream → kc705_if
+        .m_tdata          (kc705_if.m_tdata),
+        .m_tkeep          (kc705_if.m_tkeep),
+        .m_tvalid         (kc705_if.m_tvalid),
+        .m_tlast          (kc705_if.m_tlast),
+        .m_tready         (kc705_if.m_tready),
+        // Status signals → kc705_if
+        .seq_num          (kc705_if.seq_num),
+        .msg_count        (kc705_if.msg_count),
+        .seq_valid        (kc705_if.seq_valid),
+        .dropped_datagrams(kc705_if.dropped_datagrams),
+        .expected_seq_num (kc705_if.expected_seq_num)
+    );
+
+    // AXI4-Lite pins — no DUT connected; drive DUT outputs to idle
+    assign axil_if.awready = 1'b0;
+    assign axil_if.wready  = 1'b0;
+    assign axil_if.bresp   = 2'b00;
+    assign axil_if.bvalid  = 1'b0;
+    assign axil_if.arready = 1'b0;
+    assign axil_if.rdata   = 32'h0;
+    assign axil_if.rresp   = 2'b00;
+    assign axil_if.rvalid  = 1'b0;
+
+`elsif SYMFILTER_DUT
+    // === DUT: symbol_filter =======================================
+    // Lookup input (stock_valid + stock) wired from kc705_if.
+    // CAM write ports also from kc705_if.
+    // axis_if not connected to DUT; tready tied to 1 to prevent agent hang.
+    assign axis_if.tready = 1'b1;
+
+    symbol_filter u_dut (
+        .clk          (clk),
+        .rst          (rst),
+        .cam_wr_index (kc705_if.cam_wr_index),
+        .cam_wr_data  (kc705_if.cam_wr_data),
+        .cam_wr_valid (kc705_if.cam_wr_valid),
+        .cam_wr_en_bit(kc705_if.cam_wr_en_bit),
+        .stock        (kc705_if.stock),
+        .stock_valid  (kc705_if.stock_valid),
+        .watchlist_hit(kc705_if.watchlist_hit)
+    );
+
+    // AXI4-Lite pins — no DUT connected; idle stubs
+    assign axil_if.awready = 1'b0;
+    assign axil_if.wready  = 1'b0;
+    assign axil_if.bresp   = 2'b00;
+    assign axil_if.bvalid  = 1'b0;
+    assign axil_if.arready = 1'b0;
+    assign axil_if.rdata   = 32'h0;
+    assign axil_if.rresp   = 2'b00;
+    assign axil_if.rvalid  = 1'b0;
+
+`elsif DROPFULL_DUT
+    // === DUT: eth_axis_rx_wrap =====================================
+    // MAC RX input from axis_if (tdata, tvalid, tlast) + kc705_if.s_tkeep.
+    // Output side into kc705_if.eth_payload_*.
+
+    eth_axis_rx_wrap u_dut (
+        .clk                 (clk),
+        .rst                 (rst),
+        // MAC RX input
+        .mac_rx_tdata        (axis_if.tdata),
+        .mac_rx_tkeep        (kc705_if.s_tkeep),
+        .mac_rx_tvalid       (axis_if.tvalid),
+        .mac_rx_tlast        (axis_if.tlast),
+        .mac_rx_tready       (axis_if.tready),
+        // Downstream output
+        .eth_payload_tdata   (kc705_if.eth_payload_tdata),
+        .eth_payload_tkeep   (kc705_if.eth_payload_tkeep),
+        .eth_payload_tvalid  (kc705_if.eth_payload_tvalid),
+        .eth_payload_tlast   (kc705_if.eth_payload_tlast),
+        .eth_payload_tready  (kc705_if.eth_payload_tready),
+        // Control / status
+        .fifo_almost_full    (kc705_if.fifo_almost_full),
+        .dropped_frames      (kc705_if.dropped_frames)
+    );
+
+    // AXI4-Lite pins — no DUT connected; idle stubs
+    assign axil_if.awready = 1'b0;
+    assign axil_if.wready  = 1'b0;
+    assign axil_if.bresp   = 2'b00;
+    assign axil_if.bvalid  = 1'b0;
+    assign axil_if.arready = 1'b0;
+    assign axil_if.rdata   = 32'h0;
+    assign axil_if.rresp   = 2'b00;
+    assign axil_if.rvalid  = 1'b0;
+
+`else
+    // === DUT: lliu_top (default — v1 pipeline) ====================
     lliu_top #(
         .VEC_LEN   (FEATURE_VEC_LEN),
         .AXIL_ADDR (8),
@@ -97,6 +212,7 @@ module tb_top;
         .s_axil_rvalid    (axil_if.rvalid),
         .s_axil_rready    (axil_if.rready)
     );
+`endif
 
     // ----------------------------------------------------------------
     // Default drive for AXI4-Stream (until UVM driver takes over)
@@ -128,6 +244,8 @@ module tb_top;
     initial begin
         uvm_config_db#(virtual axi4_stream_if)::set(null, "uvm_test_top.m_env.m_axis_agent*", "vif", axis_if);
         uvm_config_db#(virtual axi4_lite_if)::set(null, "uvm_test_top.m_env.m_axil_agent*", "vif", axil_if);
+        // KC705 block-test control interface — available to all tests
+        uvm_config_db#(virtual kc705_ctrl_if)::set(null, "uvm_test_top*", "kc705_vif", kc705_if);
         run_test();
     end
 
@@ -142,6 +260,12 @@ module tb_top;
     // ----------------------------------------------------------------
     // SVA bind statements — protocol compliance & FSM safety
     // ----------------------------------------------------------------
+    // ----------------------------------------------------------------
+    // SVA bind statements — guarded by DUT define
+    // ----------------------------------------------------------------
+
+`ifdef LLIU_TOP_DUT
+    // --------------- lliu_top hierarchy --------------------------
     bind lliu_top axi4_stream_sva u_axis_sva (
         .clk    (clk),
         .rst    (rst),
@@ -217,5 +341,62 @@ module tb_top;
         .add_order_accepted (parser_fields_valid),
         .dp_result_valid   (dp_result_valid)
     );
+
+`endif // LLIU_TOP_DUT
+
+`ifdef MOLDUPP64_DUT
+    // --------------- moldupp64_strip binds -----------------------
+    // Note: drop_state and header_done are tied to 1'b0 until RTL
+    //       engineer marks them (* keep = "true" *) in moldupp64_strip.sv
+    bind moldupp64_strip moldupp64_sva u_moldupp64_sva (
+        .clk              (clk),
+        .rst              (rst),
+        .seq_valid        (seq_valid),
+        .expected_seq_num (expected_seq_num),
+        .msg_count        (msg_count),
+        .s_tvalid         (s_tvalid),
+        .m_tdata          (m_tdata),
+        .m_tkeep          (m_tkeep),
+        .m_tvalid         (m_tvalid),
+        .m_tlast          (m_tlast),
+        .m_tready         (m_tready),
+        .drop_state       (1'b0),   // stub — RTL coordination required
+        .header_done      (1'b0)    // stub — RTL coordination required
+    );
+`endif // MOLDUPP64_DUT
+
+`ifdef SYMFILTER_DUT
+    // --------------- symbol_filter binds -------------------------
+    // cam_entry_match is tied to 1'b0 until RTL marks it (* keep = "true" *)
+    bind symbol_filter symbol_filter_sva u_symfilter_sva (
+        .clk            (clk),
+        .rst            (rst),
+        .stock_valid    (stock_valid),
+        .stock          (stock),
+        .watchlist_hit  (watchlist_hit),
+        .cam_wr_index   (cam_wr_index),
+        .cam_wr_data    (cam_wr_data),
+        .cam_wr_valid   (cam_wr_valid),
+        .cam_wr_en_bit  (cam_wr_en_bit),
+        .cam_entry_match(1'b0)  // stub — RTL coordination required
+    );
+`endif // SYMFILTER_DUT
+
+`ifdef DROPFULL_DUT
+    // --------------- eth_axis_rx_wrap binds ----------------------
+    // drop_current and frame_active tied to 1'b0 until RTL marks them
+    bind eth_axis_rx_wrap drop_on_full_sva u_drop_sva (
+        .clk                 (clk),
+        .rst                 (rst),
+        .mac_rx_tvalid       (mac_rx_tvalid),
+        .mac_rx_tlast        (mac_rx_tlast),
+        .mac_rx_tready       (mac_rx_tready),
+        .eth_payload_tvalid  (eth_payload_tvalid),
+        .fifo_almost_full    (fifo_almost_full),
+        .dropped_frames      (dropped_frames),
+        .drop_current        (1'b0),  // stub — RTL coordination required
+        .frame_active        (1'b0)   // stub — RTL coordination required
+    );
+`endif // DROPFULL_DUT
 
 endmodule

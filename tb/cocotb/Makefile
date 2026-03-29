@@ -25,10 +25,31 @@ else ifeq ($(TOPLEVEL),axi4_lite_slave)
     VERILOG_SOURCES += $(RTL_DIR)/axi4_lite_slave.sv
 else ifeq ($(TOPLEVEL),lliu_top)
     VERILOG_SOURCES += $(shell find $(RTL_DIR) -name '*.sv' ! -name 'lliu_pkg.sv')
+else ifeq ($(TOPLEVEL),moldupp64_strip)
+    VERILOG_SOURCES += $(RTL_DIR)/moldupp64_strip.sv
+else ifeq ($(TOPLEVEL),symbol_filter)
+    VERILOG_SOURCES += $(RTL_DIR)/symbol_filter.sv
+else ifeq ($(TOPLEVEL),eth_axis_rx_wrap)
+    VERILOG_SOURCES += $(RTL_DIR)/eth_axis_rx_wrap.sv
+else ifeq ($(TOPLEVEL),kc705_top)
+    VERILOG_SOURCES += $(RTL_DIR)/bfloat16_mul.sv
+    VERILOG_SOURCES += $(RTL_DIR)/fp32_acc.sv
+    VERILOG_SOURCES += $(RTL_DIR)/dot_product_engine.sv
+    VERILOG_SOURCES += $(RTL_DIR)/itch_field_extract.sv
+    VERILOG_SOURCES += $(RTL_DIR)/itch_parser.sv
+    VERILOG_SOURCES += $(RTL_DIR)/feature_extractor.sv
+    VERILOG_SOURCES += $(RTL_DIR)/weight_mem.sv
+    VERILOG_SOURCES += $(RTL_DIR)/axi4_lite_slave.sv
+    VERILOG_SOURCES += $(RTL_DIR)/output_buffer.sv
+    VERILOG_SOURCES += $(RTL_DIR)/moldupp64_strip.sv
+    VERILOG_SOURCES += $(RTL_DIR)/symbol_filter.sv
+    VERILOG_SOURCES += $(RTL_DIR)/eth_axis_rx_wrap.sv
+    VERILOG_SOURCES += $(RTL_DIR)/kc705_top.sv
+    EXTRA_ARGS += -DKINTEX7_SIM_MAC_BYPASS
 endif
 
 # Test module lives in tests/
-MODULE = tests.$(TEST_MODULE)
+COCOTB_TEST_MODULES = tests.$(TEST_MODULE)
 
 # Verilator extra args
 EXTRA_ARGS += --trace
@@ -76,7 +97,7 @@ coverage-run: coverage-clean
 		mod=$$(echo $$spec | cut -d: -f2); \
 		echo "==== Running $$top / $$mod ===="; \
 		rm -rf sim_build; \
-		$(MAKE) SIM=verilator TOPLEVEL=$$top MODULE=tests.$$mod VL_COVERAGE=1 || true; \
+		$(MAKE) SIM=verilator TOPLEVEL=$$top TEST_MODULE=$$mod VL_COVERAGE=1 || true; \
 		if [ -f coverage.dat ]; then \
 			cp coverage.dat $(COV_DIR)/$${top}__$${mod}.dat; \
 		fi; \
