@@ -9,13 +9,19 @@ __pycache__/
 
 # Test results
 results.xml
+results *.xml
+regression_results/
 
 # Coverage data (large binary .dat files)
 coverage_data/
 coverage.dat
+coverage_report.json
 
 # OS files
 .DS_Store
+# Finder duplicate copies (e.g. "golden_model 2.py")
+* 2.*
+* 3.*
 
 # Private directories
 JDs/

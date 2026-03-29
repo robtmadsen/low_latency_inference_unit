@@ -23,6 +23,7 @@ SIM       ?= verilator
 TEST      ?= lliu_base_test
 SEED      ?= random
 VERBOSITY ?= UVM_MEDIUM
+TOPLEVEL  ?= lliu_top
 
 # ---- RTL source files (compile order matters: package first) ----
 RTL_PKG   := $(RTL_DIR)/lliu_pkg.sv
@@ -139,7 +140,7 @@ COVERAGE   ?= 0
 VL_FLAGS   := --binary --timing --trace -sv \
               -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
               -Wno-UNUSEDSIGNAL -Wno-IMPORTSTAR -Wno-CONSTRAINTIGN \
-              -Wno-MISINDENT -Wno-CASEINCOMPLETE \
+              -Wno-MISINDENT -Wno-CASEINCOMPLETE -Wno-MULTITOP \
               --timescale 1ns/1ps \
               +incdir+$(RTL_DIR) +incdir+$(TB_DIR) \
               +incdir+$(UVM_HOME) \
@@ -152,6 +153,13 @@ VL_FLAGS   := --binary --timing --trace -sv \
 
 ifeq ($(COVERAGE),1)
 VL_FLAGS   += --coverage
+endif
+
+# ---- DUT selection — controls conditional SVA guards ----
+ifeq ($(TOPLEVEL),kc705_top)
+VL_FLAGS   += +define+KC705_TOP_DUT
+else
+VL_FLAGS   += +define+LLIU_TOP_DUT
 endif
 
 UVM_PKG    := $(UVM_HOME)/uvm_pkg.sv
