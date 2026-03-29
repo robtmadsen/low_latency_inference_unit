@@ -163,7 +163,10 @@ jobs:
           retention-days: 1
 
   # ── UVM run (parallel tests, shared binary) ───────────────────────
-  uvm-run:
+  # Job is named "uvm" so the matrix produces "uvm (lliu_base_test)" /
+  # "uvm (lliu_smoke_test)" — matching the required status check names
+  # already registered in branch protection.
+  uvm:
     needs: uvm-compile
     runs-on: ubuntu-latest
     strategy:
