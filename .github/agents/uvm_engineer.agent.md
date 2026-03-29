@@ -74,6 +74,10 @@ tb/uvm/
 
 Use the `run_uvm_test_suite` skill to compile and run individual tests or the full suite. Do not construct raw `make` commands from memory — the skill contains the correct invocation recipe including `UVM_HOME` setup.
 
+> **All UVM compiles run in GitHub Codespaces.** The devcontainer pre-installs
+> Verilator 5.046 and sets `UVM_HOME=/opt/uvm-reference/src` automatically.
+> Never ask the user to compile locally — open or resume a Codespace instead.
+
 ## Design Principles
 
 - Tests must be black-box with respect to RTL internals — drive inputs through UVM agents, observe outputs through monitors, compare against the golden model or spec-derived expected values.
