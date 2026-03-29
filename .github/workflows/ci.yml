@@ -120,14 +120,12 @@ jobs:
                  MODULE=tests.${{ matrix.module.test }}; \
           fi
 
-  # ── UVM compile + run ─────────────────────────────────────────────
-  uvm:
+  # ── UVM compile (once) ────────────────────────────────────────────
+  # Builds the shared simv binary and uploads it as an artifact so the
+  # test matrix below can download and run it without recompiling.
+  uvm-compile:
     needs: build-verilator
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        test: [lliu_base_test, lliu_smoke_test]
     env:
       UVM_HOME: ${{ github.workspace }}/uvm-core/src
     steps:
@@ -155,12 +153,62 @@ jobs:
           verilator --version
           make -C tb/uvm SIM=verilator UVM_HOME=$UVM_HOME compile
 
+      - name: Upload simv binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: uvm-simv
+          # Upload the full sim_build/verilator directory so relative paths
+          # inside the binary (e.g. DPI shared libs) resolve correctly.
+          path: tb/uvm/sim_build/verilator/
+          retention-days: 1
+
+  # ── UVM run (parallel tests, shared binary) ───────────────────────
+  uvm-run:
+    needs: uvm-compile
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [lliu_base_test, lliu_smoke_test]
+    env:
+      UVM_HOME: ${{ github.workspace }}/uvm-core/src
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore Verilator
+        uses: actions/cache@v4
+        with:
+          path: /tmp/verilator-install
+          key: ${{ env.VERILATOR_CACHE_KEY }}-${{ runner.os }}
+
+      - name: Install runtime deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y g++ libfl2 libfl-dev zlib1g-dev
+
+      - name: Clone UVM reference library
+        run: |
+          git clone --depth 1 https://github.com/accellera-official/uvm-core.git \
+            ${{ github.workspace }}/uvm-core
+
+      - name: Download simv binary
+        uses: actions/download-artifact@v4
+        with:
+          name: uvm-simv
+          path: tb/uvm/sim_build/verilator/
+
+      - name: Make simv executable
+        run: chmod +x tb/uvm/sim_build/verilator/simv
+
       - name: Run ${{ matrix.test }}
         run: |
-          export PATH="/tmp/verilator-install/bin:$PATH"
-          make -C tb/uvm SIM=verilator UVM_HOME=$UVM_HOME \
-               VERBOSITY=UVM_MEDIUM \
-               TEST=${{ matrix.test }} run
+          # Invoke simv directly to skip the Makefile `run: compile` dependency.
+          tb/uvm/sim_build/verilator/simv \
+            +UVM_TESTNAME=${{ matrix.test }} \
+            +UVM_VERBOSITY=UVM_MEDIUM \
+            +DATA_DIR=${{ github.workspace }}/data \
+            +GOLDEN_MODEL=${{ github.workspace }}/tb/uvm/golden_model/golden_model.py \
+            2>&1 | tee tb/uvm/sim_build/verilator/${{ matrix.test }}.log
 
       - name: Upload waveform on failure
         if: failure()
