@@ -1,0 +1,38 @@
+{
+  "name": "LLIU — Verilator 5.046 + UVM",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+
+  // Run after the container is built and the repo is mounted.
+  // Clones the Accellera UVM reference source if not already present.
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  // Persist UVM_HOME for every terminal and task.
+  "remoteEnv": {
+    "UVM_HOME": "/opt/uvm-reference/src"
+  },
+
+  // Recommended Codespaces machine size for Verilator C++ builds:
+  //   4-core / 16 GB is sufficient; 8-core compiles ~2× faster.
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "8gb",
+    "storage": "32gb"
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "mshr-h.veriloghdl",
+        "ms-python.python",
+        "ms-vscode.makefile-tools"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "python.defaultInterpreterPath": "/usr/bin/python3.12"
+      }
+    }
+  }
+}
