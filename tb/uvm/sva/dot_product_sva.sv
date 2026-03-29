@@ -1,8 +1,19 @@
 // dot_product_sva.sv — Dot-product engine FSM and computation assertions
 //
 // Bound into dot_product_engine to verify FSM safety and result validity.
+//
+// VEC_LEN must match the RTL parameter of the same name.  The timing property
+// p_result_timing uses VEC_LEN+6 to account for:
+//   • VEC_LEN multiply-accumulate cycles
+//   • 1 cycle registered bfloat16_mul output (pipeline stage added by RTL plan)
+//   • 1 cycle registered fp32_acc stage 1 (partial_sum_r)
+//   • 1 cycle registered fp32_acc stage 2 (acc_reg)
+//   • 2 cycles FSM overhead (DONE + DRAIN)
+//   • 1 cycle slack
 
-module dot_product_sva (
+module dot_product_sva #(
+    parameter int VEC_LEN = 8
+) (
     input logic       clk,
     input logic       rst,
     input logic [1:0] state,
@@ -16,11 +27,13 @@ module dot_product_sva (
     localparam logic [1:0] S_IDLE    = 2'b00;
     localparam logic [1:0] S_COMPUTE = 2'b01;
     localparam logic [1:0] S_DONE    = 2'b10;
+    localparam logic [1:0] S_DRAIN   = 2'b11;  // 2-cycle drain added by RTL plan
 
     // ── D1: FSM must only be in valid states ────────────────────────
     property p_valid_state;
         @(posedge clk) disable iff (rst)
-        (state == S_IDLE) || (state == S_COMPUTE) || (state == S_DONE);
+        (state == S_IDLE) || (state == S_COMPUTE) ||
+        (state == S_DONE) || (state == S_DRAIN);
     endproperty
     assert property (p_valid_state)
         else $error("SVA: dot_product FSM in illegal state %0b", state);
@@ -57,5 +70,21 @@ module dot_product_sva (
     endproperty
     assert property (p_compute_after_idle)
         else $error("SVA: COMPUTE entered from non-IDLE/COMPUTE state");
+
+    // ── D6: Timing — start to result_valid ≤ VEC_LEN + 6 cycles ────
+    // Accounts for VEC_LEN MAC cycles + registered bfloat16_mul output
+    // (1 cy) + two-stage fp32_acc pipeline (2 cy) + FSM overhead (2 cy)
+    // + 1 cy slack.
+    // Guarded: Verilator 5.x does not support non-literal ##[N:M] range bounds.
+    // This property is checked by VCS and Questa only.
+`ifndef VERILATOR
+    localparam int unsigned RESULT_TIMEOUT = VEC_LEN + 6;
+    property p_result_timing;
+        @(posedge clk) disable iff (rst)
+        $rose(start) |-> ##[1:RESULT_TIMEOUT] result_valid;
+    endproperty
+    assert property (p_result_timing)
+        else $error("SVA: result_valid did not assert within VEC_LEN+6 cycles of start");
+`endif
 
 endmodule

@@ -183,7 +183,7 @@ module tb_top;
         .fields_valid   (fields_valid)
     );
 
-    bind dot_product_engine dot_product_sva u_dp_sva (
+    bind dot_product_engine dot_product_sva #(.VEC_LEN(VEC_LEN)) u_dp_sva (
         .clk           (clk),
         .rst           (rst),
         .state         (state),
@@ -201,10 +201,11 @@ module tb_top;
     );
 
     bind lliu_top end_to_end_latency_sva u_end_to_end_latency_sva (
-        .clk              (clk),
-        .rst              (sys_rst),
+        .clk                (clk),
+        .rst                (sys_rst),
         .add_order_accepted (parser_fields_valid),
-        .dp_result_valid  (dp_result_valid)
+        .fifo_rd_tvalid     (1'b0),            // KC705 path unused in lliu_top context
+        .dp_result_valid    (dp_result_valid)
     );
 
     // ----------------------------------------------------------------
