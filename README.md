@@ -2,18 +2,26 @@
 
 [![CI](https://github.com/robtmadsen/low_latency_inference_unit/actions/workflows/ci.yml/badge.svg)](https://github.com/robtmadsen/low_latency_inference_unit/actions/workflows/ci.yml)
 
-A hardware accelerator for real-time inference on streaming NASDAQ ITCH 5.0 market data, verified independently with both UVM and cocotb.
+A hardware accelerator for real-time inference on streaming NASDAQ ITCH 5.0 market data, verified independently with both UVM and cocotb, and now being brought up on the Xilinx Kintex-7 KC705 Evaluation Kit.
 
 > **100% AI-agent built.** Every RTL module, testbench, golden model, CI workflow, and this README was authored by a GitHub Copilot agent — no hand-written code.
 
 ## What It Does
 
-Parses live-format NASDAQ ITCH 5.0 binary data, extracts trading features, and runs single-sample inference through a pipelined bfloat16 dot-product engine with a verified full-path latency of fewer than 12 cycles at 300 MHz, measured from final AXI4-Stream beat accepted to `dp_result_valid`.
+Parses live-format NASDAQ ITCH 5.0 binary data from a 10GbE feed, extracts trading features, and runs single-sample inference through a pipelined bfloat16 dot-product engine. The v1 simulation-only core has a verified full-path latency of fewer than 12 cycles at 300 MHz (final AXI4-Stream beat accepted → `dp_result_valid`). The v2 work brings the same core to real hardware via a full UDP/IP network stack.
 
+**v1 — simulation core (complete)**
 ```
 AXI4-Stream → ITCH Parser → Feature Extractor → Dot-Product Engine → Result
                                                        ↑
                                               AXI4-Lite (weights)
+```
+
+**v2 — KC705 FPGA (in progress)**
+```
+SFP+ 10GbE → eth_mac_phy_10g → ip_complete_64 → udp_complete_64
+    → [async FIFO] → MoldUDP64 strip → Symbol Filter
+    → ITCH Parser → Feature Extractor → Dot-Product Engine → Result
 ```
 
 ## RTL Architecture
@@ -85,14 +93,23 @@ Waveforms (VCD) are uploaded as artifacts on UVM test failure.
 ## Project Structure
 
 ```
-rtl/                          # SystemVerilog RTL
+rtl/                          # SystemVerilog RTL (v1 core + v2 new modules)
+syn/                          # Synthesis & P&R scripts, constraints, bitstream
 tb/
 ├── uvm/                      # UVM testbench (VCS / Verilator)
 └── cocotb/                   # cocotb testbench (Verilator)
 data/
 ├── tvagg_sample.bin          # Decompressed ITCH 5.0 binary (~3.7 MB)
 └── tvagg_sample.gz           # Compressed source
-.github/workflows/ci.yml     # CI pipeline
+.github/
+├── arch/                     # Architecture specifications
+│   ├── SPEC.md               # Top-level design spec
+│   ├── RTL_ARCH.md           # RTL module hierarchy
+│   └── kintex-7/
+│       └── Kintex-7_MAS.md   # KC705 micro-architectural spec
+├── agents/                   # VS Code agent mode definitions
+└── workflows/ci.yml          # CI pipeline
+reports/v1_dut/               # Archived v1 coverage, results, waveforms
 ```
 
 ## Toolchain
@@ -103,6 +120,10 @@ data/
 | Simulation | Verilator 5.046 / Synopsys VCS |
 | UVM Verification | Accellera uvm-core (IEEE 1800.2), DPI-C |
 | cocotb Verification | cocotb 2.0+, Python 3.12, NumPy |
+| RTL Synthesis | Yosys (`synth_xilinx`) |
+| Place & Route | nextpnr-xilinx + Project X-Ray |
+| Target FPGA | Xilinx Kintex-7 KC705 (`xc7k325tffg900-2`) |
+| Network Library | verilog-ethernet (Forencich) |
 | CI | GitHub Actions (Ubuntu), Verilator built from source |
 
 ## v1 DUT — First Iteration Complete
@@ -177,6 +198,53 @@ Both testbenches achieved **100% line coverage** independently.
 | 10 | `weight_mem` | Read address stuck at 0 |
 
 Full campaign notes: [`reports/v1_dut/bug_detection.md`](reports/v1_dut/bug_detection.md)
+
+---
+
+## v2 DUT — Kintex-7 KC705 Bring-up (In Progress)
+
+With v1 complete (100% line coverage, 10/10 mutation kill rate on both testbenches), the design is advancing to real FPGA hardware.
+
+### What's New
+
+The v1 LLIU core is unchanged. v2 wraps it in a complete 10GbE receive stack that connects the SFP+ cage on the KC705 to the existing ITCH parser. The network stack and pre-processing all run in the **156.25 MHz** GTX clock domain; only clean, validated ITCH data crosses the async FIFO into the **300 MHz** application domain.
+
+| Layer | Domain | Module | Role |
+|-------|--------|--------|------|
+| Physical + MAC | 156.25 MHz | `eth_mac_phy_10g` (Forencich) | 64b/66b, CRC32, GTX SERDES |
+| Ethernet RX | 156.25 MHz | `eth_axis_rx` (drop-on-full wrapper) | Frame → payload; drops whole frames when FIFO is almost full |
+| IP | 156.25 MHz | `ip_complete_64` | IPv4 checksum, multicast filter |
+| UDP | 156.25 MHz | `udp_complete_64` | Port filter → raw datagram |
+| Pre-FIFO (new) | 156.25 MHz | `moldupp64_strip` | Strip 20-byte MoldUDP64 header; validate & drop on bad/duplicate seq number |
+| CDC | crossing | `axis_async_fifo` | 156.25 MHz → 300/250 MHz; drop-on-full policy prevents MAC stall |
+| App (new) | 300/250 MHz | `symbol_filter` | LUT-CAM watchlist (64 entries, single-cycle match); gates inference engine |
+| App (existing) | 300/250 MHz | LLIU v1 core | ITCH parse → feature extract → dot-product inference → result |
+
+Full micro-architectural specification: [`.github/arch/kintex-7/Kintex-7_MAS.md`](.github/arch/kintex-7/Kintex-7_MAS.md)
+
+### Clock Domains
+
+| Domain | Frequency | Scope |
+|--------|-----------|-------|
+| `clk_156` | 156.25 MHz | GTX + Forencich network stack + pre-FIFO processing |
+| `clk_300` | 300 MHz (target) | Application hot path (LLIU core) |
+| `clk_250` | 250 MHz (fallback) | Used if 300 MHz P&R fails timing on DSP columns |
+
+### Synthesis Target
+
+- Device: `xc7k325tffg900-2`
+- Toolchain: Yosys → nextpnr-xilinx → Project X-Ray → bitstream
+- Constraints: `syn/constraints.xdc`
+- Timing target: 300 MHz; fallback to 250 MHz if `dot_product_engine` DSP routing fails — a stable 250 MHz with zero slack violations is preferable to an unreliable 300 MHz clock
+
+### New RTL Modules (v2)
+
+| Module | Description |
+|--------|-------------|
+| `moldupp64_strip` | Runs at 156.25 MHz. Absorbs the 20-byte MoldUDP64 header; validates sequence numbers; drops duplicate/malformed datagrams before the FIFO; outputs `seq_num` register for gap detection |
+| `eth_axis_rx_wrap` | Wraps the Forencich `eth_axis_rx`; asserts drop-on-full when `axis_async_fifo.almost_full` is high; increments `dropped_frames` counter exposed via AXI4-Lite |
+| `symbol_filter` | LUT-CAM: 64 × 64-bit registers, parallel equality reduction, single-cycle `watchlist_hit`; loaded via AXI4-Lite; ~512 LUTs + 4,096 FFs |
+| `kc705_top` | KC705 top-level: GTX pins, MMCM (300/250 MHz), dual sync-resets, Forencich stack, LLIU core |
 
 ---
 
