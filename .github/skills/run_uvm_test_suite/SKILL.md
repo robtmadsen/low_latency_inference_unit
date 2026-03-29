@@ -34,18 +34,30 @@ tb/uvm/                     ← all commands must be run from here (or with -C t
 
 ## 2. Prerequisites
 
-### UVM_HOME
+### Primary environment — GitHub Codespaces
 
-`UVM_HOME` must point to the Accellera UVM source tree (the directory containing `uvm_pkg.sv`).
+All UVM compiles run in **GitHub Codespaces**. The devcontainer pre-installs
+Verilator 5.046 and sets `UVM_HOME` automatically — no setup required.
+
+```bash
+# UVM_HOME is already set in the devcontainer environment:
+echo $UVM_HOME   # /opt/uvm-reference/src
+ls $UVM_HOME/uvm_pkg.sv   # must exist
+```
+
+Open a Codespace from the repo's main page (green **Code** button → **Codespaces**).
+All `make` and `simv` commands below run in the Codespace terminal.
+
+### Fallback — local macOS (avoid if possible)
+
+If Codespaces is unavailable, set `UVM_HOME` manually before any `make` call:
 
 ```bash
 export UVM_HOME=/Users/robertmadsen/Documents/projects/uvm-reference/src
-```
-
-Verify:
-```bash
 ls $UVM_HOME/uvm_pkg.sv   # must exist
 ```
+
+Verilator must also be on `PATH` (`verilator --version` should show 5.x).
 
 ### Python (for DPI-C golden model)
 
