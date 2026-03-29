@@ -35,7 +35,8 @@ async def test_fp32_acc_accumulate(dut):
         await RisingEdge(dut.clk)
 
     dut.acc_en.value = 0
-    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)  # edge N+1: acc_en_d1 was 1, Stage 2 commits via NBA
+    await RisingEdge(dut.clk)  # edge N+2: read in active phase after Stage 2 NBA settled
 
     result = bits_to_fp32(int(dut.acc_out.value))
     assert abs(result - 10.0) < 0.01, f"Expected 10.0, got {result}"
