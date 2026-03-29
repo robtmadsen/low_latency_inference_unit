@@ -103,10 +103,19 @@ data/
 └── tvagg_sample.gz           # Compressed source
 .github/
 ├── arch/                     # Architecture specifications
-│   ├── SPEC.md               # Top-level design spec
-│   ├── RTL_ARCH.md           # RTL module hierarchy
+│   ├── v1/                   # Simulation-core arch docs
+│   │   ├── SPEC.md           # System specification
+│   │   ├── RTL_ARCH.md       # RTL module hierarchy
+│   │   ├── COCOTB_ARCH.md    # cocotb testbench architecture
+│   │   └── UVM_ARCH.md       # UVM testbench architecture
 │   └── kintex-7/
 │       └── Kintex-7_MAS.md   # KC705 micro-architectural spec
+├── plan/                     # Per-target implementation plans
+│   └── kintex-7/
+│       ├── RTL_PLAN_kintex-7.md
+│       ├── COCOTB_PLAN_kintex-7.md
+│       ├── UVM_PLAN_kintex-7.md
+│       └── BACKEND_PLAN_kintex-7.md
 ├── agents/                   # VS Code agent mode definitions
 └── workflows/ci.yml          # CI pipeline
 reports/v1_dut/               # Archived v1 coverage, results, waveforms
