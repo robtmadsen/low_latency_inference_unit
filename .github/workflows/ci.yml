@@ -40,7 +40,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y git autoconf g++ flex bison \
-            libfl2 libfl-dev zlib1g-dev help2man
+            libfl-dev zlib1g-dev help2man
 
       - name: Build Verilator from source
         if: steps.cache.outputs.cache-hit != 'true'
@@ -120,7 +120,7 @@ jobs:
       - name: Install system deps (for Verilator C++ compilation)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y g++ make libfl2 libfl-dev
+          sudo apt-get install -y g++ make
 
       - name: Run ${{ matrix.toplevel }} tests
         working-directory: tb/cocotb
