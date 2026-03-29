@@ -25,5 +25,7 @@ JDs/
 *.swo
 *~
 .github/*
+!.github/copilot-instructions.md
 !.github/workflows/
 !.github/skills/
+!.github/agents/

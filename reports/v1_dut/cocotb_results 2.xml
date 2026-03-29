@@ -1,0 +1,201 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="cocotb_regression">
+  <summary timestamp="2026-03-25T12:16:49" tests="115" passed="75" failed="40" skipped="0" />
+  <testsuite name="all" tests="115" failures="40" skipped="0">
+    <testcase name="test_bfloat16_mul_basic" classname="tests.test_bfloat16_mul" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bfloat16_mul.py" lineno="14" time="0.0003447532653808594" sim_time_ns="7.0" ratio_time="20304.376210235132" />
+    <testcase name="test_bfloat16_mul_special_cases" classname="tests.test_bfloat16_mul" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bfloat16_mul.py" lineno="50" time="8.702278137207031e-05" sim_time_ns="4.999999999999999" ratio_time="57456.21917808218" />
+    <testcase name="test_bf16_mul_zero_both" classname="tests.test_bf16_mul_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bf16_mul_edge.py" lineno="21" time="0.0001480579376220703" sim_time_ns="1.0" ratio_time="6754.112721417069" />
+    <testcase name="test_bf16_mul_zero_a" classname="tests.test_bf16_mul_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bf16_mul_edge.py" lineno="32" time="5.1975250244140625e-05" sim_time_ns="1.0" ratio_time="19239.92660550459" />
+    <testcase name="test_bf16_mul_zero_b" classname="tests.test_bf16_mul_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bf16_mul_edge.py" lineno="43" time="4.220008850097656e-05" sim_time_ns="1.0" ratio_time="23696.632768361582" />
+    <testcase name="test_bf16_mul_neg_neg" classname="tests.test_bf16_mul_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bf16_mul_edge.py" lineno="54" time="3.504753112792969e-05" sim_time_ns="1.0" ratio_time="28532.680272108842" />
+    <testcase name="test_bf16_mul_neg_pos" classname="tests.test_bf16_mul_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bf16_mul_edge.py" lineno="67" time="3.2901763916015625e-05" sim_time_ns="1.0" ratio_time="30393.507246376812" />
+    <testcase name="test_bf16_mul_pos_neg" classname="tests.test_bf16_mul_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bf16_mul_edge.py" lineno="78" time="3.0279159545898438e-05" sim_time_ns="1.0" ratio_time="33026.015748031496" />
+    <testcase name="test_bf16_mul_denormal" classname="tests.test_bf16_mul_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bf16_mul_edge.py" lineno="89" time="7.605552673339844e-05" sim_time_ns="3.0" ratio_time="39444.86520376176" />
+    <testcase name="test_bf16_mul_large_overflow" classname="tests.test_bf16_mul_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bf16_mul_edge.py" lineno="112" time="3.600120544433594e-05" sim_time_ns="1.0" ratio_time="27776.847682119205" />
+    <testcase name="test_bf16_mul_underflow" classname="tests.test_bf16_mul_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bf16_mul_edge.py" lineno="123" time="3.409385681152344e-05" sim_time_ns="1.0" ratio_time="29330.797202797203" />
+    <testcase name="test_bf16_mul_all_mantissa_bits" classname="tests.test_bf16_mul_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bf16_mul_edge.py" lineno="134" time="0.0006570816040039062" sim_time_ns="100.0" ratio_time="152188.09869375906" />
+    <testcase name="test_bf16_mul_norm_shift_decision" classname="tests.test_bf16_mul_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bf16_mul_edge.py" lineno="149" time="4.00543212890625e-05" sim_time_ns="2.0" ratio_time="49932.19047619047" />
+    <testcase name="test_bf16_mul_exponent_sweep" classname="tests.test_bf16_mul_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_bf16_mul_edge.py" lineno="169" time="0.00020503997802734375" sim_time_ns="27.0" ratio_time="131681.63720930234" />
+    <testcase name="test_fp32_acc_accumulate" classname="tests.test_fp32_acc" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc.py" lineno="13" time="0.0003209114074707031" sim_time_ns="70.0" ratio_time="218128.73699851413" />
+    <testcase name="test_fp32_acc_clear" classname="tests.test_fp32_acc" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc.py" lineno="45" time="0.0001671314239501953" sim_time_ns="80.0" ratio_time="478665.22111269616" />
+    <testcase name="test_acc_zero_addend" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="54" time="0.0002911090850830078" sim_time_ns="60.0" ratio_time="206108.30466830466" />
+    <testcase name="test_acc_addend_to_zero" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="66" time="0.0001373291015625" sim_time_ns="60.00000000000001" ratio_time="436906.66666666674" />
+    <testcase name="test_acc_both_zero" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="77" time="0.00012969970703125" sim_time_ns="60.000000000000014" ratio_time="462607.0588235295" />
+    <testcase name="test_acc_effective_subtraction" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="88" time="0.00012493133544921875" sim_time_ns="70.0" ratio_time="560307.786259542" />
+    <testcase name="test_acc_subtraction_negative_result" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="100" time="0.00011491775512695312" sim_time_ns="70.00000000000003" ratio_time="609131.2863070542" />
+    <testcase name="test_acc_near_cancellation" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="112" time="0.00018715858459472656" sim_time_ns="70.0" ratio_time="374014.36942675157" />
+    <testcase name="test_acc_deep_normalization_shifts" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="124" time="0.001383066177368164" sim_time_ns="1330.0" ratio_time="961631.4980175832" />
+    <testcase name="test_acc_carry_out" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="145" time="0.00011277198791503906" sim_time_ns="70.0" ratio_time="620721.5221987315" />
+    <testcase name="test_acc_exact_cancellation" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="157" time="0.00010919570922851562" sim_time_ns="70.0" ratio_time="641050.8296943231" />
+    <testcase name="test_acc_large_exp_diff" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="169" time="0.00015735626220703125" sim_time_ns="70.0" ratio_time="444850.42424242425" />
+    <testcase name="test_acc_negative_accumulation" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="181" time="0.00010395050048828125" sim_time_ns="70.0" ratio_time="673397.4311926606" />
+    <testcase name="test_acc_alternating_signs" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="193" time="0.00023293495178222656" sim_time_ns="100.0" ratio_time="429304.4012282498" />
+    <testcase name="test_acc_addend_larger_than_acc" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="207" time="0.00011181831359863281" sim_time_ns="70.0" ratio_time="626015.5223880596" />
+    <testcase name="test_acc_progressive_subtraction" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="219" time="0.00013899803161621094" sim_time_ns="100.0" ratio_time="719434.6483704974" />
+    <testcase name="test_acc_clear_and_reaccumulate" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="232" time="0.0001418590545654297" sim_time_ns="110.0" ratio_time="775417.5462184874" />
+    <testcase name="test_acc_very_small_result" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="256" time="0.00011491775512695312" sim_time_ns="70.0" ratio_time="609131.286307054" />
+    <testcase name="test_acc_ulp_diff_8" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="268" time="0.00011897087097167969" sim_time_ns="70.0" ratio_time="588379.3186372746" />
+    <testcase name="test_acc_ulp_diff_4" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="281" time="0.00011897087097167969" sim_time_ns="70.0" ratio_time="588379.3186372746" />
+    <testcase name="test_acc_ulp_diff_2" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="294" time="0.00011491775512695312" sim_time_ns="70.0" ratio_time="609131.286307054" />
+    <testcase name="test_acc_ulp_diff_1" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="307" time="0.00011396408081054688" sim_time_ns="70.0" ratio_time="614228.6192468619" />
+    <testcase name="test_acc_small_acc_larger_addend_same_exp" classname="tests.test_fp32_acc_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_fp32_acc_edge.py" lineno="320" time="0.00010609626770019531" sim_time_ns="70.0" ratio_time="659778.1573033708" />
+    <testcase name="test_dot_product_basic" classname="tests.test_dot_product_engine" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_dot_product_engine.py" lineno="57" time="0.0004887580871582031" sim_time_ns="110.0" ratio_time="225060.21463414634" />
+    <testcase name="test_dot_product_sweep" classname="tests.test_dot_product_engine" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_dot_product_engine.py" lineno="80" time="0.01745295524597168" sim_time_ns="12000.0" ratio_time="687562.640875374" />
+    <testcase name="test_dot_product_back_to_back" classname="tests.test_dot_product_engine" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_dot_product_engine.py" lineno="114" time="0.0003771781921386719" sim_time_ns="180.0" ratio_time="477228.01517067006" />
+    <testcase name="test_single_add_order" classname="tests.test_parser" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser.py" lineno="46" time="0.0018749237060546875" sim_time_ns="550.0" ratio_time="293345.2695829095">
+      <failure error_type="AssertionError" error_msg="fields_valid never asserted" />
+    </testcase>
+    <testcase name="test_multi_beat_message" classname="tests.test_parser" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser.py" lineno="101" time="0.0010890960693359375" sim_time_ns="560.0" ratio_time="514187.880910683">
+      <failure error_type="AssertionError" error_msg="fields_valid never asserted for multi-beat message" />
+    </testcase>
+    <testcase name="test_non_add_order_passthrough" classname="tests.test_parser" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser.py" lineno="150" time="0.0002548694610595703" sim_time_ns="90.0" ratio_time="353121.9457436857" />
+    <testcase name="test_back_to_back_messages" classname="tests.test_parser" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser.py" lineno="181" time="0.0011298656463623047" sim_time_ns="560.0" ratio_time="495634.15066469717">
+      <failure error_type="AssertionError" error_msg="fields_valid never asserted for message 0" />
+    </testcase>
+    <testcase name="test_min_length_message" classname="tests.test_parser_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser_edge.py" lineno="90" time="0.0003390312194824219" sim_time_ns="70.0" ratio_time="206470.6610407876" />
+    <testcase name="test_body_len_exactly_6" classname="tests.test_parser_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser_edge.py" lineno="108" time="0.00019502639770507812" sim_time_ns="80.0" ratio_time="410200.88019559905" />
+    <testcase name="test_body_len_7" classname="tests.test_parser_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser_edge.py" lineno="125" time="0.00017595291137695312" sim_time_ns="90.0" ratio_time="511500.48780487804" />
+    <testcase name="test_body_len_8" classname="tests.test_parser_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser_edge.py" lineno="142" time="0.00018596649169921875" sim_time_ns="90.0" ratio_time="483958.1538461539" />
+    <testcase name="test_body_len_14" classname="tests.test_parser_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser_edge.py" lineno="159" time="0.0001609325408935547" sim_time_ns="90.0" ratio_time="559240.5333333333" />
+    <testcase name="test_truncated_in_idle" classname="tests.test_parser_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser_edge.py" lineno="176" time="0.0011398792266845703" sim_time_ns="1170.0" ratio_time="1026424.5304329639">
+      <failure error_type="AssertionError" error_msg="Parser did not recover after truncated message" />
+    </testcase>
+    <testcase name="test_truncated_in_accumulate" classname="tests.test_parser_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser_edge.py" lineno="210" time="0.001157999038696289" sim_time_ns="1179.9999999999998" ratio_time="1018999.1187976114">
+      <failure error_type="AssertionError" error_msg="Parser did not recover after truncated ACCUMULATE" />
+    </testcase>
+    <testcase name="test_back_to_back_no_idle" classname="tests.test_parser_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser_edge.py" lineno="262" time="0.0011010169982910156" sim_time_ns="1060.0" ratio_time="962746.2624512776">
+      <failure error_type="AssertionError" error_msg="fields_valid not asserted for message 0" />
+    </testcase>
+    <testcase name="test_multiple_non_add_order_types" classname="tests.test_parser_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser_edge.py" lineno="289" time="0.00028014183044433594" sim_time_ns="150.0" ratio_time="535443.0638297872" />
+    <testcase name="test_max_length_message" classname="tests.test_parser_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser_edge.py" lineno="322" time="0.0010471343994140625" sim_time_ns="1060.0" ratio_time="1012286.4845173042">
+      <failure error_type="AssertionError" error_msg="msg_valid never asserted for max-length message" />
+    </testcase>
+    <testcase name="test_valid_invalid_interleave" classname="tests.test_parser_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser_edge.py" lineno="340" time="0.0009961128234863281" sim_time_ns="1060.0" ratio_time="1064136.4863571087">
+      <failure error_type="AssertionError" error_msg="Msg 1 not parsed" />
+    </testcase>
+    <testcase name="test_boundary_prices" classname="tests.test_parser_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser_edge.py" lineno="391" time="0.0009379386901855469" sim_time_ns="1060.0" ratio_time="1130137.8342653788">
+      <failure error_type="AssertionError" error_msg="fields_valid not asserted for price=0x0" />
+    </testcase>
+    <testcase name="test_boundary_order_refs" classname="tests.test_parser_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_parser_edge.py" lineno="413" time="0.0009429454803466797" sim_time_ns="1060.000000000001" ratio_time="1124137.1024020237">
+      <failure error_type="AssertionError" error_msg="fields_valid not asserted for ref=0x0" />
+    </testcase>
+    <testcase name="test_price_delta" classname="tests.test_feature_extractor" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_feature_extractor.py" lineno="76" time="0.0003921985626220703" sim_time_ns="90.0" ratio_time="229475.59878419453" />
+    <testcase name="test_side_encoding" classname="tests.test_feature_extractor" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_feature_extractor.py" lineno="100" time="0.0001850128173828125" sim_time_ns="100.0" ratio_time="540503.0927835051" />
+    <testcase name="test_order_flow_imbalance" classname="tests.test_feature_extractor" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_feature_extractor.py" lineno="122" time="0.00022983551025390625" sim_time_ns="140.0" ratio_time="609131.286307054" />
+    <testcase name="test_feature_vector_format" classname="tests.test_feature_extractor" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_feature_extractor.py" lineno="141" time="0.00012636184692382812" sim_time_ns="80.0" ratio_time="633102.4905660377" />
+    <testcase name="test_zero_price_input" classname="tests.test_feat_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_feat_edge.py" lineno="57" time="0.00043082237243652344" sim_time_ns="110.0" ratio_time="255325.64471499724" />
+    <testcase name="test_max_price_input" classname="tests.test_feat_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_feat_edge.py" lineno="80" time="0.00019884109497070312" sim_time_ns="80.0" ratio_time="402331.3189448441" />
+    <testcase name="test_negative_price_delta" classname="tests.test_feat_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_feat_edge.py" lineno="94" time="0.0002551078796386719" sim_time_ns="100.0" ratio_time="391991.02803738316" />
+    <testcase name="test_negative_order_flow" classname="tests.test_feat_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_feat_edge.py" lineno="109" time="0.00033283233642578125" sim_time_ns="160.0" ratio_time="480722.5214899714" />
+    <testcase name="test_order_flow_oscillation" classname="tests.test_feat_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_feat_edge.py" lineno="124" time="0.00030422210693359375" sim_time_ns="160.0" ratio_time="525931.5360501567" />
+    <testcase name="test_small_magnitude_values" classname="tests.test_feat_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_feat_edge.py" lineno="140" time="0.00034999847412109375" sim_time_ns="200.0" ratio_time="571431.0626702998" />
+    <testcase name="test_power_of_two_prices" classname="tests.test_feat_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_feat_edge.py" lineno="154" time="0.0010142326354980469" sim_time_ns="660.0000000000001" ratio_time="650738.2792665728" />
+    <testcase name="test_large_price_delta_sweep" classname="tests.test_feat_edge" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_feat_edge.py" lineno="169" time="0.00028204917907714844" sim_time_ns="180.0" ratio_time="638186.5765004227" />
+    <testcase name="test_write_all_registers" classname="tests.test_axil_regmap" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_axil_regmap.py" lineno="54" time="0.0005991458892822266" sim_time_ns="230.0" ratio_time="383879.7930760048" />
+    <testcase name="test_read_all_registers" classname="tests.test_axil_regmap" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_axil_regmap.py" lineno="91" time="0.0003199577331542969" sim_time_ns="229.99999999999997" ratio_time="718844.9478390461" />
+    <testcase name="test_write_to_readonly_registers" classname="tests.test_axil_regmap" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_axil_regmap.py" lineno="133" time="0.0002601146697998047" sim_time_ns="179.99999999999994" ratio_time="692002.4931255727" />
+    <testcase name="test_back_to_back_writes" classname="tests.test_axil_regmap" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_axil_regmap.py" lineno="162" time="0.0003380775451660156" sim_time_ns="220.0" ratio_time="650738.2792665727" />
+    <testcase name="test_back_to_back_reads" classname="tests.test_axil_regmap" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_axil_regmap.py" lineno="180" time="0.0002448558807373047" sim_time_ns="189.9999999999999" ratio_time="775966.6601752673" />
+    <testcase name="test_interleaved_read_write" classname="tests.test_axil_regmap" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_axil_regmap.py" lineno="208" time="0.0002923011779785156" sim_time_ns="210.0" ratio_time="718437.0636215335" />
+    <testcase name="test_aw_before_w" classname="tests.test_axil_regmap" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_axil_regmap.py" lineno="237" time="0.00014209747314453125" sim_time_ns="90.0" ratio_time="633368.0536912752" />
+    <testcase name="test_w_before_aw" classname="tests.test_axil_regmap" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_axil_regmap.py" lineno="280" time="0.00013899803161621094" sim_time_ns="90.0" ratio_time="647491.1835334477" />
+    <testcase name="test_status_bit_combinations" classname="tests.test_axil_regmap" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_axil_regmap.py" lineno="323" time="0.00026702880859375" sim_time_ns="220.0" ratio_time="823881.1428571428" />
+    <testcase name="test_ctrl_write_combinations" classname="tests.test_axil_regmap" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_axil_regmap.py" lineno="346" time="0.0002491474151611328" sim_time_ns="180.0" ratio_time="722463.8468899522" />
+    <testcase name="test_result_data_toggle" classname="tests.test_axil_regmap" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_axil_regmap.py" lineno="363" time="0.0002911090850830078" sim_time_ns="260.0000000000002" ratio_time="893135.9868959876" />
+    <testcase name="test_single_inference" classname="tests.test_smoke" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_smoke.py" lineno="123" time="0.024496793746948242" sim_time_ns="8370.0" ratio_time="341677.36751437996">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_two_sequential_inferences" classname="tests.test_smoke" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_smoke.py" lineno="179" time="0.023558855056762695" sim_time_ns="8380.0" ratio_time="355704.89227125986">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_random_100" classname="tests.test_constrained_random" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_constrained_random.py" lineno="192" time="0.05676698684692383" sim_time_ns="20370.0" ratio_time="358835.32192626566">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_random_coverage_closure" classname="tests.test_constrained_random" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_constrained_random.py" lineno="200" time="0.0560297966003418" sim_time_ns="20379.999999999996" ratio_time="363735.0345097571">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_periodic_stall" classname="tests.test_backpressure" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_backpressure.py" lineno="174" time="0.026911020278930664" sim_time_ns="8370.0" ratio_time="311024.9969434674">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_random_backpressure" classname="tests.test_backpressure" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_backpressure.py" lineno="183" time="0.026786088943481445" sim_time_ns="8500.0" ratio_time="317328.89478322014">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_pipeline_drain" classname="tests.test_backpressure" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_backpressure.py" lineno="192" time="0.02580118179321289" sim_time_ns="8380.0" ratio_time="324791.32417897205">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_feature_latency_spec" classname="tests.test_latency" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_latency.py" lineno="142" time="0.0011048316955566406" sim_time_ns="240.0" ratio_time="217227.65645230902">
+      <failure error_type="TimeoutError" error_msg="parser_fields_valid did not assert within timeout" />
+    </testcase>
+    <testcase name="test_end_to_end_latency_spec" classname="tests.test_latency" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_latency.py" lineno="168" time="0.0022420883178710938" sim_time_ns="1020.0" ratio_time="454933.01573798386">
+      <failure error_type="TimeoutError" error_msg="dp_result_valid did not assert within timeout after final AXI beat" />
+    </testcase>
+    <testcase name="test_latency_single" classname="tests.test_latency" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_latency.py" lineno="206" time="0.012157917022705078" sim_time_ns="12380.0" ratio_time="1018266.5317488333">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within 300 cycles for msg 0" />
+    </testcase>
+    <testcase name="test_latency_sustained" classname="tests.test_latency" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_latency.py" lineno="237" time="0.011898040771484375" sim_time_ns="12380.0" ratio_time="1040507.4446938122">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within 300 cycles for msg 0" />
+    </testcase>
+    <testcase name="test_latency_under_backpressure" classname="tests.test_latency" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_latency.py" lineno="276" time="0.012142181396484375" sim_time_ns="12380.0" ratio_time="1019586.151429469">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within 300 cycles for msg 0" />
+    </testcase>
+    <testcase name="test_jitter" classname="tests.test_latency" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_latency.py" lineno="337" time="0.012436151504516602" sim_time_ns="12380.0" ratio_time="995484.8166254482">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within 300 cycles for msg 0" />
+    </testcase>
+    <testcase name="test_truncated_message" classname="tests.test_error_injection" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_error_injection.py" lineno="141" time="0.025821924209594727" sim_time_ns="8890.0" ratio_time="344281.0817598449">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_malformed_type" classname="tests.test_error_injection" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_error_injection.py" lineno="172" time="0.025407075881958008" sim_time_ns="8930.0" ratio_time="351476.8894102191">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_garbage_recovery" classname="tests.test_error_injection" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_error_injection.py" lineno="202" time="0.0252230167388916" sim_time_ns="8910.0" ratio_time="353248.7843241046">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_weight_boundary_addresses" classname="tests.test_wgtmem_outbuf" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_wgtmem_outbuf.py" lineno="106" time="0.0008020401000976562" sim_time_ns="340.0" ratio_time="423918.95362663496" />
+    <testcase name="test_weight_overwrite" classname="tests.test_wgtmem_outbuf" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_wgtmem_outbuf.py" lineno="132" time="0.012892961502075195" sim_time_ns="12590.0" ratio_time="976501.791149657">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready" />
+    </testcase>
+    <testcase name="test_weight_data_bit_toggle" classname="tests.test_wgtmem_outbuf" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_wgtmem_outbuf.py" lineno="156" time="0.001528024673461914" sim_time_ns="1070.0" ratio_time="700250.4727726635" />
+    <testcase name="test_all_zero_weights" classname="tests.test_wgtmem_outbuf" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_wgtmem_outbuf.py" lineno="175" time="0.011981964111328125" sim_time_ns="12270.0" ratio_time="1024039.1212989494">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready" />
+    </testcase>
+    <testcase name="test_output_buffer_result_ready" classname="tests.test_wgtmem_outbuf" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_wgtmem_outbuf.py" lineno="194" time="0.01914501190185547" sim_time_ns="20300.0" ratio_time="1060328.4084682441">
+      <failure error_type="AssertionError" error_msg="result_ready never asserted after inference" />
+    </testcase>
+    <testcase name="test_output_buffer_holds_result" classname="tests.test_wgtmem_outbuf" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_wgtmem_outbuf.py" lineno="231" time="0.011781930923461914" sim_time_ns="12270.0" ratio_time="1041425.2196612501">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready" />
+    </testcase>
+    <testcase name="test_weight_reload_between_inferences" classname="tests.test_wgtmem_outbuf" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_wgtmem_outbuf.py" lineno="256" time="0.011738777160644531" sim_time_ns="12269.999999999993" ratio_time="1045253.6777967334">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready" />
+    </testcase>
+    <testcase name="test_back_to_back_inferences" classname="tests.test_integration_sweep" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_integration_sweep.py" lineno="89" time="0.01998305320739746" sim_time_ns="20260.0" ratio_time="1013859.0829803734">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_soft_reset_mid_inference" classname="tests.test_integration_sweep" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_integration_sweep.py" lineno="116" time="0.01937723159790039" sim_time_ns="20719.999999999996" ratio_time="1069296.1941088168">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_weight_reload" classname="tests.test_integration_sweep" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_integration_sweep.py" lineno="157" time="0.01908564567565918" sim_time_ns="20270.0" ratio_time="1062054.7161184745">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_pipeline_stall_resume" classname="tests.test_integration_sweep" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_integration_sweep.py" lineno="185" time="0.0008668899536132812" sim_time_ns="540.0" ratio_time="622916.4356435643" />
+    <testcase name="test_read_status_during_busy" classname="tests.test_integration_sweep" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_integration_sweep.py" lineno="220" time="0.007972240447998047" sim_time_ns="8270.0" ratio_time="1037349.5448292362">
+      <failure error_type="AssertionError" error_msg="Never saw result_ready" />
+    </testcase>
+    <testcase name="test_alternating_buy_sell_sweep" classname="tests.test_integration_sweep" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_integration_sweep.py" lineno="254" time="0.019297122955322266" sim_time_ns="20270.0" ratio_time="1050415.6524747338">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_non_add_order_at_top" classname="tests.test_integration_sweep" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_integration_sweep.py" lineno="278" time="0.019181013107299805" sim_time_ns="20800.0" ratio_time="1084405.702850182">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_zero_price_inference" classname="tests.test_integration_sweep" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_integration_sweep.py" lineno="310" time="0.018543243408203125" sim_time_ns="20270.000000000015" ratio_time="1093120.5266406096">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_hard_reset_recovery" classname="tests.test_integration_sweep" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_integration_sweep.py" lineno="331" time="0.018880844116210938" sim_time_ns="20270.0" ratio_time="1073574.8823113446">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+    <testcase name="test_ctrl_start_toggle" classname="tests.test_integration_sweep" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_integration_sweep.py" lineno="365" time="0.00030803680419921875" sim_time_ns="250.0" ratio_time="811591.3312693499" />
+    <testcase name="test_replay_non_add_orders" classname="tests.test_replay" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_replay.py" lineno="103" time="0.006282806396484375" sim_time_ns="3590.0" ratio_time="571400.7043108683" />
+    <testcase name="test_replay_with_injected_add_orders" classname="tests.test_replay" file="/Users/robertmadsen/Documents/projects/low_latency_inference_unit/tb/cocotb/tests/test_replay.py" lineno="138" time="0.024136066436767578" sim_time_ns="24810.0" ratio_time="1027922.2616907363">
+      <failure error_type="TimeoutError" error_msg="Inference result not ready within timeout" />
+    </testcase>
+  </testsuite>
+</testsuites>
