@@ -7,7 +7,9 @@
 // bfloat16 format: [15] sign | [14:7] exponent (8-bit, bias 127) | [6:0] mantissa (7-bit, implicit leading 1)
 // float32 format:  [31] sign | [30:23] exponent (8-bit, bias 127) | [22:0] mantissa (23-bit, implicit leading 1)
 
+/* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 module bfloat16_mul (
     input  logic      clk,

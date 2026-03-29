@@ -10,7 +10,9 @@
 //   - AXI4-Lite slave   (control plane)
 //   - Clock, reset
 
+/* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 // New KC705 modules (moldupp64_strip, symbol_filter, eth_axis_rx_wrap) are
 // standalone primitives not yet wired into lliu_top; suppress the resulting

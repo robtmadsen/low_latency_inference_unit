@@ -16,7 +16,9 @@
 // adds, and renormalizes. Sufficient for small vector dot products where
 // catastrophic cancellation is not a concern.
 
+/* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 module fp32_acc (
     input  logic     clk,

@@ -3,7 +3,9 @@
 // Latches result on result_valid strobe from dot-product engine.
 // Presents value for AXI4-Lite readout.
 
+/* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 module output_buffer (
     input  logic     clk,

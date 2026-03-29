@@ -31,7 +31,8 @@ RTL_SRC   := $(filter-out $(RTL_PKG), $(wildcard $(RTL_DIR)/*.sv))
 
 # ---- UVM testbench files ----
 TB_IFS    := $(TB_DIR)/axi4_stream_if.sv \
-             $(TB_DIR)/axi4_lite_if.sv
+             $(TB_DIR)/axi4_lite_if.sv \
+             $(TB_DIR)/kc705_ctrl_if.sv
 
 TB_PKGS   := $(TB_DIR)/agents/axi4_stream_agent/axi4_stream_agent_pkg.sv \
              $(TB_DIR)/agents/axi4_lite_agent/axi4_lite_agent_pkg.sv \
@@ -141,6 +142,7 @@ VL_FLAGS   := --binary --timing --trace -sv \
               -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
               -Wno-UNUSEDSIGNAL -Wno-IMPORTSTAR -Wno-CONSTRAINTIGN \
               -Wno-MISINDENT -Wno-CASEINCOMPLETE -Wno-MULTITOP \
+              -Wno-PINMISSING \
               --timescale 1ns/1ps \
               +incdir+$(RTL_DIR) +incdir+$(TB_DIR) \
               +incdir+$(UVM_HOME) \
@@ -158,6 +160,12 @@ endif
 # ---- DUT selection — controls conditional SVA guards ----
 ifeq ($(TOPLEVEL),kc705_top)
 VL_FLAGS   += +define+KC705_TOP_DUT
+else ifeq ($(TOPLEVEL),moldupp64_strip)
+VL_FLAGS   += +define+MOLDUPP64_DUT
+else ifeq ($(TOPLEVEL),symbol_filter)
+VL_FLAGS   += +define+SYMFILTER_DUT
+else ifeq ($(TOPLEVEL),eth_axis_rx_wrap)
+VL_FLAGS   += +define+DROPFULL_DUT
 else
 VL_FLAGS   += +define+LLIU_TOP_DUT
 endif

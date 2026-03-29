@@ -16,7 +16,9 @@
 // busy processing the previous Add-Order message. This ensures every
 // Add-Order that fires parser_fields_valid is actually processed by the DPE.
 
+/* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 module itch_parser (
     input  logic        clk,
@@ -39,6 +41,7 @@ module itch_parser (
     output logic [63:0] order_ref,
     output logic        side,
     output logic [31:0] price,
+    output logic [63:0] stock,      // 8-byte ASCII ticker (bytes 24–31)
     output logic        fields_valid
 );
 
@@ -81,6 +84,7 @@ module itch_parser (
         .order_ref    (order_ref),
         .side         (side),
         .price        (price),
+        .stock        (stock),
         .fields_valid (fields_valid)
     );
 
