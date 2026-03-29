@@ -12,6 +12,10 @@
 
 import lliu_pkg::*;
 
+// New KC705 modules (moldupp64_strip, symbol_filter, eth_axis_rx_wrap) are
+// standalone primitives not yet wired into lliu_top; suppress the resulting
+// MULTITOP diagnostic so the all-files lint run stays clean.
+/* verilator lint_off MULTITOP */
 module lliu_top #(
     parameter int VEC_LEN    = FEATURE_VEC_LEN,
     parameter int AXIL_ADDR  = 8,

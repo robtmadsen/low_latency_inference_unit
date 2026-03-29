@@ -1,7 +1,8 @@
 // bfloat16_mul.sv — bfloat16 multiplier producing float32 result
 //
 // Takes two bfloat16 operands and produces a float32 product.
-// Single-cycle combinational datapath.
+// One registered output stage: result is valid 1 cycle after inputs.
+// Intended to help Kintex-7 Synthesis meet 300 MHz timing via DSP48E1 P-register.
 //
 // bfloat16 format: [15] sign | [14:7] exponent (8-bit, bias 127) | [6:0] mantissa (7-bit, implicit leading 1)
 // float32 format:  [31] sign | [30:23] exponent (8-bit, bias 127) | [22:0] mantissa (23-bit, implicit leading 1)
@@ -9,6 +10,8 @@
 import lliu_pkg::*;
 
 module bfloat16_mul (
+    input  logic      clk,
+    input  logic      rst,
     input  bfloat16_t a,
     input  bfloat16_t b,
     output float32_t  result
@@ -95,10 +98,19 @@ module bfloat16_mul (
         end
     end
 
-    // Assemble float32 result
+    // Assemble float32 result (combinational)
     logic result_is_zero;
     assign result_is_zero = a_zero || b_zero || (r_exp == 8'b0 && !a_zero && !b_zero);
 
-    assign result = result_is_zero ? {r_sign, 31'b0} : {r_sign, r_exp, r_man};
+    float32_t result_comb;
+    assign result_comb = result_is_zero ? {r_sign, 31'b0} : {r_sign, r_exp, r_man};
+
+    // Output register: 1-cycle latency, enables DSP48E1 P-register inference
+    always_ff @(posedge clk) begin
+        if (rst)
+            result <= '0;
+        else
+            result <= result_comb;
+    end
 
 endmodule

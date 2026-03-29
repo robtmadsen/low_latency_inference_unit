@@ -1,7 +1,16 @@
-// fp32_acc.sv — Float32 accumulator
+// fp32_acc.sv — Float32 accumulator, two-stage pipeline
 //
 // Accumulates float32 values over multiple cycles.
 // Supports clear (reset to zero) and accumulate enable.
+//
+// Two-stage pipeline to meet 300 MHz on Kintex-7 -2:
+//   Stage 1: partial_sum = acc_fb + addend  → registered → partial_sum_r
+//   Stage 2: acc_reg = partial_sum_r        → registered → acc_out
+//
+// Back-to-back acc_en forwarding:
+//   When acc_en_d1 is asserted (Stage 2 about to fire) the combinational
+//   FP add reads partial_sum_r instead of acc_reg (acc_fb mux).  This
+//   eliminates the RAW hazard that arises with consecutive acc_en pulses.
 //
 // Uses a simplified float32 add: aligns mantissas by exponent difference,
 // adds, and renormalizes. Sufficient for small vector dot products where
@@ -18,18 +27,29 @@ module fp32_acc (
     output float32_t acc_out
 );
 
+    // Stage 2 register (final accumulated result)
     float32_t acc_reg;
+    // Stage 1 register (intermediate: combinational sum before closing the loop)
+    float32_t partial_sum_r;
+    // Delayed enable: drives Stage 2 FF
+    logic     acc_en_d1;
 
-    // Decompose accumulator
+    // Forwarding mux: when Stage 2 is about to fire (acc_en_d1 = 1), the
+    // accumulator feedback should use partial_sum_r (the most recent partial
+    // result), not acc_reg (which is one cycle stale).
+    float32_t acc_fb;
+    assign acc_fb = acc_en_d1 ? partial_sum_r : acc_reg;
+
+    // Decompose feedback value (used in FP add below)
     logic        acc_sign;
     logic [7:0]  acc_exp;
     logic [23:0] acc_man; // implicit 1 + 23-bit mantissa
     logic        acc_zero;
 
-    assign acc_sign = acc_reg[31];
-    assign acc_exp  = acc_reg[30:23];
-    assign acc_zero = (acc_reg[30:0] == 31'b0);
-    assign acc_man  = acc_zero ? 24'b0 : {1'b1, acc_reg[22:0]};
+    assign acc_sign = acc_fb[31];
+    assign acc_exp  = acc_fb[30:23];
+    assign acc_zero = (acc_fb[30:0] == 31'b0);
+    assign acc_man  = acc_zero ? 24'b0 : {1'b1, acc_fb[22:0]};
 
     // Decompose addend
     logic        add_sign;
@@ -107,7 +127,7 @@ module fp32_acc (
         end else if (acc_zero) begin
             sum_result = addend;
         end else if (add_zero) begin
-            sum_result = acc_reg;
+            sum_result = acc_fb;
         /* verilator coverage_off */  // exact cancellation: requires identical-magnitude opposing products
         end else if (sum_man == 25'b0) begin
             sum_result = 32'b0;
@@ -152,13 +172,28 @@ module fp32_acc (
         end
     end
 
-    // Sequential accumulation
+    // acc_en_d1 — delayed enable drives Stage 2; cleared with acc_clear
     always_ff @(posedge clk) begin
-        if (rst || acc_clear) begin
+        if (rst || acc_clear)
+            acc_en_d1 <= 1'b0;
+        else
+            acc_en_d1 <= acc_en;
+    end
+
+    // Stage 1: register the combinational FP add result
+    always_ff @(posedge clk) begin
+        if (rst || acc_clear)
+            partial_sum_r <= 32'b0;
+        else if (acc_en)
+            partial_sum_r <= sum_result;
+    end
+
+    // Stage 2: move Stage 1 result into the feedback register
+    always_ff @(posedge clk) begin
+        if (rst || acc_clear)
             acc_reg <= 32'b0;
-        end else if (acc_en) begin
-            acc_reg <= sum_result;
-        end
+        else if (acc_en_d1)
+            acc_reg <= partial_sum_r;
     end
 
     assign acc_out = acc_reg;

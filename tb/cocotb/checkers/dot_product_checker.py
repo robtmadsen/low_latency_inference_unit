@@ -11,10 +11,11 @@ from cocotb.triggers import RisingEdge
 
 
 # Dot-product FSM states (from dot_product_engine.sv)
-S_IDLE = 0
+S_IDLE    = 0
 S_COMPUTE = 1
-S_DONE = 2
-VALID_STATES = {S_IDLE, S_COMPUTE, S_DONE}
+S_DONE    = 2
+S_DRAIN   = 3
+VALID_STATES = {S_IDLE, S_COMPUTE, S_DONE, S_DRAIN}
 
 # VEC_LEN + pipeline overhead — generous bound
 MAX_COMPUTE_CYCLES = 32
