@@ -188,7 +188,7 @@ any traffic test:
 >
 > **Simulation guard:** In Verilator simulation the GTX transceiver is not present.
 > The `gtx_lock_status` register must read 1 immediately (tie-off in simulation
-> mode via `KINTEX7_SIM_MAC_BYPASS` conditional). The sequence must check the UVM
+> mode via `KINTEX7_SIM_GTX_BYPASS` conditional). The sequence must check the UVM
 > config DB for a `kc705_sim_mode` bit before polling; if set, skip the GTX lock
 > poll and proceed directly to step 3. Example:
 > ```systemverilog
@@ -400,10 +400,15 @@ This test drives raw Ethernet frames into the `mac_rx_*` ports and observes
 > `clk_300`.
 >
 > **Simulation bypass:** The Makefile for `lliu_kc705_test` must add
-> `+define+KINTEX7_SIM_MAC_BYPASS` so that `kc705_top` exposes the `mac_rx_*` and
+> `+define+KINTEX7_SIM_GTX_BYPASS` so that `kc705_top` exposes the `mac_rx_*` and
 > `clk_156_in` ports for the testbench to drive. Without this define the GTX
 > transceiver path is active and Verilator will fail to compile. The `kc705_sim_mode`
 > config DB key must also be set to `1` so `kc705_init_seq` skips the GTX lock poll.
+>
+> **Frame encapsulation:** All sequences driving `kc705_top` via `mac_rx_*` must
+> now construct fully encapsulated Ethernet frames (Eth/IPv4/UDP/MoldUDP64 headers)
+> because `ip_complete_64` and `udp_complete_64` are now instantiated in simulation.
+> See MAS §6.3 for the required header layout and `ip_complete_64` configuration.
 
 | Scenario | Sequence | Pass criterion |
 |----------|----------|----------------|

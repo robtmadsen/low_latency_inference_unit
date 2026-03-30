@@ -343,3 +343,332 @@ The Forencich `verilog-ethernet` modules are third-party IP — they are not pla
 | 3 | MoldUDP64 gap recovery | Out of scope v1 | Sequence number register exposed via AXI4-Lite |
 | 4 | 300 MHz timing closure | **High** — DSP column routing congestion is the most likely failure mode on Kintex-7 -2 for dense dot-product pipelines | (a) Ensure `dot_product_engine` is ≥ 3–4 pipeline stages (escalate to `rtl_engineer`); (b) apply DSP Pblock in XDC; (c) if negative slack remains after P&R, drop to 250 MHz fallback clock |
 | 6 | FIFO overflow / MAC stall | **High** — backpressure into the Forencich MAC corrupts frame alignment at 10GbE line rate | Drop-on-Full policy: route `axis_async_fifo.almost_full` → `eth_axis_rx` drop flag; drop entire frames cleanly at wire; expose `dropped_frames` counter via AXI4-Lite |
+
+---
+
+## 6. Simulation Strategy & Forencich IP Integration
+
+This section defines how the Forencich IP stack (`ip_complete_64`, `udp_complete_64`,
+`axis_async_fifo`) integrates into the Verilator simulation flow, closing the coverage
+gap where both cocotb and UVM testbenches previously bypassed all three simulatable
+Forencich blocks.
+
+---
+
+### 6.1 `verilog-ethernet` Submodule
+
+The Forencich `verilog-ethernet` library must be added as a Git submodule at
+`lib/verilog-ethernet/`, pointing to the canonical upstream repository:
+
+```sh
+git submodule add https://github.com/alexforencich/verilog-ethernet lib/verilog-ethernet/
+git submodule update --init
+```
+
+The submodule must be initialised before any Verilator compile that targets
+`kc705_top` with `KINTEX7_SIM_GTX_BYPASS` defined (see §6.2).
+
+#### Primary modules required for simulation
+
+| File | Purpose |
+|------|---------|
+| `lib/verilog-ethernet/rtl/eth_axis_rx.v` | Ethernet frame header strip; instantiated inside `eth_axis_rx_wrap` |
+| `lib/verilog-ethernet/rtl/ip_complete_64.v` | IPv4 RX: header parse, checksum verify, multicast group filter |
+| `lib/verilog-ethernet/rtl/udp_complete_64.v` | UDP RX: header parse, destination port filter, payload extraction |
+| `lib/verilog-ethernet/rtl/axis_async_fifo.v` | Async FIFO for 156.25 MHz → 300 MHz clock-domain crossing |
+
+#### Dependencies (must also be compiled alongside the primary modules)
+
+The following files are expected under `lib/verilog-ethernet/rtl/`. The exact list
+must be verified against the checked-out submodule's `modules.tcl` or README filelist.
+
+| Required by | Expected files (expected path under `lib/verilog-ethernet/rtl/`) |
+|-------------|-------------------------------------------------------------------|
+| `ip_complete_64.v` | `ip.v` (or parameterised `ip_64.v`), `ip_eth_rx.v`, `ip_eth_tx.v`, `arp.v`, `arp_cache.v`, `arp_eth_rx.v`, `arp_eth_tx.v`, `eth_arb_mux.v` |
+| `udp_complete_64.v` | `udp.v` (or `udp_64.v`), `udp_ip_rx.v`, `udp_ip_tx.v` |
+| `axis_async_fifo.v` | `axis_async_fifo_wr.v`, `axis_async_fifo_rd.v` (internal sub-modules, if the checked-out version splits them) |
+
+> **Note:** The exact dependency filelist must be verified against the checked-out
+> `lib/verilog-ethernet/` tree. Run `grep -r '^module ' lib/verilog-ethernet/rtl/` or
+> inspect the Forencich README's per-module filelist. Some Forencich modules have a
+> `_64` suffix (wide-bus variants) and a non-suffix generic (data-width parameterised).
+> Confirm whether `ip_complete_64.v` instantiates `ip_64.v` or a generic `ip.v` in
+> the checked-out version; the Verilator compile line must reference the correct set.
+
+#### Verilator source list
+
+Once the submodule is initialised, all Forencich dependency files must be added to the
+Verilator invocation for `kc705_top`. A representative full compile line is given in
+§6.5 and expanded step-by-step in `RTL_PLAN_forencich_sim.md`.
+
+---
+
+### 6.2 Revised Bypass Boundary — `KINTEX7_SIM_GTX_BYPASS`
+
+The simulation conditional compile macro is **renamed** from `KINTEX7_SIM_MAC_BYPASS`
+to **`KINTEX7_SIM_GTX_BYPASS`**. The new name precisely identifies what is bypassed:
+only the **hardware-only GTX transceiver, IBUFDS, MMCM, and SFP** primitives that
+Verilator cannot simulate. The simulatable Forencich modules (`eth_axis_rx`,
+`ip_complete_64`, `udp_complete_64`, `axis_async_fifo`) are now **compiled and
+exercised** in simulation under this define.
+
+All agent files, Makefiles, and lint scripts that previously passed
+`+define+KINTEX7_SIM_MAC_BYPASS` must be updated to `+define+KINTEX7_SIM_GTX_BYPASS`.
+See §6.5 for the updated lint command.
+
+#### What `KINTEX7_SIM_GTX_BYPASS` still bypasses (hardware primitives only)
+
+| Bypassed hardware | Reason |
+|-------------------|--------|
+| Kintex-7 GTX transceiver (XGMII/SERDES) | Xilinx primitive; not Verilator-simulatable |
+| `IBUFDS` / `IBUFDS_GTE2` differential input buffers | Xilinx primitive |
+| `MMCM_ADV` clock multiplier/divider | Xilinx primitive |
+| `eth_mac_phy_10g` (PHY + MAC combined wrapper) | Depends on GTX transceiver internally |
+| SFP+ serial pads (`sfp_rx_p/n`, `sfp_tx_p/n`) | Physical-layer pins; no simulation model |
+
+Under `KINTEX7_SIM_GTX_BYPASS`, the two simulation-only top-level ports substitute
+for GTX/MMCM output clocks:
+
+- `clk_156_in` — drives `clk_156` (replaces GTX recovered clock)
+- `clk_300_in` — drives `clk_300` (replaces MMCM output)
+
+Both testbench clock ports are exposed as top-level I/O; the testbench may supply
+independent clock sources for a two-clock scenario or tie both to the same signal
+for a single-clock regression that simplifies handshaking analysis.
+
+#### What `KINTEX7_SIM_GTX_BYPASS` no longer bypasses (new behaviour)
+
+| Module | Previous behaviour | New behaviour |
+|--------|--------------------|---------------|
+| `eth_axis_rx` (inside `eth_axis_rx_wrap`) | Instantiated (already working correctly) | Instantiated; unchanged |
+| `ip_complete_64` | Bypassed — `eth_wrap_*` wired directly to `udp_payload_*` | **Instantiated** between `eth_axis_rx_wrap` output and `moldupp64_strip` input |
+| `udp_complete_64` | Bypassed — same wire-through | **Instantiated** between `ip_complete_64` output and `moldupp64_strip` input |
+| `axis_async_fifo` | Bypassed — ITCH stream assigned directly from `itch_net_*` to `itch_300_*` | **Instantiated** bridging `clk_156` write side to `clk_300` read side |
+
+#### `eth_axis_rx_wrap` header field extension
+
+`eth_axis_rx_wrap` currently exposes only the Ethernet payload stream to
+`kc705_top`. To wire `ip_complete_64` correctly, `eth_axis_rx_wrap` must be
+extended to also expose the Ethernet header fields that the internal `eth_axis_rx`
+instance already produces:
+
+| New output port | Width | Source |
+|----------------|-------|--------|
+| `eth_hdr_valid` | 1 | `eth_axis_rx.output_eth_hdr_valid` |
+| `eth_dest_mac` | 48 | `eth_axis_rx.output_eth_dest_mac[47:0]` |
+| `eth_src_mac` | 48 | `eth_axis_rx.output_eth_src_mac[47:0]` |
+| `eth_type` | 16 | `eth_axis_rx.output_eth_type[15:0]` |
+
+These four outputs are suppressed (tied to their `eth_axis_rx` natural values) during
+drop mode so that `ip_complete_64` never sees a header for a frame whose payload has
+been discarded.
+
+> **Note:** The exact Forencich `eth_axis_rx` output port names must be verified from
+> `lib/verilog-ethernet/rtl/eth_axis_rx.v`. The names above follow the Forencich
+> `output_*` naming convention observed in the verilog-ethernet library but may differ
+> in the specific checked-out version.
+
+#### `axis_async_fifo` clock assignment in simulation
+
+`axis_async_fifo` is an asynchronous dual-clock FIFO. In simulation, the write and
+read clocks are wired as follows:
+
+| FIFO port | Connected to | Rationale |
+|-----------|-------------|-----------|
+| `s_clk` (write side) | `clk_156_in` | ITCH stream written at 156.25 MHz |
+| `s_rst` (write-side reset) | `rst_156` | Synchronised to write domain |
+| `m_clk` (read side) | `clk_300_in` | `itch_parser` reads at 300 MHz |
+| `m_rst` (read-side reset) | `rst_300` | Synchronised to read domain |
+
+For single-clock regression runs where `clk_156_in` and `clk_300_in` are driven by
+the same testbench clock, the FIFO operates as a synchronous FIFO — latency is
+well-defined and the CDC grey-code logic is trivially exercised. Two-clock test
+scenarios require independent `Clock()` coroutines (cocotb) or separate clock
+generator instances (UVM `tb_top.sv`).
+
+#### `fifo_rd_tvalid` port
+
+The `fifo_rd_tvalid` top-level output is driven from the real `axis_async_fifo`
+read-side `m_axis_tvalid` (not a direct wire-through from `itch_net_tvalid`).
+This is required so that SVA latency assertions in the testbench observe the true
+FIFO-read-side beat timing, including the FIFO `PIPELINE_OUTPUT` register stage.
+
+---
+
+### 6.3 Testbench Driver Requirements
+
+All testbench drivers that target `kc705_top` via `mac_rx_*` must send **fully
+encapsulated Ethernet frames**. The complete header stack required to pass data from
+the `mac_rx_*` ports through to `moldupp64_strip` is:
+
+```
+[ Ethernet hdr ][ IPv4 hdr  ][UDP hdr ][ MoldUDP64 hdr ][ ITCH message(s) ]
+[   14 bytes   ][ 20 bytes  ][ 8 bytes][   20 bytes    ][  variable       ]
+```
+
+#### Ethernet header (14 bytes)
+
+| Field | Size | Required value |
+|-------|------|----------------|
+| Destination MAC | 6 B | `01:00:5e:xx:xx:xx` — standard IPv4 multicast MAC. Lower 23 bits derived from the multicast group IP per RFC 1112. For default IP `233.54.12.0` (0xE9\_360C\_00), lower 23 bits = `0x36_0C00`, giving MAC `01:00:5e:36:0c:00`. |
+| Source MAC | 6 B | Testbench-defined; suggested `02:00:00:00:00:01` (locally administered) |
+| EtherType | 2 B | `0x0800` (IPv4) |
+
+#### IPv4 header (20 bytes, no options)
+
+| Field | Required value |
+|-------|----------------|
+| Version / IHL | `0x45` (IPv4, 20-byte header, no options) |
+| DSCP / ECN | `0x00` |
+| Total Length | `20 + 8 + 20 + ITCH_payload_len` (IP header + UDP header + MoldUDP64 header + ITCH bytes) |
+| Identification | Incrementing counter or `0x0000` |
+| Flags / Fragment Offset | `0x4000` (Don't Fragment), offset `0` |
+| TTL | `64` |
+| Protocol | `0x11` (UDP) |
+| Header Checksum | Computed per RFC 791 (the driver must calculate and insert the correct value) |
+| Source IP | Testbench-defined; suggested `10.0.0.1` |
+| Destination IP | Configurable; **default `233.54.12.0`** (NASDAQ ITCH multicast group, `0xE9360C00`) |
+
+#### UDP header (8 bytes)
+
+| Field | Required value |
+|-------|----------------|
+| Source Port | Testbench-defined; suggested `1024` |
+| Destination Port | Configurable; **default `26477`** (NASDAQ ITCH multicast port) |
+| Length | `8 + 20 + ITCH_payload_len` (UDP header + MoldUDP64 header + ITCH bytes) |
+| Checksum | `0x0000` (checksum is optional for IPv4/UDP per RFC 768) |
+
+#### MoldUDP64 header (20 bytes)
+
+| Field | Byte offset | Size | Value |
+|-------|-------------|------|-------|
+| Session | 0 | 10 B | ASCII session ID (e.g. `b"SESSION001"`) |
+| Sequence Number | 10 | 8 B | 64-bit little-endian sequence number |
+| Message Count | 18 | 2 B | Count of ITCH messages in this datagram, little-endian |
+
+#### `ip_complete_64` configuration
+
+`ip_complete_64` must be configured with the **matching multicast destination
+address** rather than a pass-all / accept-any mode. This approach is chosen because:
+
+1. It exercises the actual IP checksum verification and address filter code paths in
+   `ip_complete_64`, giving meaningful simulation coverage of those paths.
+2. It mirrors production behaviour: in the field, `ip_complete_64` accepts only
+   packets addressed to the NASDAQ feed multicast group.
+3. Tests that intentionally send non-matching IPs (wrong multicast group, unicast,
+   broadcast) can therefore verify the drop behaviour of `ip_complete_64` directly.
+
+Required `ip_complete_64` configuration port values for the default testbench:
+
+| Port | Default value |
+|------|---------------|
+| `local_ip` | `32'hE9360C00` (`233.54.12.0`) |
+| `gateway_ip` | `32'h0A000001` (`10.0.0.1`) |
+| `subnet_mask` | `32'hFFFFFF00` (`255.255.255.0`) |
+| `local_mac` | `48'h020000000001` (must match testbench source MAC) |
+
+`udp_complete_64` must be configured with the matching destination UDP port:
+
+| Port | Default value |
+|------|---------------|
+| Destination port config input | `16'd26477` |
+
+> **Note:** The exact configuration port names for `ip_complete_64` and
+> `udp_complete_64` must be verified against the checked-out Forencich source files.
+> The Forencich library uses `local_*` / `gateway_*` / `subnet_mask` conventions for
+> IP-stack configuration inputs; the exact port names and whether they are
+> registered inputs or `parameter` declarations must be confirmed from the actual
+> module headers before writing testbench stimulus code or the `kc705_top` port map.
+
+---
+
+### 6.4 `axis_async_fifo` Parameters for Simulation
+
+The `axis_async_fifo` instantiation inside `ifdef KINTEX7_SIM_GTX_BYPASS` must use
+the following parameters, consistent with the MAS §2.3 depth requirement and the
+64-bit pipeline bus width:
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| `DEPTH` | `128` | Per §2.3 — sufficient for burst absorption at market open; MoldUDP64 headers stripped upstream so only ITCH payload beats are stored |
+| `DATA_WIDTH` | `64` | 64-bit AXI4-Stream bus throughout the KC705 pipeline |
+| `KEEP_WIDTH` | `8` | `DATA_WIDTH / 8 = 8` |
+| `ID_WIDTH` | `0` | TID not used in this pipeline |
+| `DEST_WIDTH` | `0` | TDEST not used in this pipeline |
+| `USER_WIDTH` | `0` | TUSER not used in this pipeline |
+| `PIPELINE_OUTPUT` | `1` | Adds one registered output stage; reduces read-side critical-path pressure at 300 MHz |
+| `FRAME_FIFO` | `0` | Frame-granular drop is handled upstream at `eth_axis_rx_wrap`; the FIFO itself stores individual beats as independent words |
+
+The `s_status_almost_full` output (write-side, `clk_156` domain) must be wired
+directly to `eth_axis_rx_wrap.fifo_almost_full` with no additional synchronisation
+— both signals are in the `clk_156` domain (the write side of the FIFO is the
+network domain).
+
+> **Note:** Verify the exact parameter names against the checked-out
+> `lib/verilog-ethernet/rtl/axis_async_fifo.v`. In some Forencich versions, depth
+> is specified via `ADDR_WIDTH` (depth = 2^ADDR_WIDTH) rather than a direct `DEPTH`
+> parameter. For `DEPTH = 128`, `ADDR_WIDTH = 7`. Also verify the almost-full
+> threshold parameter name and default value (commonly `ALMOST_FULL_OFFSET`, where
+> the threshold fires at `DEPTH - ALMOST_FULL_OFFSET` entries used). Set the offset
+> to ≥ 18 to ensure the almost-full signal asserts with at least one full max-size
+> ITCH message burst of headroom before the FIFO reaches capacity.
+
+---
+
+### 6.5 Impact on Existing Tests
+
+#### Module-level tests (unaffected)
+
+All existing cocotb and UVM tests that drive individual modules directly at their
+AXI4-Stream input ports — `moldupp64_strip`, `symbol_filter`, `eth_axis_rx_wrap`,
+`itch_parser`, `dot_product_engine`, etc. — are **not affected** by this change.
+These tests do not instantiate `kc705_top` and do not compile the Forencich IP stack.
+
+#### `kc705_top` system tests (driver update required)
+
+Tests that target `kc705_top` and inject stimulus via `mac_rx_*` must now construct
+and transmit fully encapsulated Ethernet frames per §6.3. The previously acceptable
+pattern of injecting raw MoldUDP64 datagrams (without Ethernet/IP/UDP headers)
+directly into `mac_rx_*` will now be **silently rejected** by `ip_complete_64`
+(wrong EtherType / missing IP header fields) and no inference result will reach
+`dp_result_valid`. This is a breaking change for those tests.
+
+#### Updated Verilator lint command
+
+The full `kc705_top` lint invocation replaces `-DKINTEX7_SIM_MAC_BYPASS` with
+`-DKINTEX7_SIM_GTX_BYPASS` and adds all Forencich source files:
+
+```sh
+verilator --lint-only -Wall -sv --top-module kc705_top \
+    -DKINTEX7_SIM_GTX_BYPASS \
+    rtl/lliu_pkg.sv \
+    rtl/bfloat16_mul.sv rtl/fp32_acc.sv rtl/dot_product_engine.sv \
+    rtl/itch_parser.sv rtl/itch_field_extract.sv \
+    rtl/feature_extractor.sv rtl/weight_mem.sv \
+    rtl/axi4_lite_slave.sv rtl/output_buffer.sv \
+    rtl/moldupp64_strip.sv rtl/symbol_filter.sv rtl/eth_axis_rx_wrap.sv \
+    rtl/kc705_top.sv \
+    lib/verilog-ethernet/rtl/eth_axis_rx.v \
+    lib/verilog-ethernet/rtl/ip_complete_64.v \
+    lib/verilog-ethernet/rtl/udp_complete_64.v \
+    lib/verilog-ethernet/rtl/axis_async_fifo.v \
+    <...Forencich dependency files per §6.1...>
+```
+
+> **Note:** Replace `<...Forencich dependency files per §6.1...>` with the complete
+> dependency list verified from the checked-out submodule. The exact file list depends
+> on the version of verilog-ethernet checked out as the submodule.
+
+#### Summary of test file impact
+
+| Test / Source file | Impact |
+|--------------------|--------|
+| `tests/test_bfloat16_mul.py` | None — targets `bfloat16_mul` directly |
+| `tests/test_moldupp64_strip.py` | None — targets `moldupp64_strip` directly |
+| `tests/test_symbol_filter.py` | None — targets `symbol_filter` directly |
+| `tests/test_eth_axis_rx_wrap.py` | None — targets `eth_axis_rx_wrap` directly (raw Ethernet frames in, Ethernet payload out) |
+| `tests/test_kc705_e2e.py` | **Update driver**: must send full Eth/IP/UDP/MoldUDP64-encapsulated frames |
+| `tests/test_kc705_latency.py` | **Update driver**: same full-frame encapsulation requirement |
+| `tb/uvm/tests/lliu_kc705_test.sv` | **Update sequence**: `moldupp64_seq` must prepend Eth/IP/UDP headers before injecting on `mac_rx_*` |
+| `tb/uvm/tests/lliu_kc705_perf_test.sv` | **Update sequence**: same full-frame encapsulation requirement |
+| All other block-level and v1 arithmetic test files | No modification required |

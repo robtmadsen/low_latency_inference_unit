@@ -8,14 +8,16 @@
 //             → output_buffer → dp_result / dp_result_valid
 //   [clk_300] axi4_lite_slave: control, watchlist CAM writes, monitoring readout
 //
-// KINTEX7_SIM_MAC_BYPASS (must be defined for Verilator lint/simulation):
+// KINTEX7_SIM_GTX_BYPASS (must be defined for Verilator lint/simulation):
 //   - clk_156_in, clk_300_in replace IBUFDS/MMCM/GTX outputs.
-//   - mac_rx_* exposed as top-level ports; testbench sends Ethernet frames.
-//   - ip_complete_64, udp_complete_64, axis_async_fifo bypassed.
-//   - moldupp64_strip output wired directly to itch_parser (no CDC FIFO).
-//   - fifo_rd_tvalid exposed for SVA latency measurement.
+//   - mac_rx_* exposed as top-level ports; testbench sends full Ethernet frames
+//     (Ethernet + IPv4 + UDP + MoldUDP64 headers — see MAS §6.3).
+//   - ip_complete_64, udp_complete_64, axis_async_fifo are instantiated and
+//     run in simulation (not bypassed).
+//   - fifo_rd_tvalid exposed for SVA latency measurement; driven from the
+//     real axis_async_fifo m_axis_tvalid output.
 //
-// In synthesis (KINTEX7_SIM_MAC_BYPASS NOT defined):
+// In synthesis (KINTEX7_SIM_GTX_BYPASS NOT defined):
 //   Instantiate Forencich IP (eth_mac_phy_10g, ip_complete_64, udp_complete_64,
 //   axis_async_fifo) with the standard Xilinx IBUFDS/IBUFDS_GTE2/MMCM_ADV
 //   primitives. These modules are not in rtl/ and not compiled by Verilator.
@@ -72,14 +74,14 @@ module kc705_top #(
     output logic [31:0]            dp_result,
     output logic                   dp_result_valid
 
-`ifdef KINTEX7_SIM_MAC_BYPASS
+`ifdef KINTEX7_SIM_GTX_BYPASS
     ,
-    // Simulation: testbench drives clock sources and raw Ethernet frames.
+    // Simulation: testbench drives clock sources and full Ethernet frames.
     // Both clock inputs may be tied to the same signal for single-clock sims.
     input  logic        clk_156_in,     // replaces GTX recovered clock
     input  logic        clk_300_in,     // replaces MMCM output
 
-    // MAC RX AXI4-Stream (testbench drives raw Ethernet frames)
+    // MAC RX AXI4-Stream (testbench drives full Ethernet frames)
     input  logic [63:0] mac_rx_tdata,
     input  logic [7:0]  mac_rx_tkeep,
     input  logic        mac_rx_tvalid,
@@ -97,7 +99,7 @@ module kc705_top #(
 
     logic clk_300, clk_156;
 
-`ifdef KINTEX7_SIM_MAC_BYPASS
+`ifdef KINTEX7_SIM_GTX_BYPASS
     assign clk_300 = clk_300_in;
     assign clk_156 = clk_156_in;
 `else
@@ -113,6 +115,7 @@ module kc705_top #(
     // Reset synchronisers (2-FF, one per clock domain)
     // ==================================================================
 
+    /* verilator lint_off SYNCASYNCNET */
     logic [1:0] rst_300_sr, rst_156_sr;
     logic       rst_300, rst_156;
 
@@ -127,10 +130,11 @@ module kc705_top #(
         else           rst_156_sr <= {rst_156_sr[0], 1'b0};
     end
     assign rst_156 = rst_156_sr[1];
+    /* verilator lint_on SYNCASYNCNET */
 
     // Suppress Verilator UNUSED warnings for board-level differential inputs
     // that are only consumed by hardware-side primitives.
-`ifdef KINTEX7_SIM_MAC_BYPASS
+`ifdef KINTEX7_SIM_GTX_BYPASS
     /* verilator lint_off UNUSED */
     logic _unused_board;
     assign _unused_board = sys_clk_p  ^ sys_clk_n
@@ -144,13 +148,10 @@ module kc705_top #(
     // ==================================================================
 
     // FIFO almost-full feedback to eth_axis_rx_wrap (drop-on-full policy).
-    // In KINTEX7_SIM_MAC_BYPASS there is no async FIFO, so tie to 0.
+    // Derived from axis_async_fifo.s_status_depth in the ifdef block below.
+    // Threshold: depth >= 64 (headroom < one max ITCH-message burst per MAS §2.3).
     logic fifo_almost_full;
-`ifdef KINTEX7_SIM_MAC_BYPASS
-    assign fifo_almost_full = 1'b0;
-`else
-    // Hardware: driven from axis_async_fifo.s_almost_full (clk_156 domain).
-`endif
+    logic [7:0] fifo_s_depth;  // axis_async_fifo write-side depth [$clog2(128):0]
 
     // Monitoring: dropped Ethernet frames (clk_156 domain)
     logic [31:0] dropped_frames_156;
@@ -163,8 +164,15 @@ module kc705_top #(
     logic        udp_payload_tlast;
     logic        udp_payload_tready;
 
-`ifdef KINTEX7_SIM_MAC_BYPASS
-    // eth_axis_rx_wrap: drop-on-full with frame-granular policy.
+`ifdef KINTEX7_SIM_GTX_BYPASS
+    // eth_axis_rx_wrap: internally instantiates eth_axis_rx (Forencich)
+    // and adds drop-on-full policy. Outputs Ethernet header sideband and
+    // stripped payload stream for udp_complete_64.
+    logic        eth_hdr_valid;
+    logic        eth_hdr_ready;
+    logic [47:0] eth_dest_mac;
+    logic [47:0] eth_src_mac;
+    logic [15:0] eth_type;
     logic [63:0] eth_wrap_tdata;
     logic [7:0]  eth_wrap_tkeep;
     logic        eth_wrap_tvalid;
@@ -179,6 +187,11 @@ module kc705_top #(
         .mac_rx_tvalid      (mac_rx_tvalid),
         .mac_rx_tlast       (mac_rx_tlast),
         .mac_rx_tready      (mac_rx_tready),
+        .eth_hdr_valid      (eth_hdr_valid),
+        .eth_hdr_ready      (eth_hdr_ready),
+        .eth_dest_mac       (eth_dest_mac),
+        .eth_src_mac        (eth_src_mac),
+        .eth_type           (eth_type),
         .eth_payload_tdata  (eth_wrap_tdata),
         .eth_payload_tkeep  (eth_wrap_tkeep),
         .eth_payload_tvalid (eth_wrap_tvalid),
@@ -188,17 +201,168 @@ module kc705_top #(
         .dropped_frames     (dropped_frames_156)
     );
 
-    // Bypass ip_complete_64 + udp_complete_64: feed eth_wrap output directly
-    // to moldupp64_strip as the "UDP payload" stream.
-    assign udp_payload_tdata  = eth_wrap_tdata;
-    assign udp_payload_tkeep  = eth_wrap_tkeep;
-    assign udp_payload_tvalid = eth_wrap_tvalid;
-    assign udp_payload_tlast  = eth_wrap_tlast;
-    assign eth_wrap_tready    = udp_payload_tready;
+    // udp_complete_64: full Ethernet→IP→UDP stack (Forencich).
+    // Accepts eth_hdr sideband + eth_payload stream; outputs raw UDP payload
+    // (MoldUDP64 datagram) → moldupp64_strip.
+    /* verilator lint_off UNUSED */
+    logic        udp_hdr_valid_i;
+    logic [15:0] udp_src_port_i;
+    logic [15:0] udp_dest_port_i;
+    logic [15:0] udp_length_i;
+    logic [15:0] udp_checksum_i;
+    logic        udp_payload_tuser_i;
+    /* verilator lint_on UNUSED */
+
+    /* verilator lint_off PINCONNECTEMPTY */
+    udp_complete_64 u_udp (
+        .clk                                    (clk_156),
+        .rst                                    (rst_156),
+
+        // Ethernet RX input (from eth_axis_rx_wrap)
+        .s_eth_hdr_valid                        (eth_hdr_valid),
+        .s_eth_hdr_ready                        (eth_hdr_ready),
+        .s_eth_dest_mac                         (eth_dest_mac),
+        .s_eth_src_mac                          (eth_src_mac),
+        .s_eth_type                             (eth_type),
+        .s_eth_payload_axis_tdata               (eth_wrap_tdata),
+        .s_eth_payload_axis_tkeep               (eth_wrap_tkeep),
+        .s_eth_payload_axis_tvalid              (eth_wrap_tvalid),
+        .s_eth_payload_axis_tready              (eth_wrap_tready),
+        .s_eth_payload_axis_tlast               (eth_wrap_tlast),
+        .s_eth_payload_axis_tuser               (1'b0),
+
+        // TX Ethernet output — discard (RX-only datapath)
+        .m_eth_hdr_valid                        (),
+        .m_eth_hdr_ready                        (1'b1),
+        .m_eth_dest_mac                         (),
+        .m_eth_src_mac                          (),
+        .m_eth_type                             (),
+        .m_eth_payload_axis_tdata               (),
+        .m_eth_payload_axis_tkeep               (),
+        .m_eth_payload_axis_tvalid              (),
+        .m_eth_payload_axis_tready              (1'b1),
+        .m_eth_payload_axis_tlast               (),
+        .m_eth_payload_axis_tuser               (),
+
+        // TX IP input — tie off (no TX path)
+        .s_ip_hdr_valid                         (1'b0),
+        .s_ip_hdr_ready                         (),
+        .s_ip_dscp                              (6'b0),
+        .s_ip_ecn                               (2'b0),
+        .s_ip_length                            (16'b0),
+        .s_ip_ttl                               (8'd64),
+        .s_ip_protocol                          (8'h11),
+        .s_ip_source_ip                         (32'h0A000001),
+        .s_ip_dest_ip                           (32'hE9360C00),
+        .s_ip_payload_axis_tdata                (64'b0),
+        .s_ip_payload_axis_tkeep                (8'b0),
+        .s_ip_payload_axis_tvalid               (1'b0),
+        .s_ip_payload_axis_tready               (),
+        .s_ip_payload_axis_tlast                (1'b0),
+        .s_ip_payload_axis_tuser                (1'b0),
+
+        // TX IP output — discard
+        .m_ip_hdr_valid                         (),
+        .m_ip_hdr_ready                         (1'b1),
+        .m_ip_eth_dest_mac                      (),
+        .m_ip_eth_src_mac                       (),
+        .m_ip_eth_type                          (),
+        .m_ip_version                           (),
+        .m_ip_ihl                               (),
+        .m_ip_dscp                              (),
+        .m_ip_ecn                               (),
+        .m_ip_length                            (),
+        .m_ip_identification                    (),
+        .m_ip_flags                             (),
+        .m_ip_fragment_offset                   (),
+        .m_ip_ttl                               (),
+        .m_ip_protocol                          (),
+        .m_ip_header_checksum                   (),
+        .m_ip_source_ip                         (),
+        .m_ip_dest_ip                           (),
+        .m_ip_payload_axis_tdata                (),
+        .m_ip_payload_axis_tkeep                (),
+        .m_ip_payload_axis_tvalid               (),
+        .m_ip_payload_axis_tready               (1'b1),
+        .m_ip_payload_axis_tlast                (),
+        .m_ip_payload_axis_tuser                (),
+
+        // TX UDP input — tie off (no TX path)
+        .s_udp_hdr_valid                        (1'b0),
+        .s_udp_hdr_ready                        (),
+        .s_udp_ip_dscp                          (6'b0),
+        .s_udp_ip_ecn                           (2'b0),
+        .s_udp_ip_ttl                           (8'd64),
+        .s_udp_ip_source_ip                     (32'h0A000001),
+        .s_udp_ip_dest_ip                       (32'hE9360C00),
+        .s_udp_source_port                      (16'h0400),
+        .s_udp_dest_port                        (16'd26477),
+        .s_udp_length                           (16'b0),
+        .s_udp_checksum                         (16'b0),
+        .s_udp_payload_axis_tdata               (64'b0),
+        .s_udp_payload_axis_tkeep               (8'b0),
+        .s_udp_payload_axis_tvalid              (1'b0),
+        .s_udp_payload_axis_tready              (),
+        .s_udp_payload_axis_tlast               (1'b0),
+        .s_udp_payload_axis_tuser               (1'b0),
+
+        // RX UDP output → moldupp64_strip (via udp_payload_* wires)
+        .m_udp_hdr_valid                        (udp_hdr_valid_i),
+        .m_udp_hdr_ready                        (1'b1),
+        .m_udp_eth_dest_mac                     (),
+        .m_udp_eth_src_mac                      (),
+        .m_udp_eth_type                         (),
+        .m_udp_ip_version                       (),
+        .m_udp_ip_ihl                           (),
+        .m_udp_ip_dscp                          (),
+        .m_udp_ip_ecn                           (),
+        .m_udp_ip_length                        (),
+        .m_udp_ip_identification                (),
+        .m_udp_ip_flags                         (),
+        .m_udp_ip_fragment_offset               (),
+        .m_udp_ip_ttl                           (),
+        .m_udp_ip_protocol                      (),
+        .m_udp_ip_header_checksum               (),
+        .m_udp_ip_source_ip                     (),
+        .m_udp_ip_dest_ip                       (),
+        .m_udp_source_port                      (udp_src_port_i),
+        .m_udp_dest_port                        (udp_dest_port_i),
+        .m_udp_length                           (udp_length_i),
+        .m_udp_checksum                         (udp_checksum_i),
+        .m_udp_payload_axis_tdata               (udp_payload_tdata),
+        .m_udp_payload_axis_tkeep               (udp_payload_tkeep),
+        .m_udp_payload_axis_tvalid              (udp_payload_tvalid),
+        .m_udp_payload_axis_tready              (udp_payload_tready),
+        .m_udp_payload_axis_tlast               (udp_payload_tlast),
+        .m_udp_payload_axis_tuser               (udp_payload_tuser_i),
+
+        // Status — discard
+        .ip_rx_busy                             (),
+        .ip_tx_busy                             (),
+        .udp_rx_busy                            (),
+        .udp_tx_busy                            (),
+        .ip_rx_error_header_early_termination   (),
+        .ip_rx_error_payload_early_termination  (),
+        .ip_rx_error_invalid_header             (),
+        .ip_rx_error_invalid_checksum           (),
+        .ip_tx_error_payload_early_termination  (),
+        .ip_tx_error_arp_failed                 (),
+        .udp_rx_error_header_early_termination  (),
+        .udp_rx_error_payload_early_termination (),
+        .udp_tx_error_payload_early_termination (),
+
+        // Configuration (driven combinationally each cycle)
+        .local_mac                              (48'h020000000001),
+        .local_ip                               (32'hE9360C00),    // 233.54.12.0
+        .gateway_ip                             (32'h0A000001),    // 10.0.0.1
+        .subnet_mask                            (32'hFFFFFF00),
+        .clear_arp_cache                        (1'b0)
+    );
+    /* verilator lint_on PINCONNECTEMPTY */
 `else
-    // Hardware: eth_mac_phy_10g → eth_axis_rx_wrap → ip_complete_64
-    //         → udp_complete_64 driving udp_payload_*.
-    // (Forencich IP instantiation — not compiled by Verilator.)
+    // Hardware: eth_mac_phy_10g → eth_axis_rx_wrap → udp_complete_64
+    //           driving udp_payload_*.
+    // (Forencich IP instantiation — not compiled by Verilator without define.)
     assign dropped_frames_156  = '0;  // suppresses Verilator UNDRIVEN in hw path
     assign udp_payload_tdata   = '0;
     assign udp_payload_tkeep   = '0;
@@ -245,8 +409,8 @@ module kc705_top #(
     // CDC: clk_156 → clk_300
     //
     // axis_async_fifo (Forencich) bridges the ITCH stream across domains.
-    // In KINTEX7_SIM_MAC_BYPASS, the stream is passed through directly with
-    // no synchronisation (testbench runs both clocks off the same source).
+    // Under KINTEX7_SIM_GTX_BYPASS the real FIFO is instantiated; testbench
+    // may run both clocks from the same source for single-clock sims.
     //
     // Monitoring counters (dropped_frames, dropped_datagrams, expected_seq_num)
     // are re-sampled in clk_300 using a 2-stage FF chain. Monotonically
@@ -261,14 +425,66 @@ module kc705_top #(
     logic        itch_300_tlast;
     logic        itch_300_tready;
 
-`ifdef KINTEX7_SIM_MAC_BYPASS
-    assign itch_300_tdata  = itch_net_tdata;
-    assign itch_300_tkeep  = itch_net_tkeep;
-    assign itch_300_tvalid = itch_net_tvalid;
-    assign itch_300_tlast  = itch_net_tlast;
-    assign itch_net_tready = itch_300_tready;
+`ifdef KINTEX7_SIM_GTX_BYPASS
+    // axis_async_fifo: CDC from clk_156 (156.25 MHz, ITCH net) → clk_300 (app).
+    // s_status_depth drives fifo_almost_full threshold for drop-on-full policy.
+    assign fifo_almost_full = (fifo_s_depth >= 8'd64);
+
+    /* verilator lint_off PINCONNECTEMPTY */
+    axis_async_fifo #(
+        .DEPTH        (128),
+        .DATA_WIDTH   (64),
+        .KEEP_ENABLE  (1),
+        .KEEP_WIDTH   (8),
+        .LAST_ENABLE  (1),
+        .ID_ENABLE    (0),
+        .DEST_ENABLE  (0),
+        .USER_ENABLE  (0),
+        .RAM_PIPELINE (1),
+        .FRAME_FIFO   (0)
+    ) u_async_fifo (
+        // Write side — clk_156 domain
+        .s_clk                  (clk_156),
+        .s_rst                  (rst_156),
+        .s_axis_tdata           (itch_net_tdata),
+        .s_axis_tkeep           (itch_net_tkeep),
+        .s_axis_tvalid          (itch_net_tvalid),
+        .s_axis_tready          (itch_net_tready),
+        .s_axis_tlast           (itch_net_tlast),
+        .s_axis_tid             (8'b0),
+        .s_axis_tdest           (8'b0),
+        .s_axis_tuser           (1'b0),
+        .s_pause_req            (1'b0),
+        .s_pause_ack            (),
+        .s_status_depth         (fifo_s_depth),
+        .s_status_depth_commit  (),
+        .s_status_overflow      (),
+        .s_status_bad_frame     (),
+        .s_status_good_frame    (),
+
+        // Read side — clk_300 domain
+        .m_clk                  (clk_300),
+        .m_rst                  (rst_300),
+        .m_axis_tdata           (itch_300_tdata),
+        .m_axis_tkeep           (itch_300_tkeep),
+        .m_axis_tvalid          (itch_300_tvalid),
+        .m_axis_tready          (itch_300_tready),
+        .m_axis_tlast           (itch_300_tlast),
+        .m_axis_tid             (),
+        .m_axis_tdest           (),
+        .m_axis_tuser           (),
+        .m_pause_req            (1'b0),
+        .m_pause_ack            (),
+        .m_status_depth         (),
+        .m_status_depth_commit  (),
+        .m_status_overflow      (),
+        .m_status_bad_frame     (),
+        .m_status_good_frame    ()
+    );
+    /* verilator lint_on PINCONNECTEMPTY */
 
     // Expose ITCH-valid to top level for SVA latency assertions.
+    // itch_300_tvalid is now sourced from the real FIFO read-side output.
     assign fifo_rd_tvalid = itch_300_tvalid;
     // tkeep is not forwarded to itch_parser (no byte-enable on ITCH stream)
     /* verilator lint_off UNUSED */
@@ -276,13 +492,17 @@ module kc705_top #(
     assign _unused_tkeep_300 = &itch_300_tkeep;
     /* verilator lint_on UNUSED */
 `else
-    // Hardware: axis_async_fifo (Forencich) read side drives itch_300_*.
-    // (Not compiled by Verilator.)
-    assign itch_300_tdata  = '0;
-    assign itch_300_tkeep  = '0;
-    assign itch_300_tvalid = 1'b0;
-    assign itch_300_tlast  = 1'b0;
-    assign itch_net_tready = 1'b0;
+    // Hardware path: axis_async_fifo also instantiated here (same parameters).
+    // Not compiled by Verilator without KINTEX7_SIM_GTX_BYPASS.
+    assign fifo_almost_full  = 1'b0;
+    /* verilator lint_off UNUSEDSIGNAL */
+    assign fifo_s_depth      = 8'b0;
+    /* verilator lint_on UNUSEDSIGNAL */
+    assign itch_300_tdata    = '0;
+    assign itch_300_tkeep    = '0;
+    assign itch_300_tvalid   = 1'b0;
+    assign itch_300_tlast    = 1'b0;
+    assign itch_net_tready   = 1'b0;
 `endif
 
     // 2-stage FF re-sample of clk_156 monitoring counters into clk_300

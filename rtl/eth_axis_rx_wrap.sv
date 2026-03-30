@@ -1,26 +1,24 @@
 // eth_axis_rx_wrap.sv — Drop-on-full Ethernet RX wrapper
 //
-// Thin wrapper around the Forencich eth_axis_rx module that implements a
-// frame-granular Drop-on-Full policy for the KC705 10GbE stack.
+// Wraps the Forencich eth_axis_rx module with a frame-granular Drop-on-Full
+// policy for the KC705 10GbE stack.
 //
 // Policy:
 //   When fifo_almost_full is asserted, the NEXT complete Ethernet frame is
-//   silently dropped before it enters the downstream ip_complete_64 path.
+//   silently dropped before it enters eth_axis_rx (and the downstream stack).
 //   The current frame is always completed (partial frames are never dropped).
 //   dropped_frames[31:0] saturates at 32'hFFFF_FFFF; never overflows.
 //
 // Key constraints:
 //   • mac_rx_tready is always 1 when drop_current is asserted — the MAC is
 //     never stalled and frame alignment is never corrupted.
-//   • Only whole frames enter ip_complete_64 — no partial frames.
+//   • Only whole frames enter eth_axis_rx → udp_complete_64 — no partial frames.
 //   • Both the MAC interface and fifo_almost_full are in the 156.25 MHz domain
 //     (same clock); no CDC is required here.
 //
-// NOTE: This wrapper is **structurally complete** but the Forencich
-//       eth_axis_rx module is vendor IP not under rtl/; it is not instantiated
-//       here.  kc705_top connects the MAC and IP-layer ports around this
-//       wrapper.  During Verilator simulation (KINTEX7_SIM_MAC_BYPASS),
-//       the mac_rx_* signals are driven directly from the testbench.
+// eth_axis_rx (Forencich) strips the 14-byte Ethernet header and presents:
+//   • Header sideband: eth_hdr_valid/ready, eth_dest_mac, eth_src_mac, eth_type
+//   • Payload AXI-S:   eth_payload_* → s_eth_payload_axis_* of udp_complete_64
 //
 // Domain: 156.25 MHz (clk_156 in kc705_top).
 
@@ -39,14 +37,21 @@ module eth_axis_rx_wrap (
     input  logic        mac_rx_tlast,
     output logic        mac_rx_tready,
 
-    // To ip_complete_64
+    // Ethernet header sideband → udp_complete_64 s_eth_hdr_*
+    output logic        eth_hdr_valid,
+    input  logic        eth_hdr_ready,   // from udp_complete_64.s_eth_hdr_ready
+    output logic [47:0] eth_dest_mac,
+    output logic [47:0] eth_src_mac,
+    output logic [15:0] eth_type,
+
+    // Ethernet payload AXI-S → udp_complete_64 s_eth_payload_axis_*
     output logic [63:0] eth_payload_tdata,
     output logic [7:0]  eth_payload_tkeep,
     output logic        eth_payload_tvalid,
     output logic        eth_payload_tlast,
     input  logic        eth_payload_tready,
 
-    // Drop-on-full control (from axis_async_fifo write-side almost_full)
+    // Drop-on-full control (from axis_async_fifo s_status_depth comparison)
     input  logic        fifo_almost_full,
 
     // Monitor register (AXI4-Lite readable via kc705_top / axi4_lite_slave)
@@ -59,6 +64,11 @@ module eth_axis_rx_wrap (
     logic frame_active;   // high from first beat to tlast (inclusive)
     logic drop_next;      // latch fifo_almost_full at frame boundary
     logic drop_current;   // drop the entire current frame
+
+    // mac_rx_tready: when dropping, always accept; when forwarding, follow
+    // eth_axis_rx.s_axis_tready for proper flow control.
+    logic eth_rx_s_tready;
+    assign mac_rx_tready = drop_current ? 1'b1 : eth_rx_s_tready;
 
     // ---------------------------------------------------------------
     // Frame-boundary detection
@@ -102,15 +112,49 @@ module eth_axis_rx_wrap (
     end
 
     // ---------------------------------------------------------------
-    // AXI4-Stream pass-through / gate
-    //   When drop_current: consume all beats silently.
-    //   Otherwise: pass through to eth_payload with standard flow control.
+    // eth_axis_rx instantiation (Forencich)
+    //   Only fed when drop_current=0; silently consumed from MAC otherwise.
     // ---------------------------------------------------------------
-    assign mac_rx_tready = drop_current ? 1'b1 : eth_payload_tready;
+    /* verilator lint_off UNUSED */
+    logic eth_rx_busy;
+    logic eth_rx_error;
+    logic eth_rx_payload_tuser;
+    /* verilator lint_on UNUSED */
 
-    assign eth_payload_tdata  = mac_rx_tdata;
-    assign eth_payload_tkeep  = mac_rx_tkeep;
-    assign eth_payload_tvalid = mac_rx_tvalid & ~drop_current;
-    assign eth_payload_tlast  = mac_rx_tlast;
+    eth_axis_rx #(
+        .DATA_WIDTH  (64),
+        .KEEP_ENABLE (1),
+        .KEEP_WIDTH  (8)
+    ) u_eth_rx (
+        .clk                              (clk),
+        .rst                              (rst),
+
+        // AXI-S input from MAC (gated: not forwarded during drop_current)
+        .s_axis_tdata                     (mac_rx_tdata),
+        .s_axis_tkeep                     (mac_rx_tkeep),
+        .s_axis_tvalid                    (mac_rx_tvalid & ~drop_current),
+        .s_axis_tready                    (eth_rx_s_tready),
+        .s_axis_tlast                     (mac_rx_tlast),
+        .s_axis_tuser                     (1'b0),   // no MAC error in bypass
+
+        // Ethernet header sideband output
+        .m_eth_hdr_valid                  (eth_hdr_valid),
+        .m_eth_hdr_ready                  (eth_hdr_ready),
+        .m_eth_dest_mac                   (eth_dest_mac),
+        .m_eth_src_mac                    (eth_src_mac),
+        .m_eth_type                       (eth_type),
+
+        // Ethernet payload AXI-S output
+        .m_eth_payload_axis_tdata         (eth_payload_tdata),
+        .m_eth_payload_axis_tkeep         (eth_payload_tkeep),
+        .m_eth_payload_axis_tvalid        (eth_payload_tvalid),
+        .m_eth_payload_axis_tready        (eth_payload_tready),
+        .m_eth_payload_axis_tlast         (eth_payload_tlast),
+        .m_eth_payload_axis_tuser         (eth_rx_payload_tuser),
+
+        // Status (unused)
+        .busy                             (eth_rx_busy),
+        .error_header_early_termination   (eth_rx_error)
+    );
 
 endmodule
