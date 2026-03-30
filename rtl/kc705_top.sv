@@ -97,7 +97,11 @@ module kc705_top #(
     // Clocks
     // ==================================================================
 
+    // clk_300/clk_156 are undriven in the Verilator synthesis path (no IBUFDS/
+    // MMCM_ADV/GTX primitives compiled); driven via clk_*_in in sim path.
+    /* verilator lint_off UNDRIVEN */
     logic clk_300, clk_156;
+    /* verilator lint_on UNDRIVEN */
 
 `ifdef KINTEX7_SIM_GTX_BYPASS
     assign clk_300 = clk_300_in;
@@ -132,16 +136,15 @@ module kc705_top #(
     assign rst_156 = rst_156_sr[1];
     /* verilator lint_on SYNCASYNCNET */
 
-    // Suppress Verilator UNUSED warnings for board-level differential inputs
-    // that are only consumed by hardware-side primitives.
-`ifdef KINTEX7_SIM_GTX_BYPASS
-    /* verilator lint_off UNUSED */
+    // Suppress Verilator UNUSEDSIGNAL warnings for board-level differential
+    // inputs consumed only by hardware-side IBUFDS/GTX primitives.  These ports
+    // always exist on the module and must be sunk in both sim and synthesis paths.
+    /* verilator lint_off UNUSEDSIGNAL */
     logic _unused_board;
     assign _unused_board = sys_clk_p  ^ sys_clk_n
                          ^ mgt_refclk_p ^ mgt_refclk_n
                          ^ sfp_rx_p    ^ sfp_rx_n;
-    /* verilator lint_on UNUSED */
-`endif
+    /* verilator lint_on UNUSEDSIGNAL */
 
     // ==================================================================
     // clk_156 domain: Ethernet RX → MoldUDP64 strip
@@ -150,8 +153,11 @@ module kc705_top #(
     // FIFO almost-full feedback to eth_axis_rx_wrap (drop-on-full policy).
     // Derived from axis_async_fifo.s_status_depth in the ifdef block below.
     // Threshold: depth >= 64 (headroom < one max ITCH-message burst per MAS §2.3).
+    // In synthesis path: assigned stub values; eth_axis_rx_wrap not in scope.
+    /* verilator lint_off UNUSEDSIGNAL */
     logic fifo_almost_full;
     logic [7:0] fifo_s_depth;  // axis_async_fifo write-side depth [$clog2(128):0]
+    /* verilator lint_on UNUSEDSIGNAL */
 
     // Monitoring: dropped Ethernet frames (clk_156 domain)
     logic [31:0] dropped_frames_156;
@@ -162,7 +168,11 @@ module kc705_top #(
     logic [7:0]  udp_payload_tkeep;
     logic        udp_payload_tvalid;
     logic        udp_payload_tlast;
+    // udp_payload_tready is driven by moldupp64.s_tready but consumed only by
+    // udp_complete_64 (sim path); reports UNUSEDSIGNAL in synthesis path.
+    /* verilator lint_off UNUSEDSIGNAL */
     logic        udp_payload_tready;
+    /* verilator lint_on UNUSEDSIGNAL */
 
 `ifdef KINTEX7_SIM_GTX_BYPASS
     // eth_axis_rx_wrap: internally instantiates eth_axis_rx (Forencich)
@@ -371,10 +381,14 @@ module kc705_top #(
 `endif
 
     // MoldUDP64 header strip + sequence number gap detection (clk_156)
+    // itch_net_tdata/tkeep/tvalid/tlast are driven by moldupp64_strip and
+    // consumed by axis_async_fifo (sim path only); unused in synthesis path.
+    /* verilator lint_off UNUSEDSIGNAL */
     logic [63:0] itch_net_tdata;
     logic [7:0]  itch_net_tkeep;
     logic        itch_net_tvalid;
     logic        itch_net_tlast;
+    /* verilator lint_on UNUSEDSIGNAL */
     logic        itch_net_tready;
 
     /* verilator lint_off UNUSED */
@@ -418,12 +432,18 @@ module kc705_top #(
     // this best-effort readout path.
     // ==================================================================
 
-    // ITCH stream on the clk_300 side (FIFO read side in hw, direct in sim)
+    // ITCH stream on the clk_300 side (FIFO read side).
+    // tkeep: no byte-enables on ITCH stream, unused after FIFO.
+    // tready: driven by itch_parser but consumed only by FIFO (sim path).
     logic [63:0] itch_300_tdata;
+    /* verilator lint_off UNUSEDSIGNAL */
     logic [7:0]  itch_300_tkeep;
+    /* verilator lint_on UNUSEDSIGNAL */
     logic        itch_300_tvalid;
     logic        itch_300_tlast;
+    /* verilator lint_off UNUSEDSIGNAL */
     logic        itch_300_tready;
+    /* verilator lint_on UNUSEDSIGNAL */
 
 `ifdef KINTEX7_SIM_GTX_BYPASS
     // axis_async_fifo: CDC from clk_156 (156.25 MHz, ITCH net) → clk_300 (app).
