@@ -245,10 +245,15 @@ as a black box.
 > both. All assertions on output signals must be synchronised to `clk_300`.
 >
 > **Simulation bypass:** The Makefile invocation for `test_kc705_e2e` must pass
-> `+define+KINTEX7_SIM_MAC_BYPASS` (VERILATOR_FLAGS or SIM_ARGS). This exposes
+> `+define+KINTEX7_SIM_GTX_BYPASS` (VERILATOR_FLAGS or SIM_ARGS). This exposes
 > `mac_rx_*` and `clk_156_in` as top-level ports on `kc705_top` and removes the
 > GTX/MAC-PHY instantiation that cannot be simulated in Verilator. Without this
 > define the Verilator compile will fail on the GTX transceiver primitive.
+>
+> **Frame encapsulation:** Tests that drive `kc705_top` via `mac_rx_*` must now
+> send fully encapsulated Ethernet frames (Eth/IPv4/UDP/MoldUDP64 headers) because
+> `ip_complete_64` and `udp_complete_64` are now instantiated in simulation. See
+> MAS §6.3 for the required header layout and `ip_complete_64` configuration values.
 
 ### Setup sequence (fixture / conftest)
 

@@ -448,16 +448,17 @@ clk_156 is recovered from the GTX transceiver inside eth_mac_phy_10g.
 - All AXI4-Stream connections between Forencich modules use 64-bit tdata with
   tkeep, tlast, tvalid, tready per MAS §3.
 
-### Simulation Bypass (`KINTEX7_SIM_MAC_BYPASS`)
+### Simulation Bypass (`KINTEX7_SIM_GTX_BYPASS`)
 
 `kc705_top.sv` must expose `mac_rx_*` signals as top-level I/O ports for Verilator
 system tests. The GTX transceiver and `eth_mac_phy_10g` cannot be simulated in
 Verilator. Use a conditional define to bypass them:
 
 ```systemverilog
-`ifdef KINTEX7_SIM_MAC_BYPASS
+`ifdef KINTEX7_SIM_GTX_BYPASS
     // Simulation: expose mac_rx_* as top-level I/O; bypass GTX and eth_mac_phy_10g.
     // clk_156 is driven from an additional input clock port instead of the GTX.
+    // ip_complete_64, udp_complete_64, and axis_async_fifo are instantiated (not bypassed).
     input  logic        clk_156_in,           // drives clk_156 in simulation
     input  logic [63:0] mac_rx_tdata,
     input  logic [7:0]  mac_rx_tkeep,
@@ -469,27 +470,35 @@ Verilator. Use a conditional define to bypass them:
 `endif
 ```
 
-When `KINTEX7_SIM_MAC_BYPASS` is NOT defined, the `clk_156` domain clock is the
+When `KINTEX7_SIM_GTX_BYPASS` is NOT defined, the `clk_156` domain clock is the
 recovered GTX clock inside `eth_mac_phy_10g` and no `mac_rx_*` top-level ports
 exist. The Yosys synthesis flow in `syn/synth.ys` must NOT define this flag.
 
-Both `cocotb_engineer` and `uvm_engineer` must add `+define+KINTEX7_SIM_MAC_BYPASS`
+Both `cocotb_engineer` and `uvm_engineer` must add `+define+KINTEX7_SIM_GTX_BYPASS`
 to their Makefiles for any test that uses `kc705_top` as TOPLEVEL.
 
+> **Note:** The full `kc705_top` lint command now requires Forencich source files from
+> `lib/verilog-ethernet/rtl/` on the source list. See `RTL_PLAN_forencich_sim.md` §6
+> for the updated complete lint invocation.
 
 ```sh
-# Lint kc705_top skeleton (Forencich modules stubbed or included via +incdir)
-# KINTEX7_SIM_MAC_BYPASS exposes mac_rx_* ports for Verilator; always set for
-# lint and simulation. Do NOT define for synthesis (synth.ys must omit it).
+# Lint kc705_top — updated: KINTEX7_SIM_GTX_BYPASS replaces KINTEX7_SIM_MAC_BYPASS.
+# Forencich IP sources from lib/verilog-ethernet/rtl/ must be included.
+# See RTL_PLAN_forencich_sim.md for complete command with Forencich dependency list.
 verilator --lint-only -Wall -sv --top-module kc705_top \
-    -DKINTEX7_SIM_MAC_BYPASS \
+    -DKINTEX7_SIM_GTX_BYPASS \
     rtl/lliu_pkg.sv \
     rtl/bfloat16_mul.sv rtl/fp32_acc.sv rtl/dot_product_engine.sv \
     rtl/itch_parser.sv rtl/itch_field_extract.sv \
     rtl/feature_extractor.sv rtl/weight_mem.sv \
     rtl/axi4_lite_slave.sv rtl/output_buffer.sv \
     rtl/moldupp64_strip.sv rtl/symbol_filter.sv rtl/eth_axis_rx_wrap.sv \
-    rtl/kc705_top.sv
+    rtl/kc705_top.sv \
+    lib/verilog-ethernet/rtl/eth_axis_rx.v \
+    lib/verilog-ethernet/rtl/ip_complete_64.v \
+    lib/verilog-ethernet/rtl/udp_complete_64.v \
+    lib/verilog-ethernet/rtl/axis_async_fifo.v \
+    <...Forencich dependency files per MAS §6.1...>
 ```
 
 ---
@@ -508,14 +517,21 @@ for f in bfloat16_mul fp32_acc dot_product_engine \
 done
 
 # Full design (kc705_top pulls everything in)
+# Note: Forencich sources from lib/verilog-ethernet/rtl/ required — see
+# RTL_PLAN_forencich_sim.md for the complete command with dependency file list.
 verilator --lint-only -Wall -sv --top-module kc705_top \
-    -DKINTEX7_SIM_MAC_BYPASS \
+    -DKINTEX7_SIM_GTX_BYPASS \
     rtl/lliu_pkg.sv \
     rtl/bfloat16_mul.sv rtl/fp32_acc.sv rtl/dot_product_engine.sv \
     rtl/itch_parser.sv rtl/itch_field_extract.sv rtl/feature_extractor.sv \
     rtl/weight_mem.sv rtl/axi4_lite_slave.sv rtl/output_buffer.sv \
     rtl/moldupp64_strip.sv rtl/symbol_filter.sv rtl/eth_axis_rx_wrap.sv \
-    rtl/kc705_top.sv
+    rtl/kc705_top.sv \
+    lib/verilog-ethernet/rtl/eth_axis_rx.v \
+    lib/verilog-ethernet/rtl/ip_complete_64.v \
+    lib/verilog-ethernet/rtl/udp_complete_64.v \
+    lib/verilog-ethernet/rtl/axis_async_fifo.v \
+    <...Forencich dependency files per MAS §6.1...>
 ```
 
 ---
@@ -532,7 +548,7 @@ verilator --lint-only -Wall -sv --top-module kc705_top \
 | 4  | `eth_axis_rx_wrap` — drop-on-full wrapper | ⬜ |
 | 5a | `kc705_top` — full board-level integration | ⬜ |
 | 5b | `axi4_lite_slave` — add CAM-write regs, dropped_frames/datagrams/seq_num readout, gtx_lock_status tie-off | ⬜ |
-| 5c | `kc705_top` — add `KINTEX7_SIM_MAC_BYPASS` conditional ports | ⬜ |
+| 5c | `kc705_top` — add `KINTEX7_SIM_GTX_BYPASS` conditional ports | ⬜ |
 | 6  | Lint: zero warnings across all files | ⬜ |
 | 4  | `eth_axis_rx_wrap` — drop-on-full wrapper | ⬜ |
 | 5  | `kc705_top` — full board-level integration | ⬜ |
