@@ -59,6 +59,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Restore Verilator
         uses: actions/cache@v4
@@ -66,13 +68,18 @@ jobs:
           path: /tmp/verilator-install
           key: ${{ env.VERILATOR_CACHE_KEY }}-${{ runner.os }}
 
-      - name: Lint kc705_top (full hierarchy, KINTEX7_SIM_MAC_BYPASS)
+      - name: Lint kc705_top (full hierarchy, KINTEX7_SIM_GTX_BYPASS)
         run: |
           export PATH="/tmp/verilator-install/bin:$PATH"
           verilator --version
           verilator --lint-only -Wall -sv \
             --top-module kc705_top \
-            -DKINTEX7_SIM_MAC_BYPASS \
+            -DKINTEX7_SIM_GTX_BYPASS \
+            -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-BLKSEQ -Wno-PROCASSINIT \
+            -Wno-GENUNNAMED -Wno-TIMESCALEMOD -Wno-PINCONNECTEMPTY \
+            -Wno-PINMISSING -Wno-LATCH -Wno-UNUSEDSIGNAL \
+            -Wno-CASEINCOMPLETE -Wno-SELRANGE -Wno-UNUSEDPARAM \
+            -Wno-UNOPTFLAT \
             rtl/lliu_pkg.sv \
             rtl/bfloat16_mul.sv \
             rtl/fp32_acc.sv \
@@ -86,7 +93,29 @@ jobs:
             rtl/moldupp64_strip.sv \
             rtl/symbol_filter.sv \
             rtl/eth_axis_rx_wrap.sv \
-            rtl/kc705_top.sv
+            rtl/kc705_top.sv \
+            lib/verilog-ethernet/rtl/eth_axis_rx.v \
+            lib/verilog-ethernet/rtl/udp_complete_64.v \
+            lib/verilog-ethernet/rtl/ip_complete_64.v \
+            lib/verilog-ethernet/rtl/ip.v \
+            lib/verilog-ethernet/rtl/ip_64.v \
+            lib/verilog-ethernet/rtl/ip_eth_rx_64.v \
+            lib/verilog-ethernet/rtl/ip_eth_tx_64.v \
+            lib/verilog-ethernet/rtl/arp.v \
+            lib/verilog-ethernet/rtl/arp_cache.v \
+            lib/verilog-ethernet/rtl/arp_eth_rx.v \
+            lib/verilog-ethernet/rtl/arp_eth_tx.v \
+            lib/verilog-ethernet/rtl/eth_arb_mux.v \
+            lib/verilog-ethernet/rtl/ip_arb_mux.v \
+            lib/verilog-ethernet/rtl/udp_64.v \
+            lib/verilog-ethernet/rtl/udp_ip_rx_64.v \
+            lib/verilog-ethernet/rtl/udp_ip_tx_64.v \
+            lib/verilog-ethernet/rtl/udp_checksum_gen_64.v \
+            lib/verilog-ethernet/rtl/lfsr.v \
+            lib/verilog-ethernet/lib/axis/rtl/axis_async_fifo.v \
+            lib/verilog-ethernet/lib/axis/rtl/axis_fifo.v \
+            lib/verilog-ethernet/lib/axis/rtl/arbiter.v \
+            lib/verilog-ethernet/lib/axis/rtl/priority_encoder.v
 
   # ── cocotb block-level tests (kc705_top migration, no lliu_top obligation) ──
   cocotb:
