@@ -31,6 +31,11 @@ else ifeq ($(TOPLEVEL),symbol_filter)
     VERILOG_SOURCES += $(RTL_DIR)/symbol_filter.sv
 else ifeq ($(TOPLEVEL),eth_axis_rx_wrap)
     VERILOG_SOURCES += $(RTL_DIR)/eth_axis_rx_wrap.sv
+    # eth_axis_rx_wrap instantiates Forencich eth_axis_rx internally
+    FE_DIR := $(PWD)/../../lib/verilog-ethernet
+    VERILOG_SOURCES += $(FE_DIR)/rtl/eth_axis_rx.v
+    # Suppress width warnings from third-party library
+    EXTRA_ARGS += -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-TIMESCALEMOD -Wno-GENUNNAMED
 else ifeq ($(TOPLEVEL),kc705_top)
     VERILOG_SOURCES += $(RTL_DIR)/bfloat16_mul.sv
     VERILOG_SOURCES += $(RTL_DIR)/fp32_acc.sv
@@ -45,7 +50,34 @@ else ifeq ($(TOPLEVEL),kc705_top)
     VERILOG_SOURCES += $(RTL_DIR)/symbol_filter.sv
     VERILOG_SOURCES += $(RTL_DIR)/eth_axis_rx_wrap.sv
     VERILOG_SOURCES += $(RTL_DIR)/kc705_top.sv
-    EXTRA_ARGS += -DKINTEX7_SIM_MAC_BYPASS
+    # Forencich verilog-ethernet library — required by kc705_top sim path
+    FE_DIR := $(PWD)/../../lib/verilog-ethernet
+    VERILOG_SOURCES += $(FE_DIR)/rtl/eth_axis_rx.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/udp_complete_64.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/ip_complete_64.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/ip.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/ip_64.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/ip_eth_rx_64.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/ip_eth_tx_64.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/arp.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/arp_cache.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/arp_eth_rx.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/arp_eth_tx.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/eth_arb_mux.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/ip_arb_mux.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/udp_64.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/udp_ip_rx_64.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/udp_ip_tx_64.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/udp_checksum_gen_64.v
+    VERILOG_SOURCES += $(FE_DIR)/rtl/lfsr.v
+    VERILOG_SOURCES += $(FE_DIR)/lib/axis/rtl/axis_async_fifo.v
+    VERILOG_SOURCES += $(FE_DIR)/lib/axis/rtl/axis_fifo.v
+    VERILOG_SOURCES += $(FE_DIR)/lib/axis/rtl/arbiter.v
+    VERILOG_SOURCES += $(FE_DIR)/lib/axis/rtl/priority_encoder.v
+    EXTRA_ARGS += -DKINTEX7_SIM_GTX_BYPASS
+    EXTRA_ARGS += -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-BLKSEQ -Wno-PROCASSINIT
+    EXTRA_ARGS += -Wno-GENUNNAMED -Wno-TIMESCALEMOD -Wno-PINMISSING -Wno-LATCH
+    EXTRA_ARGS += -Wno-CASEINCOMPLETE -Wno-SELRANGE -Wno-UNOPTFLAT
 endif
 
 # Test module lives in tests/

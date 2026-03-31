@@ -9,8 +9,8 @@ class AXI4LiteDriver:
     Handles AW+W→B (write) and AR→R (read) handshakes.
     """
 
-    def __init__(self, dut, prefix="s_axil"):
-        self.clk = dut.clk
+    def __init__(self, dut, prefix="s_axil", clk=None):
+        self.clk = clk if clk is not None else dut.clk
         # Write address channel
         self.awaddr = getattr(dut, f"{prefix}_awaddr")
         self.awvalid = getattr(dut, f"{prefix}_awvalid")
