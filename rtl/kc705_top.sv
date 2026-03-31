@@ -445,6 +445,11 @@ module kc705_top #(
     logic        itch_300_tready;
     /* verilator lint_on UNUSEDSIGNAL */
 
+    // moldupp64_strip outputs little-endian AXI4-S (byte 0 → tdata[7:0]);
+    // itch_parser expects big-endian (tdata[63:56] = first byte of message).
+    // Byte-reverse the 64-bit word here to reconcile the two conventions.
+    logic [63:0] itch_300_tdata_swapped;
+
 `ifdef KINTEX7_SIM_GTX_BYPASS
     // axis_async_fifo: CDC from clk_156 (156.25 MHz, ITCH net) → clk_300 (app).
     // s_status_depth drives fifo_almost_full threshold for drop-on-full policy.
@@ -619,11 +624,19 @@ module kc705_top #(
     logic pipeline_hold;
     assign pipeline_hold = fields_valid_d1 || feat_valid || (seq_state != SEQ_IDLE);
 
+    // ── Byte-reversal: CDC FIFO (little-endian) → itch_parser (big-endian) ──
+    assign itch_300_tdata_swapped = {
+        itch_300_tdata[ 7: 0], itch_300_tdata[15: 8],
+        itch_300_tdata[23:16], itch_300_tdata[31:24],
+        itch_300_tdata[39:32], itch_300_tdata[47:40],
+        itch_300_tdata[55:48], itch_300_tdata[63:56]
+    };
+
     // ── ITCH Parser ──────────────────────────────────────────────────
     itch_parser u_parser (
         .clk           (clk_300),
         .rst           (sys_rst),
-        .s_axis_tdata  (itch_300_tdata),
+        .s_axis_tdata  (itch_300_tdata_swapped),
         .s_axis_tvalid (itch_300_tvalid),
         .s_axis_tready (itch_300_tready),
         .s_axis_tlast  (itch_300_tlast),
