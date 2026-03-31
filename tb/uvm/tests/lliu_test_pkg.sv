@@ -21,4 +21,8 @@ package lliu_test_pkg;
     `include "tests/lliu_symfilter_test.sv"
     `include "tests/lliu_dropfull_test.sv"
 
+    // KC705 system-level tests
+    `include "tests/lliu_kc705_test.sv"
+    `include "tests/lliu_kc705_perf_test.sv"
+
 endpackage

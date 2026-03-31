@@ -67,6 +67,15 @@ interface kc705_ctrl_if (
     logic [7:0]  s_tkeep;
 
     // ----------------------------------------------------------------
+    // kc705_top system-level observation / control signals
+    // (KC705_TOP_DUT context only; float in all other DUT contexts)
+    // ----------------------------------------------------------------
+    logic        cpu_reset;          // test drives, DUT reset
+    logic [31:0] dp_result;          // DUT drives, inference result
+    logic        dp_result_valid;    // DUT drives, result pulse
+    logic        fifo_rd_tvalid;     // DUT drives, first ITCH beat from CDC FIFO
+
+    // ----------------------------------------------------------------
     // Clocking block — driver side (test writes these)
     // ----------------------------------------------------------------
     clocking driver_cb @(posedge clk);
@@ -81,6 +90,7 @@ interface kc705_ctrl_if (
         output fifo_almost_full;
         output eth_payload_tready;
         output s_tkeep;
+        output cpu_reset;
     endclocking
 
     // ----------------------------------------------------------------
@@ -103,6 +113,9 @@ interface kc705_ctrl_if (
         input eth_payload_tvalid;
         input eth_payload_tlast;
         input dropped_frames;
+        input dp_result;
+        input dp_result_valid;
+        input fifo_rd_tvalid;
     endclocking
 
 endinterface

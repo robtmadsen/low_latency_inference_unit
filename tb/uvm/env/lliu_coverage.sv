@@ -34,6 +34,41 @@ class lliu_coverage extends uvm_subscriber #(axi4_stream_transaction);
     // Totals
     int total_sampled;
 
+    // ── KC705 / Kintex-7 coverage groups ────────────────────────────
+    // moldupp64_cg: seq_state × msg_count
+    // seq_state bins
+    int mold_accepted;         // datagram accepted (no gap)
+    int mold_drop_gap;         // dropped — seq_num gap detected
+    int mold_drop_dup;         // dropped — duplicate seq_num
+    // msg_count bins: how many ITCH messages were in the MoldUDP64 datagram
+    int mold_msg_single;       // exactly 1 message
+    int mold_msg_small;        // 2–4 messages
+    int mold_msg_medium;       // 5–15 messages
+    int mold_msg_large;        // 16+ messages
+    // cross: seq_state × msg_count (accepted vs dropped, all msg sizes)
+    int mold_cross_accept_single, mold_cross_accept_small;
+    int mold_cross_accept_medium, mold_cross_accept_large;
+    int mold_cross_drop_single,   mold_cross_drop_small;
+    int mold_cross_drop_medium,   mold_cross_drop_large;
+
+    // symbol_filter_cg: watchlist_hit × cam_occupancy × back_to_back_count
+    int symf_hit;              // symbol matched watchlist
+    int symf_miss;             // symbol not in watchlist
+    int symf_cam_empty;        // 0 entries in CAM
+    int symf_cam_sparse;       // 1–15 entries
+    int symf_cam_dense;        // 16–63 entries
+    int symf_cam_full;         // all 64 entries occupied
+    int symf_b2b_single;       // single frame (no consecutive hits)
+    int symf_b2b_pair;         // 2–3 consecutive hits
+    int symf_b2b_run;          // 4+ consecutive hits
+
+    // drop_on_full_cg: drop_type × inter-drop gap
+    int drop_overflow;         // FIFO-full frame drop
+    int drop_backpressure;     // backpressure-induced drop
+    int drop_gap_near;         // < 5 frames between consecutive drops
+    int drop_gap_medium;       // 5–19 frames between drops
+    int drop_gap_far;          // 20+ frames between drops
+
     function new(string name = "lliu_coverage", uvm_component parent = null);
         super.new(name, parent);
     endfunction
@@ -51,6 +86,23 @@ class lliu_coverage extends uvm_subscriber #(axi4_stream_transaction);
         cross_dollar_buy = 0;  cross_dollar_sell  = 0;
         cross_large_buy  = 0;  cross_large_sell   = 0;
         total_sampled    = 0;
+
+        // KC705 coverage groups — initial zero
+        mold_accepted = 0;   mold_drop_gap = 0;   mold_drop_dup = 0;
+        mold_msg_single = 0; mold_msg_small = 0;
+        mold_msg_medium = 0; mold_msg_large = 0;
+        mold_cross_accept_single = 0; mold_cross_accept_small  = 0;
+        mold_cross_accept_medium = 0; mold_cross_accept_large  = 0;
+        mold_cross_drop_single   = 0; mold_cross_drop_small    = 0;
+        mold_cross_drop_medium   = 0; mold_cross_drop_large    = 0;
+
+        symf_hit  = 0; symf_miss = 0;
+        symf_cam_empty = 0; symf_cam_sparse = 0;
+        symf_cam_dense = 0; symf_cam_full   = 0;
+        symf_b2b_single = 0; symf_b2b_pair = 0; symf_b2b_run = 0;
+
+        drop_overflow   = 0; drop_backpressure = 0;
+        drop_gap_near   = 0; drop_gap_medium = 0; drop_gap_far = 0;
     endfunction
 
     // ── Analysis port write callback ────────────────────────────────
@@ -112,6 +164,60 @@ class lliu_coverage extends uvm_subscriber #(axi4_stream_transaction);
             if (side == 1) cross_large_buy++;
             else           cross_large_sell++;
         end
+    endfunction   // write
+
+    // ── KC705 sampling APIs ─────────────────────────────────────────
+    // Called by the KC705 scoreboard / monitor when it observes relevant events.
+
+    // sample_moldupp64: called once per MoldUDP64 datagram arriving at moldupp64_strip
+    //   accepted: 1 = forwarded, 0 = dropped
+    //   reason:   1 = gap, 2 = duplicate (ignored if accepted=1)
+    //   msg_count: number of ITCH messages in the datagram
+    function void sample_moldupp64(bit accepted, int reason, int msg_count);
+        if (accepted) begin
+            mold_accepted++;
+            if  (msg_count == 1)              begin mold_msg_single++; mold_cross_accept_single++; end
+            else if (msg_count inside {[2:4]})  begin mold_msg_small++;  mold_cross_accept_small++;  end
+            else if (msg_count inside {[5:15]}) begin mold_msg_medium++; mold_cross_accept_medium++; end
+            else                               begin mold_msg_large++;  mold_cross_accept_large++;  end
+        end else begin
+            if (reason == 1) mold_drop_gap++;
+            else             mold_drop_dup++;
+            if  (msg_count == 1)              begin mold_msg_single++; mold_cross_drop_single++; end
+            else if (msg_count inside {[2:4]})  begin mold_msg_small++;  mold_cross_drop_small++;  end
+            else if (msg_count inside {[5:15]}) begin mold_msg_medium++; mold_cross_drop_medium++; end
+            else                               begin mold_msg_large++;  mold_cross_drop_large++;  end
+        end
+    endfunction
+
+    // sample_symbol_filter: called once per incoming ITCH message arriving at symbol_filter
+    //   hit:         1 = matched watchlist entry, 0 = miss
+    //   cam_entries: number of currently programmed CAM entries (0–64)
+    //   consec_hits: count of consecutive hit messages (including this one)
+    function void sample_symbol_filter(bit hit, int cam_entries, int consec_hits);
+        if (hit) symf_hit++;
+        else     symf_miss++;
+
+        if      (cam_entries == 0)                symf_cam_empty++;
+        else if (cam_entries inside {[1:15]})     symf_cam_sparse++;
+        else if (cam_entries inside {[16:63]})    symf_cam_dense++;
+        else                                      symf_cam_full++;
+
+        if      (consec_hits <= 1)               symf_b2b_single++;
+        else if (consec_hits inside {[2:3]})     symf_b2b_pair++;
+        else                                     symf_b2b_run++;
+    endfunction
+
+    // sample_drop_on_full: called each time eth_axis_rx_wrap drops a frame
+    //   is_backpressure: 1 = downstream backpressure triggered drop, 0 = FIFO full
+    //   frames_since_last_drop: frames that arrived since the previous drop event
+    function void sample_drop_on_full(bit is_backpressure, int frames_since_last_drop);
+        if (is_backpressure) drop_backpressure++;
+        else                 drop_overflow++;
+
+        if      (frames_since_last_drop < 5)  drop_gap_near++;
+        else if (frames_since_last_drop < 20) drop_gap_medium++;
+        else                                  drop_gap_far++;
     endfunction
 
     // ── Coverage query ──────────────────────────────────────────────
@@ -181,6 +287,54 @@ class lliu_coverage extends uvm_subscriber #(axi4_stream_transaction);
         report = {report, "╠══════════════════════════════════════════════════╣\n"};
         report = {report, $sformatf("║  Cross coverage: %0d/6 bins = %0.1f%%             ║\n",
                   cross_hit, get_cross_coverage_pct())};
+        report = {report, "╠══════════════════════════════════════════════════╣\n"};
+        report = {report, "║  KC705 — MoldUDP64 Coverage                     ║\n"};
+        report = {report, $sformatf("║    Accepted:        %6d  %s                 ║\n",
+                  mold_accepted,  mold_accepted  > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    Drop-gap:        %6d  %s                 ║\n",
+                  mold_drop_gap,  mold_drop_gap  > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    Drop-dup:        %6d  %s                 ║\n",
+                  mold_drop_dup,  mold_drop_dup  > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    Msg×1:           %6d  %s                 ║\n",
+                  mold_msg_single, mold_msg_single > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    Msg×2-4:         %6d  %s                 ║\n",
+                  mold_msg_small,  mold_msg_small  > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    Msg×5-15:        %6d  %s                 ║\n",
+                  mold_msg_medium, mold_msg_medium > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    Msg×16+:         %6d  %s                 ║\n",
+                  mold_msg_large,  mold_msg_large  > 0 ? "[hit]" : "[   ]")};
+        report = {report, "╠══════════════════════════════════════════════════╣\n"};
+        report = {report, "║  KC705 — Symbol Filter Coverage                 ║\n"};
+        report = {report, $sformatf("║    Hit:             %6d  %s                 ║\n",
+                  symf_hit,  symf_hit  > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    Miss:            %6d  %s                 ║\n",
+                  symf_miss, symf_miss > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    CAM empty:       %6d  %s                 ║\n",
+                  symf_cam_empty,  symf_cam_empty  > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    CAM sparse:      %6d  %s                 ║\n",
+                  symf_cam_sparse, symf_cam_sparse > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    CAM dense:       %6d  %s                 ║\n",
+                  symf_cam_dense, symf_cam_dense > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    CAM full:        %6d  %s                 ║\n",
+                  symf_cam_full,  symf_cam_full  > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    B2B single:      %6d  %s                 ║\n",
+                  symf_b2b_single, symf_b2b_single > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    B2B pair:        %6d  %s                 ║\n",
+                  symf_b2b_pair,   symf_b2b_pair   > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    B2B run:         %6d  %s                 ║\n",
+                  symf_b2b_run,    symf_b2b_run    > 0 ? "[hit]" : "[   ]")};
+        report = {report, "╠══════════════════════════════════════════════════╣\n"};
+        report = {report, "║  KC705 — Drop-on-Full Coverage                  ║\n"};
+        report = {report, $sformatf("║    FIFO overflow:   %6d  %s                 ║\n",
+                  drop_overflow,    drop_overflow    > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    Backpressure:    %6d  %s                 ║\n",
+                  drop_backpressure, drop_backpressure > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    Gap <5:          %6d  %s                 ║\n",
+                  drop_gap_near,   drop_gap_near   > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    Gap 5-19:        %6d  %s                 ║\n",
+                  drop_gap_medium, drop_gap_medium > 0 ? "[hit]" : "[   ]")};
+        report = {report, $sformatf("║    Gap 20+:         %6d  %s                 ║\n",
+                  drop_gap_far,    drop_gap_far    > 0 ? "[hit]" : "[   ]")};
         report = {report, "╚══════════════════════════════════════════════════╝\n"};
 
         `uvm_info("COVERAGE", report, UVM_LOW)
