@@ -38,6 +38,18 @@ module tb_top;
     end
 
     // ----------------------------------------------------------------
+    // Clock generation — 156.25 MHz (6.4 ns) — KC705_TOP_DUT only
+    // ----------------------------------------------------------------
+`ifdef KC705_TOP_DUT
+    localparam real CLK_156_PERIOD = 6.4;
+    logic clk_156;
+    initial begin
+        clk_156 = 1'b0;
+        forever #(CLK_156_PERIOD / 2.0) clk_156 = ~clk_156;
+    end
+`endif
+
+    // ----------------------------------------------------------------
     // Reset — active-high, held 10 cycles
     // ----------------------------------------------------------------
     logic rst;
@@ -133,6 +145,50 @@ module tb_top;
     assign axil_if.rdata   = 32'h0;
     assign axil_if.rresp   = 2'b00;
     assign axil_if.rvalid  = 1'b0;
+
+`elsif KC705_TOP_DUT
+    // === DUT: kc705_top ===========================================
+    // Full KC705 pipeline driven via mac_rx_* (axis_if) and AXI4-Lite.
+    // Requires KINTEX7_SIM_GTX_BYPASS to expose simulation ports.
+    //
+    // cpu_reset is driven from kc705_ctrl_if (not the tb_top rst).
+    // Both clk_300 (=clk) and clk_156 are connected.
+    // dp_result / dp_result_valid / fifo_rd_tvalid route through kc705_if.
+
+    kc705_top u_dut (
+        .clk_300_in          (clk),
+        .clk_156_in          (clk_156),
+        .cpu_reset           (kc705_if.cpu_reset),
+        // MAC RX — AXI4-S from axis_if
+        .mac_rx_tdata        (axis_if.tdata),
+        .mac_rx_tkeep        (kc705_if.s_tkeep),
+        .mac_rx_tvalid       (axis_if.tvalid),
+        .mac_rx_tlast        (axis_if.tlast),
+        .mac_rx_tready       (axis_if.tready),
+        // Inference output
+        .dp_result           (kc705_if.dp_result),
+        .dp_result_valid     (kc705_if.dp_result_valid),
+        // FIFO status
+        .fifo_rd_tvalid      (kc705_if.fifo_rd_tvalid),
+        // AXI4-Lite slave
+        .axil_awaddr         (axil_if.awaddr),
+        .axil_awvalid        (axil_if.awvalid),
+        .axil_awready        (axil_if.awready),
+        .axil_wdata          (axil_if.wdata),
+        .axil_wstrb          (axil_if.wstrb),
+        .axil_wvalid         (axil_if.wvalid),
+        .axil_wready         (axil_if.wready),
+        .axil_bresp          (axil_if.bresp),
+        .axil_bvalid         (axil_if.bvalid),
+        .axil_bready         (axil_if.bready),
+        .axil_araddr         (axil_if.araddr),
+        .axil_arvalid        (axil_if.arvalid),
+        .axil_arready        (axil_if.arready),
+        .axil_rdata          (axil_if.rdata),
+        .axil_rresp          (axil_if.rresp),
+        .axil_rvalid         (axil_if.rvalid),
+        .axil_rready         (axil_if.rready)
+    );
 
 `elsif DROPFULL_DUT
     // === DUT: eth_axis_rx_wrap =====================================
@@ -398,5 +454,33 @@ module tb_top;
         .frame_active        (1'b0)   // stub — RTL coordination required
     );
 `endif // DROPFULL_DUT
+
+`ifdef KC705_TOP_DUT
+    // ── end_to_end_latency_sva — KC705 variant (18-cycle bound) ──
+    // fifo_rd_tvalid (first ITCH beat from CDC FIFO) → dp_result_valid
+    bind kc705_top end_to_end_latency_sva #(.DEFAULT_MAX_LATENCY_CYCLES(18))
+        u_e2e_sva (
+            .clk                (clk_300_in),
+            .rst                (cpu_reset),
+            .add_order_accepted (1'b0),          // unused in KC705 context
+            .fifo_rd_tvalid     (fifo_rd_tvalid),
+            .dp_result_valid    (dp_result_valid)
+        );
+
+    // ── kc705_latency_monitor — 4-channel performance profiler ───
+    // Internal RTL signals (parser_fields_valid, feat_valid, stock_valid,
+    // watchlist_hit) are stubbed until the rtl_engineer annotates them
+    // with (* keep = "true" *).  CH1 (FIFO→result) is always active.
+    bind kc705_top kc705_latency_monitor u_kc705_perf_mon (
+        .clk_300             (clk_300_in),
+        .rst                 (cpu_reset),
+        .fifo_rd_tvalid      (fifo_rd_tvalid),
+        .dp_result_valid     (dp_result_valid),
+        .parser_fields_valid (1'b0),   // stub — RTL coordination required
+        .feat_valid          (1'b0),   // stub — RTL coordination required
+        .stock_valid         (1'b0),   // stub — RTL coordination required
+        .watchlist_hit       (1'b0)    // stub — RTL coordination required
+    );
+`endif // KC705_TOP_DUT
 
 endmodule

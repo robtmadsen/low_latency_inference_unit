@@ -159,7 +159,7 @@ endif
 
 # ---- DUT selection — controls conditional SVA guards ----
 ifeq ($(TOPLEVEL),kc705_top)
-VL_FLAGS   += +define+KC705_TOP_DUT
+VL_FLAGS   += +define+KC705_TOP_DUT +define+KINTEX7_SIM_GTX_BYPASS
 else ifeq ($(TOPLEVEL),moldupp64_strip)
 VL_FLAGS   += +define+MOLDUPP64_DUT
 else ifeq ($(TOPLEVEL),symbol_filter)

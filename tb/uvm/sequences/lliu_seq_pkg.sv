@@ -19,5 +19,6 @@ package lliu_seq_pkg;
     // KC705 / kintex-7 sequences
     `include "sequences/moldupp64_seq.sv"
     `include "sequences/cam_load_seq.sv"
+    `include "sequences/kc705_init_seq.sv"
 
 endpackage
