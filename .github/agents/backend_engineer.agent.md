@@ -1,10 +1,10 @@
 ---
 description: >
   Backend/synthesis engineer for the low_latency_inference_unit (LLIU) project.
-  Targets the Kintex-7 KC705 Evaluation Kit. Uses Yosys for RTL synthesis and
-  nextpnr-xilinx (backed by Project X-Ray) for place and route. Exclusively
-  modifies files under syn/. Does not touch rtl/, tb/, scripts/, or any
-  verification, reporting, or CI/CD files.
+  Targets the Kintex-7 XC7K160T (xc7k160tffg676-2). Uses Yosys for pre-Vivado
+  utilization inspection and Vivado ML Standard (free tier) for synthesis, P&R,
+  and bitstream generation. Exclusively modifies files under syn/. Does not touch
+  rtl/, tb/, scripts/, or any verification, reporting, or CI/CD files.
 ---
 
 # Backend Engineer Agent — LLIU
@@ -18,7 +18,7 @@ You own the synthesis and place-and-route flow for the LLIU project. Your scope 
 | Read and write all files under `syn/` | Modify anything under `rtl/` |
 | Read `.github/arch/*.md` for design intent and constraints | Modify anything under `tb/` |
 | Read `rtl/*.sv` (read-only, for context) | Modify `scripts/` |
-| Run Yosys synthesis and nextpnr-xilinx P&R | Write reports, README, or arch docs |
+| Run Yosys (inspection) and Vivado ML Standard (P&R) | Write reports, README, or arch docs |
 
 ## Hard Constraints
 
@@ -31,63 +31,64 @@ You own the synthesis and place-and-route flow for the LLIU project. Your scope 
 
 | Property | Value |
 |----------|-------|
-| Board | Xilinx Kintex-7 KC705 Evaluation Kit |
-| Device | `xc7k325tffg900-2` |
-| Synthesis tool | Yosys |
-| Place & Route | nextpnr-xilinx |
-| Device database | Project X-Ray (bit-accurate LUT/wire locations) |
+| Device | `xc7k160tffg676-2` |
+| Synthesis (inspection) | Yosys (`synth_xilinx`) |
+| Synthesis + P&R | Vivado ML Standard (free tier) |
+| Bitstream | Vivado `write_bitstream` |
 
 ## Toolchain Flow
 
-### 1 — Synthesis (Yosys)
+### 1 — Pre-synthesis inspection (Yosys, optional)
 
 ```sh
-yosys -p "
-  read_verilog -sv -I../rtl ../rtl/lliu_pkg.sv ../rtl/*.sv;
-  synth_xilinx -top lliu_top -flatten;
-  write_json syn/lliu.json;
-  write_verilog syn/lliu_synth.v
-"
+export VERILOG_ETHERNET_DIR=./lib/verilog-ethernet
+mkdir -p syn/reports
+yosys syn/synth.ys 2>&1 | tee syn/reports/warnings.txt
+grep -E "Number of|LUT|Flip|BRAM|DSP" syn/reports/utilization.txt
 ```
 
-- Use `synth_xilinx` with the `-flatten` flag.
-- Output both JSON (for nextpnr) and a flattened Verilog (for inspection).
 - Treat all Yosys warnings about latches as errors — the RTL must be latch-free.
+- Outputs `syn/lliu.json` and `syn/lliu_synth.v` for inspection.
 
-### 2 — Place & Route (nextpnr-xilinx + Project X-Ray)
+### 2 — Synthesis + P&R (Vivado ML Standard)
+
+Create `syn/vivado_impl.tcl` (see BACKEND_PLAN_kintex-7.md Step 5.1 for the full
+script template), then run:
 
 ```sh
-nextpnr-xilinx \
-  --chipdb /path/to/xray/xc7k325t.bin \
-  --xdc syn/constraints.xdc \
-  --json syn/lliu.json \
-  --write syn/lliu_routed.json \
-  --fasm syn/lliu.fasm
+export VERILOG_ETHERNET_DIR=./lib/verilog-ethernet
+vivado -mode batch -source syn/vivado_impl.tcl \
+       -tclargs ${VERILOG_ETHERNET_DIR} \
+       2>&1 | tee syn/reports/vivado.log
 ```
 
-- XDC constraints live in `syn/constraints.xdc` — clock definitions and pin assignments.
-- Timing closure target: **300 MHz** (from `.github/arch/SPEC.md`).
-- If nextpnr cannot meet timing, report the critical path and escalate before relaxing any constraints.
+- XDC constraints live in `syn/constraints.xdc` — clock definitions, CDC exceptions,
+  Pblocks. **Update section 4 pin assignments for the actual target board.**
+- Timing closure target: **300 MHz** (`clk_300`), 250 MHz fallback.
+- If Vivado cannot meet timing, report the critical path and escalate before relaxing.
 
-### 3 — Bitstream (optional, fasm2frames + xc7frames2bit)
+### 3 — Bitstream
+
+The bitstream is generated automatically by `syn/vivado_impl.tcl` (`write_bitstream`).
+To regenerate from a saved routed checkpoint:
 
 ```sh
-fasm2frames --part xc7k325tffg900-2 syn/lliu.fasm > syn/lliu.frames
-xc7frames2bit --part-file /path/to/xray/xc7k325tffg900-2.yaml \
-              --input-file syn/lliu.frames \
-              --output-file syn/lliu.bit
+vivado -mode batch -source - <<'EOF'
+open_checkpoint syn/lliu_routed.dcp
+write_bitstream -force syn/lliu.bit
+EOF
 ```
 
 ## `syn/` Directory Layout
 
 ```
 syn/
-  constraints.xdc       # Clock and I/O pin assignments (KC705)
-  lliu.json             # Yosys netlist (input to nextpnr)
+  synth.ys              # Yosys synthesis script (pre-Vivado inspection)
+  vivado_impl.tcl       # Vivado synthesis + P&R + bitstream Tcl script
+  constraints.xdc       # Clock, CDC exceptions, Pblocks (update section 4 for target board)
+  lliu.json             # Yosys netlist (inspection)
   lliu_synth.v          # Flattened Verilog (inspection only)
-  lliu_routed.json      # nextpnr placed-and-routed netlist
-  lliu.fasm             # Flat bitstream annotations
-  lliu.frames           # Assembled frames (pre-bitstream)
+  lliu_routed.dcp       # Vivado placed-and-routed checkpoint
   lliu.bit              # Final bitstream
   reports/              # Utilization and timing summaries
     utilization.txt

@@ -1,12 +1,12 @@
-# Kintex-7 KC705 — Micro-Architectural Specification
+# Kintex-7 XC7K160T — Micro-Architectural Specification
 
 **Project:** `low_latency_inference_unit` (LLIU)  
-**Target:** Xilinx Kintex-7 KC705 Evaluation Kit (`xc7k325tffg900-2`)  
+**Target:** Xilinx Kintex-7 (`xc7k160tffg676-2`, Vivado ML Standard free tier)  
 **Clock domain:** 156.25 MHz (transceiver reference) + 300 MHz target / 250 MHz fallback (application)  
 **Network library:** [verilog-ethernet](https://github.com/alexforencich/verilog-ethernet) (Forencich)  
 **Protocol:** NASDAQ ITCH 5.0 over UDP/IP multicast (10GbE)
 
-> **Related docs:** [SPEC.md](../SPEC.md) · [RTL_ARCH.md](../RTL_ARCH.md)
+> **Device change — April 2026:** Original target was the KC705 board (`xc7k325tffg900-2`).  The XC7K325T requires Vivado Enterprise (no free tier) or nextpnr-xilinx P&R — but the XC7K325T fabric was never reverse-engineered by Project X-Ray and cannot be targeted by nextpnr-xilinx.  Switched to **`xc7k160tffg676-2`** (Vivado ML Standard free tier, AMD UG973).  GTX transceivers present; design fits with headroom (101,440 LUTs, 600 DSP48E1, 162 RAMB36E1).  The RTL top module retains the `kc705_top` name.
 
 ---
 
@@ -216,7 +216,7 @@ For a 64-entry × 64-bit watchlist, a register-based CAM implemented directly in
 - **Structure:** 64 registers, each holding one 8-character Stock key (`reg [63:0] cam_entry [0:63]`). Each entry has a valid bit.
 - **Match logic:** A 64-wide bitwise-equality reduction: `assign watchlist_hit = |(valid & match_vec)` where `match_vec[i] = (stock == cam_entry[i])`.
 - **Latency:** The entire comparison tree fits within a single LUT level after synthesis — **1 cycle** at 300 MHz with no carry chain dependency.
-- **Resource cost:** 64 × 64 = 4,096 flip-flops (≈ 4,096 / 8 = ~512 LUTs for comparison logic on Kintex-7 6-input LUTs). Well within the 203,800 LUT budget of the `xc7k325t`.
+- **Resource cost:** 64 × 64 = 4,096 flip-flops (≈ 4,096 / 8 = ~512 LUTs for comparison logic on Kintex-7 6-input LUTs). Well within the 101,440 LUT budget of the `xc7k160t`.
 - **Write port:** Single-cycle register write from `axi4_lite_slave` (address-indexed, no multi-port contention).
 
 > A LUTRAM implementation would require a sequential address lookup (read-then-compare) and cannot guarantee single-cycle match across all 64 entries simultaneously. The CAM approach is strictly better here because the key width (64 bits) is fixed and the entry count is small enough that the comparison logic is not the bottleneck.
@@ -246,7 +246,7 @@ add_cells_to_pblock [get_pblocks pblock_dpe] \
 resize_pblock [get_pblocks pblock_dpe] -add {SLICE_X60Y0:SLICE_X79Y49 DSP48_X3Y0:DSP48_X3Y19}
 ```
 
-Adjust the exact site range after inspecting the routed design in nextpnr-xilinx's GUI.
+Adjust the exact site range after inspecting the routed design in Vivado's device view.
 
 **Pre-FIFO latency (156.25 MHz domain):**
 
@@ -277,22 +277,24 @@ Adjust the exact site range after inspecting the routed design in nextpnr-xilinx
 
 ### 2.5 Support & Clocking
 
-#### KC705 Clock Resources
+#### Kintex-7 Clock Resources
 
 | Clock | Source | Frequency | Domain | Notes |
 |-------|--------|-----------|--------|-------|
 | `clk_156` | GTX recovered / MGTREFCLK0 (SFP cage) | 156.25 MHz | Network (PHY, MAC, stack) | Fixed by 10GbE spec |
-| `clk_300` | MMCM driven from on-board 200 MHz oscillator | 300 MHz | Application (hot path, LLIU core) | **Primary target — aggressive on -2** |
+| `clk_300` | MMCM on-board oscillator (200 MHz typical) | 300 MHz | Application (hot path, LLIU core) | **Primary target — aggressive on -2** |
 | `clk_250` | Same MMCM, alternate config | 250 MHz | Application fallback | Use if 300 MHz P&R fails |
 | `clk_125` | Optional, from MMCM | 125 MHz | PCIe / AXI4-Lite host interface | Optional |
 
 Use a single `MMCM_ADV` primitive to generate `clk_300` (and optionally `clk_125`) from the 200 MHz system oscillator (`SYSCLK`). The MMCM can be reconfigured at runtime (DRP port) to switch between 300 MHz and 250 MHz without a full bitstream reload — wire the MMCM DRP interface to an AXI4-Lite register if runtime clock switching is required.
 
-> **300 MHz vs 250 MHz decision point:** Attempt 300 MHz first. If nextpnr-xilinx reports negative slack on any path through `dot_product_engine` after applying the DSP Pblock constraint, switch the MMCM output to 250 MHz and re-run P&R. Do not accept a routed design with negative slack.
+> **300 MHz vs 250 MHz decision point:** Attempt 300 MHz first. If Vivado reports negative slack on any path through `dot_product_engine` after applying the DSP Pblock constraint, switch the MMCM output to 250 MHz and re-run P&R. Do not accept a routed design with negative slack.
 
-#### Pin Constraints (KC705 — partial)
+#### Pin Constraints (board-specific — must be updated for target board)
 
-| Signal | KC705 Pin | I/O Standard |
+> **Note:** The pin assignments below were derived from the original KC705 board (`xc7k325tffg900-2`) and are provided as a reference template only. They **will not match** a non-KC705 XC7K160T board. Obtain the target board schematic, identify the SFP+ cage GTX lane, the MGT reference clock IBUFDS_GTE2 input, the system oscillator differential input, and the reset button, then update `syn/constraints.xdc` section 4 accordingly before running Vivado P&R.
+
+| Signal | KC705 Reference Pin | I/O Standard |
 |--------|-----------|--------------|
 | `sfp_tx_p` | H2 | DIFF_HSTL |
 | `sfp_rx_p` | G4 | DIFF_HSTL |

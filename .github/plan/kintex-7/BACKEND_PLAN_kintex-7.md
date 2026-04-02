@@ -2,7 +2,7 @@
 
 **Agent:** `backend_engineer`  
 **Spec:** [Kintex-7_MAS.md](../../arch/kintex-7/Kintex-7_MAS.md)  
-**Target:** Xilinx Kintex-7 KC705 (`xc7k325tffg900-2`)  
+**Target:** Xilinx Kintex-7 (`xc7k160tffg676-2`, Vivado ML Standard free tier)  
 **Writes to:** `syn/` only
 
 ---
@@ -11,19 +11,17 @@
 
 | Stage | Tool | Version |
 |-------|------|---------|
-| Synthesis | Yosys (`synth_xilinx`) | ≥ 0.38 |
-| Place & Route | nextpnr-xilinx + Project X-Ray | current main |
-| Chip database | Project X-Ray `xc7k325t.bin` | from X-Ray release |
-| Frame assembly | `fasm2frames` | from Project X-Ray |
-| Bitstream | `xc7frames2bit` | from Project X-Ray |
+| Synthesis (inspection) | Yosys (`synth_xilinx`) | ≥ 0.38 |
+| Synthesis + P&R | Vivado ML Standard | 2025.x |
+| Bitstream | Vivado `write_bitstream` | 2025.x |
+
+> **Why Vivado instead of nextpnr-xilinx?** The original target (`xc7k325tffg900-2`) requires Vivado Enterprise (no free tier). The `xc7k160tffg676-2` is on the Vivado ML Standard free device list (AMD UG973). Additionally, the Project X-Ray database (`prjxray-db`) only covers `xc7k70t` in the Kintex-7 family — `xc7k325t` and `xc7k160t` have never been reverse-engineered and cannot be targeted by nextpnr-xilinx.
 
 Verify availability before starting:
 
 ```sh
-yosys --version
-nextpnr-xilinx --version
-fasm2frames --help
-xc7frames2bit --help
+yosys --version          # for pre-Vivado utilization inspection
+vivado -version          # for synthesis, P&R, and bitstream generation
 ```
 
 ---
@@ -162,7 +160,7 @@ tee -o syn/reports/utilization.txt stat -tech xilinx
 ## Step 3 — Write `syn/constraints.xdc`
 
 This file defines all timing constraints, I/O standards, and floorplan Pblocks.
-It is consumed by nextpnr-xilinx at P&R time.
+It is consumed by Vivado at P&R time.
 
 ### 3.1 Clock definitions
 
@@ -219,8 +217,9 @@ set_false_path \
 
 # moldupp64_strip → 300 MHz domain: seq_num / msg_count are stable CDC registers
 # sampled by the 300 MHz domain only after a domain-crossing handshake.
-# If nextpnr-xilinx does not support -through on set_false_path, use max_delay
-# with a 1× clk_300 period to allow one setup margin for the receiving FF.
+# Vivado honours -through on set_false_path; the scoped false_path above covers this
+# via the axis_async_fifo cell hierarchy. If the path is NOT through the FIFO, use
+# max_delay with a 1× clk_300 period to allow one setup margin for the receiving FF.
 set_max_delay 3.333 -datapath_only \
     -from [get_cells -hierarchical -filter {NAME =~ *moldupp64_strip*seq_num*}] \
     -to   [get_clocks clk_300]
@@ -231,12 +230,13 @@ set_max_delay 3.333 -datapath_only \
 > fully timing-checked. The `axis_async_fifo` uses internal gray-code synchronisers
 > that make its cross-domain data paths structurally safe.
 >
-> **nextpnr-xilinx note:** if `-through` is not honoured by the tool, fall back to
-> blanket `set_false_path` only after verifying that every cross-domain signal is
-> either inside `axis_async_fifo` or an explicitly-CDC'd register. Document any
-> such fallback in `syn/reports/warnings.txt`.
+> Vivado honours the `-through` filter on `set_false_path`; the scoped constraints
+> above are the preferred form. If Vivado ever reports unexpected false-path coverage
+> issues, fall back to a blanket `set_false_path` only after verifying that every
+> cross-domain signal is inside `axis_async_fifo` or an explicitly-CDC’d register.
+> Document any such fallback in `syn/reports/warnings.txt`.
 
-### 3.3 I/O pin assignments (KC705)
+### 3.3 I/O pin assignments (KC705 reference — update for target board)
 
 ```tcl
 # ── SFP+ cage J3 (10GbE) ────────────────────────────────────────
@@ -327,8 +327,8 @@ yosys syn/synth.ys 2>&1 | tee syn/reports/warnings.txt
 | Zero unresolved modules | No `Warning: Module '...' not found` lines | Check Forencich file list in `synth.ys` |
 | DSP48E1 inferred | `Number of DSP48E1:` > 0 in utilization report | Review `bfloat16_mul` / `fp32_acc` RTL; escalate to `rtl_engineer` if zero DSPs |
 | BRAM inferred | `Number of RAMB36E1:` > 0 | Review `weight_mem` RTL |
-| LUT count < 150,000 | Utilization report | — (xc7k325t has 203,800 LUTs) |
-| FF count < 300,000 | Utilization report | — (xc7k325t has 407,600 FFs) |
+| LUT count < 75,000 | Utilization report | — (xc7k160t has 101,440 LUTs) |
+| FF count < 150,000 | Utilization report | — (xc7k160t has 202,880 FFs) |
 | `lliu.json` written | File exists and non-empty | Check Yosys `write_json` invocation |
 
 Save the full utilization report:
@@ -341,92 +341,138 @@ grep -E "Number of|LUT|Flip|BRAM|DSP" syn/reports/utilization.txt
 
 ## Step 5 — Run Place & Route (300 MHz attempt)
 
-### 5.1 First P&R run — 300 MHz target
+### 5.1 Create Vivado implementation script (`syn/vivado_impl.tcl`)
 
-```sh
-nextpnr-xilinx \
-  --chipdb /path/to/xray/xc7k325t.bin \
-  --xdc syn/constraints.xdc \
-  --json syn/lliu.json \
-  --write syn/lliu_routed.json \
-  --fasm syn/lliu.fasm \
-  --timing-allow-fail \
-  2>&1 | tee syn/reports/timing.txt
+> This file must be written by the `backend_engineer` agent. It is the Vivado Tcl
+> entry point for synthesis, implementation, reporting, and bitstream generation.
+
+```tcl
+# syn/vivado_impl.tcl
+# Usage: vivado -mode batch -source syn/vivado_impl.tcl -tclargs <VERILOG_ETHERNET_DIR>
+# Example: vivado -mode batch -source syn/vivado_impl.tcl -tclargs ./lib/verilog-ethernet
+
+set VERILOG_ETHERNET_DIR [lindex $argv 0]
+set PART xc7k160tffg676-2
+
+# ── Read sources ─────────────────────────────────────────────────
+read_verilog -sv rtl/lliu_pkg.sv
+read_verilog -sv {
+  rtl/bfloat16_mul.sv rtl/fp32_acc.sv rtl/dot_product_engine.sv
+  rtl/itch_parser.sv rtl/itch_field_extract.sv
+  rtl/feature_extractor.sv rtl/weight_mem.sv
+  rtl/axi4_lite_slave.sv rtl/output_buffer.sv
+  rtl/moldupp64_strip.sv rtl/symbol_filter.sv
+  rtl/eth_axis_rx_wrap.sv rtl/kc705_top.sv
+}
+# Forencich network stack
+read_verilog [glob ${VERILOG_ETHERNET_DIR}/rtl/*.v]
+
+# ── Constraints ────────────────────────────────────────────────────
+read_xdc syn/constraints.xdc
+
+# ── Synthesis ──────────────────────────────────────────────────────
+synth_design -top kc705_top -part ${PART} -flatten_hierarchy full
+
+# Write a post-synthesis utilization report for quick inspection:
+report_utilization -file syn/reports/utilization_synth.txt
+
+# ── Implementation ─────────────────────────────────────────────────
+opt_design
+place_design
+phys_opt_design -directive AggressiveExplore
+route_design
+
+# ── Reports ────────────────────────────────────────────────────────
+report_utilization   -file syn/reports/utilization.txt
+report_timing_summary -file syn/reports/timing.txt -check_timing_verbose
+
+# ── Bitstream ──────────────────────────────────────────────────────
+write_bitstream -force syn/lliu.bit
 ```
 
-`--timing-allow-fail` is included for the first run only so a timing report is
-always generated even if the tool cannot close timing. Remove it once timing closes.
+### 5.2 First P&R run — 300 MHz target
 
-### 5.2 Read the timing report
+```sh
+cd /path/to/repo/root
+export VERILOG_ETHERNET_DIR=./lib/verilog-ethernet
+
+mkdir -p syn/reports
+
+vivado -mode batch -source syn/vivado_impl.tcl \
+       -tclargs ${VERILOG_ETHERNET_DIR} \
+       2>&1 | tee syn/reports/vivado.log
+```
+
+### 5.3 Read the timing report
 
 Extract the worst negative slack (WNS) immediately after P&R:
 
 ```sh
-grep -E "Max frequency|Slack|critical" syn/reports/timing.txt | head -20
+grep -E "WNS|WHS|WPWS|Timing" syn/reports/timing.txt | head -20
 ```
 
-### 5.3 Decision tree
+### 5.4 Decision tree
 
 ```
-WNS ≥ 0 ns on all paths in clk_300 domain?
+WNS ≥ 0 ns on all clocked paths?
   ├── YES → Timing closed at 300 MHz. Proceed to Step 6.
   └── NO  → Which path is failing?
         ├── Path through dot_product_engine DSPs
-        │     → Step 5.4: DSP Pblock tuning
+        │     → Step 5.5: DSP Pblock tuning
         ├── Path through symbol_filter CAM comparison tree
-        │     → Step 5.5: CAM register retiming
+        │     → Step 5.6: CAM register retiming
         ├── Path through axis_async_fifo read logic
         │     → Verify false_path constraint applied; if missing, add to XDC
         └── Any other path after DSP tuning doesn't close
-              → Step 5.6: Fall back to 250 MHz
+              → Step 5.7: Fall back to 250 MHz
 ```
 
-### 5.4 DSP Pblock tuning (if timing fails through dot_product_engine)
+### 5.5 DSP Pblock tuning (if timing fails through dot_product_engine)
 
-1. Open nextpnr-xilinx GUI and inspect placement of `dot_product_engine` cells.
-2. Identify whether DSP slices are spread across multiple columns (causes long routing wires).
-3. Tighten the Pblock to force placement into a single DSP column:
+1. Open Vivado project or the `_timing.txt` report and identify the failing path.
+2. Check whether DSP slices are spread across multiple columns.
+3. Tighten the Pblock in `syn/constraints.xdc` to force placement into a single
+   DSP column (verify valid site ranges for `xc7k160tffg676-2` in Vivado's
+   device view — site coordinates differ from `xc7k325t`):
 
    ```tcl
-   # Tighten: single column, rows Y0-Y9 only
+   # Tighten: single DSP column, fewer rows
    resize_pblock [get_pblocks pblock_dpe] \
-       -add {SLICE_X64Y0:SLICE_X71Y24 DSP48_X3Y0:DSP48_X3Y9}
+       -add {SLICE_X40Y0:SLICE_X55Y24 DSP48_X2Y0:DSP48_X2Y9}
    ```
 
-4. Re-run P&R. If DSP placement is already tight and timing still fails, verify
-   pipeline depth with `rtl_engineer` — the `bfloat16_mul` output register and
-   two-stage `fp32_acc` must both be present.
+4. Re-run `vivado_impl.tcl`. If DSP placement is already tight and timing still
+   fails, verify pipeline depth with `rtl_engineer` — the `bfloat16_mul` output
+   register and two-stage `fp32_acc` must both be present.
 
-5. If WNS is between −0.2 ns and 0 ns after Pblock tuning, try nextpnr seed sweep:
+5. If WNS is between −0.2 ns and 0 ns after Pblock tuning, try Vivado seed sweep:
 
    ```sh
    for seed in 1 2 3 4 5; do
-     nextpnr-xilinx --chipdb /path/to/xray/xc7k325t.bin \
-       --xdc syn/constraints.xdc \
-       --json syn/lliu.json \
-       --write syn/lliu_routed_seed${seed}.json \
-       --fasm syn/lliu_seed${seed}.fasm \
-       --seed ${seed} \
-       2>&1 | grep -E "Max frequency|Slack" | tee -a syn/reports/timing_seeds.txt
+     vivado -mode batch -source syn/vivado_impl.tcl \
+       -tclargs ${VERILOG_ETHERNET_DIR} \
+       -log syn/reports/vivado_seed${seed}.log \
+       2>&1 | grep -E "WNS|WHS" | tee -a syn/reports/timing_seeds.txt
    done
    ```
 
-   Use the seed that produces the best (most positive) WNS.
+   In `syn/vivado_impl.tcl`, add `-seed ${seed}` to the `place_design` call and
+   pass the seed as an argument. Use the seed that produces the best (most positive) WNS.
 
-### 5.5 CAM comparison tree (if timing fails through symbol_filter)
+### 5.6 CAM comparison tree (if timing fails through symbol_filter)
 
 The 64×64-bit parallel equality tree in `symbol_filter` may have a deep LUT cascade
-after flattening. If nextpnr reports a failing path through `symbol_filter`:
+after synthesis. If Vivado reports a failing path through `symbol_filter`:
 
 1. Check the critical path start/end points in `syn/reports/timing.txt`.
 2. If the path is `stock → match_vec → watchlist_hit_comb → watchlist_hit_reg`:
    - The registered output on `watchlist_hit` should absorb this — verify the FF
-     register is present in `lliu_synth.v` (grep for `watchlist_hit`).
-   - If Yosys has merged the output register back into combinational logic, add
+     register is present in the post-synthesis netlist.
+   - If Vivado has merged the output register back into combinational logic, add
      `(* dont_touch = "true" *)` on the `watchlist_hit` register in RTL.
    - Escalate to `rtl_engineer` if RTL change needed.
 
-### 5.6 Fall back to 250 MHz (if 300 MHz does not close after tuning)
+### 5.7 Fall back to 250 MHz (if 300 MHz does not close after tuning)
 
 Change the MMCM `clk_300` output to 250 MHz in `constraints.xdc`:
 
@@ -442,17 +488,7 @@ create_generated_clock -name clk_300 \
 The signal name `clk_300` is kept for naming consistency in the constraints file;
 the actual frequency is now 250 MHz. Add a comment noting the fallback.
 
-Re-run P&R:
-
-```sh
-nextpnr-xilinx \
-  --chipdb /path/to/xray/xc7k325t.bin \
-  --xdc syn/constraints.xdc \
-  --json syn/lliu.json \
-  --write syn/lliu_routed.json \
-  --fasm syn/lliu.fasm \
-  2>&1 | tee syn/reports/timing.txt
-```
+Re-run `syn/vivado_impl.tcl` (same command as 5.2).
 
 If 250 MHz still fails, report the critical path to `architect` before making any
 further constraint changes. Do not reduce the clock below 250 MHz without approval.
@@ -461,21 +497,19 @@ further constraint changes. Do not reduce the clock below 250 MHz without approv
 
 ## Step 6 — Verify timing closure
 
-After P&R produces WNS ≥ 0 on all clocked paths:
+After P&R produces WNS ≥ 0 on all clocked paths (check `syn/reports/timing.txt`
+produced by Vivado `report_timing_summary`):
 
 ```sh
-# Confirm no negative slack paths remain
-grep -c "negative slack" syn/reports/timing.txt   # must return 0
-
-# Record the achieved frequency
-grep "Max frequency" syn/reports/timing.txt
+# Confirm no negative WNS reported
+grep -E "WNS" syn/reports/timing.txt
 ```
 
-Save final timing report to `syn/reports/timing.txt`. Format the header:
+Save final timing report to `syn/reports/timing.txt`. Format the header comment:
 
 ```
-LLIU KC705 — Timing Report
-Target:   xc7k325tffg900-2
+LLIU Kintex-7 — Timing Report
+Target:   xc7k160tffg676-2
 Clock:    clk_300 (300 MHz) / clk_250 fallback
 WNS:      <value> ns
 Achieved: <value> MHz
@@ -486,40 +520,43 @@ Date:     <YYYY-MM-DD>
 
 ## Step 7 — Bitstream generation (optional)
 
-Only proceed if a physical KC705 board is available for bring-up.
+Only proceed if a physical XC7K160T board is available for bring-up.
+The bitstream is already generated by `syn/vivado_impl.tcl` (see Step 5.1).
+If you need to regenerate it without re-running P&R, open the routed checkpoint
+and run `write_bitstream` directly:
 
 ```sh
-# Step 7a: assemble frames from FASM
-fasm2frames \
-  --part xc7k325tffg900-2 \
-  syn/lliu.fasm > syn/lliu.frames
-
-# Step 7b: convert frames to bitstream
-xc7frames2bit \
-  --part-file /path/to/xray/xc7k325tffg900-2.yaml \
-  --input-file syn/lliu.frames \
-  --output-file syn/lliu.bit
+vivado -mode batch -source - <<'EOF'
+open_checkpoint syn/lliu_routed.dcp
+write_bitstream -force syn/lliu.bit
+EOF
 
 echo "Bitstream written: syn/lliu.bit"
 ls -lh syn/lliu.bit
 ```
+
+> **Board note:** The original KC705 board (`xc7k325tffg900-2`) cannot be used
+> directly since it carries the XC7K325T chip, not XC7K160T. An XC7K160T board
+> with an SFP+ cage (or FMC SFP+ daughter card) is required. Verify the pin
+> assignments in `syn/constraints.xdc` section 4 against the actual board
+> schematic before programming.
 
 ---
 
 ## Step 8 — Utilization summary
 
 After successful P&R, capture the final utilization summary to `syn/reports/utilization.txt`.
-Confirm all resources are within the xc7k325t budget:
+Confirm all resources are within the xc7k160t budget:
 
-| Resource | Available (xc7k325t) | Target budget | Check |
+| Resource | Available (xc7k160t) | Target budget | Check |
 |----------|----------------------|---------------|-------|
-| LUTs | 203,800 | < 150,000 (~74%) | `grep "Number of LUTs" ...` |
-| FFs | 407,600 | < 250,000 (~61%) | — |
-| DSP48E1 | 840 | expected ~8–16 | > 0 required |
-| RAMB36E1 | 445 | expected 2–4 | > 0 required |
-| RAMB18E1 | 890 | expected 0–4 | — |
+| LUTs | 101,440 | < 75,000 (~74%) | `grep "LUT" syn/reports/utilization.txt` |
+| FFs | 202,880 | < 125,000 (~61%) | — |
+| DSP48E1 | 600 | expected ~8–16 | > 0 required |
+| RAMB36E1 | 162 | expected 2–4 | > 0 required |
+| RAMB18E1 | 325 | expected 0–4 | — |
 | BUFGCTRL | 32 | ≤ 4 used | clk_156, clk_300, optionally clk_125 + spare |
-| GTX transceivers | 16 | exactly 1 used | SFP+ cage J3 |
+| GTX transceivers | 8 | exactly 1 used | SFP+ cage |
 | IOBs | varies | ≤ 20 used | sys_clk, mgt_refclk, cpu_reset |
 
 Flag any resource category above 80% utilization as a risk and note it in
@@ -533,11 +570,11 @@ After timing closes and reports are written:
 
 ```sh
 # Verify expected output files exist
-ls -lh syn/lliu.json syn/lliu_synth.v syn/lliu_routed.json \
-       syn/lliu.fasm syn/reports/utilization.txt syn/reports/timing.txt
+ls -lh syn/lliu.json syn/lliu_synth.v syn/lliu_routed.dcp \
+       syn/lliu.bit syn/reports/utilization.txt syn/reports/timing.txt
 
-# Remove per-seed scratch files (keep only the winning routed netlist)
-rm -f syn/lliu_routed_seed*.json syn/lliu_seed*.fasm
+# Remove per-seed scratch logs (keep only the winning routed checkpoint)
+rm -f syn/reports/vivado_seed*.log syn/reports/timing_seeds.txt
 ```
 
 Commit only `syn/` files. Never commit `rtl/`, `tb/`, or `scripts/` modifications.
@@ -560,17 +597,18 @@ Commit only `syn/` files. Never commit `rtl/`, `tb/`, or `scripts/` modification
 
 | Step | Item | Status |
 |------|------|--------|
-| 1 | Pre-synthesis checklist: all 6 items pass | ⬜ |
-| 2 | `syn/synth.ys` written | ⬜ |
-| 3 | `syn/constraints.xdc` written (clocks, pins, Pblock, CDC exceptions) | ⬜ |
-| 4 | Synthesis passes: zero latches, DSP/BRAM inferred, `lliu.json` generated | ⬜ |
-| 4 | `syn/reports/utilization.txt` written | ⬜ |
-| 5 | P&R completes: WNS ≥ 0 on all `clk_300` paths | ⬜ |
+| 1 | Pre-synthesis checklist: all 6 items pass | ✅ |
+| 2 | `syn/synth.ys` written | ✅ |
+| 3 | `syn/constraints.xdc` written (clocks, Pblocks, CDC exceptions; pins TBD for target board) | ✅ |
+| 4 | Yosys synthesis passes: zero latches, DSP/BRAM inferred, `lliu.json` generated | ⬜ |
+| 4 | `syn/reports/utilization_synth.txt` written | ⬜ |
+| 5 | `syn/vivado_impl.tcl` written | ⬜ |
+| 5 | Vivado P&R completes: WNS ≥ 0 on all `clk_300` paths | ⬜ |
 | 5 | (If applicable) DSP Pblock tuned or seed sweep applied | ⬜ |
 | 5 | (If applicable) Fallback to 250 MHz approved and applied | ⬜ |
 | 6 | `syn/reports/timing.txt` written with achieved frequency | ⬜ |
-| 7 | (Optional) Bitstream `syn/lliu.bit` generated for board bring-up | ⬜ |
-| 8 | Utilization: all resources within budget, no category > 80% | ⬜ |
+| 7 | (Optional) Bitstream `syn/lliu.bit` generated; target board pin assignments verified | ⬜ |
+| 8 | Utilization: all resources within xc7k160t budget, no category > 80% | ⬜ |
 | 9 | `syn/` committed; no files outside `syn/` modified | ⬜ |
 
 > Prerequisite: RTL plan (RTL_PLAN_kintex-7.md) Step 6 (lint clean) must be complete
