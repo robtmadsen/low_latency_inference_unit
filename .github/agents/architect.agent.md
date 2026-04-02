@@ -79,3 +79,5 @@ The README is the public-facing entry point. It must stay accurate with respect 
 - **Performance target:** AXI4-S last beat → `dp_result_valid` < 12 cycles @ 300 MHz
 - **Mutation testing:** 10/10 bugs detected by both TBs (100% kill rate)
 - **Branch convention:** `feat/<topic>` → PR → squash merge to `main`
+- **Target FPGA:** `xc7k160tffg676-2` (Vivado ML Standard free tier); original KC705 target (`xc7k325tffg900-2`) dropped — requires Vivado Enterprise and has no Project X-Ray chip database
+- **Backend toolchain:** Yosys (pre-Vivado utilization inspection) → Vivado ML Standard (synthesis, P&R, bitstream); constraints in `syn/constraints.xdc`; I/O pins in section 4 are KC705 reference only and must be updated for the actual board

@@ -239,7 +239,7 @@ always_ff @(posedge clk):
 ```
 
 Resource estimate: 64 × 64-bit registers = 4,096 FFs; comparison tree ≈ 512 LUTs.
-Well within the xc7k325t budget (203,800 LUTs / 407,600 FFs).
+Well within the xc7k160t budget (101,440 LUTs / 202,880 FFs).
 
 **Lint after Step 3:**
 ```sh
@@ -554,7 +554,7 @@ verilator --lint-only -Wall -sv --top-module kc705_top \
 | 5  | `kc705_top` — full board-level integration | ⬜ |
 | 6  | Lint: zero warnings across all files | ⬜ |
 
-> When all rows are checked, hand off to `backend_engineer` for synthesis (Yosys)
-> and place-and-route (nextpnr-xilinx). If step 6 exposes timing-critical paths
+> When all rows are checked, hand off to `backend_engineer` for Yosys inspection
+> and Vivado ML Standard synthesis + P&R. If step 6 exposes timing-critical paths
 > in `dot_product_engine` that require more pipeline stages, return to step 1c
 > before synthesis.

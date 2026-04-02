@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/robtmadsen/low_latency_inference_unit/actions/workflows/ci.yml/badge.svg)](https://github.com/robtmadsen/low_latency_inference_unit/actions/workflows/ci.yml)
 
-A hardware accelerator for real-time inference on streaming NASDAQ ITCH 5.0 market data, verified independently with both UVM and cocotb, and now being brought up on the Xilinx Kintex-7 KC705 Evaluation Kit.
+A hardware accelerator for real-time inference on streaming NASDAQ ITCH 5.0 market data, verified independently with both UVM and cocotb, and now being brought up on a Xilinx Kintex-7 XC7K160T FPGA.
 
 > **100% AI-agent built.** Every RTL module, testbench, golden model, CI workflow, and this README was authored by a GitHub Copilot agent — no hand-written code.
 
@@ -17,7 +17,7 @@ AXI4-Stream → ITCH Parser → Feature Extractor → Dot-Product Engine → Res
                                               AXI4-Lite (weights)
 ```
 
-**v2 — KC705 FPGA (in progress)**
+**v2 — XC7K160T FPGA (in progress)**
 ```
 SFP+ 10GbE → eth_mac_phy_10g → ip_complete_64 → udp_complete_64
     → [async FIFO] → MoldUDP64 strip → Symbol Filter
@@ -129,9 +129,9 @@ reports/v1_dut/               # Archived v1 coverage, results, waveforms
 | Simulation | Verilator 5.046 / Synopsys VCS |
 | UVM Verification | Accellera uvm-core (IEEE 1800.2), DPI-C |
 | cocotb Verification | cocotb 2.0+, Python 3.12, NumPy |
-| RTL Synthesis | Yosys (`synth_xilinx`) |
-| Place & Route | nextpnr-xilinx + Project X-Ray |
-| Target FPGA | Xilinx Kintex-7 KC705 (`xc7k325tffg900-2`) |
+| RTL Synthesis | Yosys (`synth_xilinx`) + Vivado ML Standard |
+| Place & Route | Vivado ML Standard (free tier) |
+| Target FPGA | Xilinx Kintex-7 (`xc7k160tffg676-2`) |
 | Network Library | verilog-ethernet (Forencich) |
 | CI | GitHub Actions (Ubuntu), Verilator built from source |
 
@@ -216,7 +216,7 @@ With v1 complete (100% line coverage, 10/10 mutation kill rate on both testbench
 
 ### What's New
 
-The v1 LLIU core is unchanged. v2 wraps it in a complete 10GbE receive stack that connects the SFP+ cage on the KC705 to the existing ITCH parser. The network stack and pre-processing all run in the **156.25 MHz** GTX clock domain; only clean, validated ITCH data crosses the async FIFO into the **300 MHz** application domain.
+The v1 LLIU core is unchanged. v2 wraps it in a complete 10GbE receive stack connecting an SFP+ cage to the existing ITCH parser. The network stack and pre-processing all run in the **156.25 MHz** GTX clock domain; only clean, validated ITCH data crosses the async FIFO into the **300 MHz** application domain.
 
 | Layer | Domain | Module | Role |
 |-------|--------|--------|------|
@@ -241,8 +241,10 @@ Full micro-architectural specification: [`.github/arch/kintex-7/Kintex-7_MAS.md`
 
 ### Synthesis Target
 
-- Device: `xc7k325tffg900-2`
-- Toolchain: Yosys → nextpnr-xilinx → Project X-Ray → bitstream
+> **Device change — April 2026:** The original v2 target was the KC705 board (`xc7k325tffg900-2`). The XC7K325T requires either Vivado Enterprise (no free tier, ≈ $4,400/year) or open-source P&R via nextpnr-xilinx — however, the XC7K325T fabric was never reverse-engineered by Project X-Ray and is absent from `prjxray-db`, making nextpnr-xilinx P&R impossible. The project has therefore switched to the **`xc7k160tffg676-2`**, which is on the Vivado ML Standard free device list (AMD UG973, 2025.x). The XC7K160T retains GTX transceivers (10GbE capable) and the LLIU design fits with substantial headroom: 101,440 LUTs, 600 DSP48E1, 162 RAMB36E1 available vs an expected < 30,000 LUTs and ~8–16 DSPs used. The RTL top module retains the `kc705_top` name from its original development context.
+
+- Device: `xc7k160tffg676-2`
+- Toolchain: Yosys (pre-Vivado utilization preview) → Vivado ML Standard (synthesis, P&R, bitstream)
 - Constraints: `syn/constraints.xdc`
 - Timing target: 300 MHz; fallback to 250 MHz if `dot_product_engine` DSP routing fails — a stable 250 MHz with zero slack violations is preferable to an unreliable 300 MHz clock
 

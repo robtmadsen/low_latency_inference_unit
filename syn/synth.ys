@@ -1,0 +1,84 @@
+# syn/synth.ys
+# ------------
+# Synthesis script for LLIU — Kintex-7 (xc7k160tffg676-2)
+# Use for pre-Vivado utilization inspection.
+#          (run from repository root)
+#
+# Required environment variable:
+#   VERILOG_ETHERNET_DIR  — path to verilog-ethernet checkout
+#                           default: lib/verilog-ethernet (relative to repo root)
+#   Example:
+#     export VERILOG_ETHERNET_DIR=./lib/verilog-ethernet
+#     yosys syn/synth.ys
+
+# ── Read RTL ──────────────────────────────────────────────────────
+# Package first (defines types used by all modules)
+read_verilog -sv -I../rtl ../rtl/lliu_pkg.sv
+
+# Forencich third-party IP (network stack, 156.25 MHz domain)
+read_verilog -sv \
+  $env(VERILOG_ETHERNET_DIR)/rtl/eth_mac_phy_10g.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/eth_mac_phy_10g_rx.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/eth_mac_phy_10g_tx.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/eth_phy_10g.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/eth_phy_10g_rx.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/eth_phy_10g_tx.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/eth_mac_10g.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/eth_axis_rx.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/ip_complete_64.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/ip.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/ip_eth_rx_64.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/ip_eth_tx_64.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/udp_complete_64.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/udp.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/udp_ip_rx_64.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/udp_ip_tx_64.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/axis_async_fifo.v \
+  $env(VERILOG_ETHERNET_DIR)/rtl/axis_async_fifo_adapter.v
+
+# LLIU v1 compute core
+read_verilog -sv \
+  ../rtl/bfloat16_mul.sv \
+  ../rtl/fp32_acc.sv \
+  ../rtl/dot_product_engine.sv \
+  ../rtl/itch_parser.sv \
+  ../rtl/itch_field_extract.sv \
+  ../rtl/feature_extractor.sv \
+  ../rtl/weight_mem.sv \
+  ../rtl/axi4_lite_slave.sv \
+  ../rtl/output_buffer.sv
+
+# KC705 top-level and new modules
+read_verilog -sv \
+  ../rtl/moldupp64_strip.sv \
+  ../rtl/symbol_filter.sv \
+  ../rtl/eth_axis_rx_wrap.sv \
+  ../rtl/kc705_top.sv
+
+# ── Elaborate ─────────────────────────────────────────────────────
+hierarchy -check -top kc705_top
+
+# ── Latch check — MUST run BEFORE synth_xilinx ────────────────────
+# After synth_xilinx maps the design, $dlatch cells become LDCE/LDPE
+# primitives and the generic cell check would silently pass.
+# Run proc + opt_clean first to elaborate always blocks and expose
+# $dlatch cells at the RTL netlist level.
+proc
+opt_clean
+
+# Hard abort: any latch inferred = RTL bug. Escalate to rtl_engineer.
+select -assert-none t:$dlatch t:$adlatch t:$dlatchsr
+
+# ── Synthesise ────────────────────────────────────────────────────
+# synth_xilinx targets Xilinx 7-series and UltraScale primitives.
+# -flatten: merge all hierarchy into a single module for P&R.
+# -nodsp  : NOT set — allow DSP48E1 inference for bfloat16_mul / fp32_acc.
+# -nocarry: NOT set — allow carry-chain inference for adders.
+synth_xilinx -top kc705_top -flatten
+
+# ── Write outputs ─────────────────────────────────────────────────
+write_json syn/lliu.json
+write_verilog -noattr syn/lliu_synth.v
+
+# ── Resource report ───────────────────────────────────────────────
+tee -o syn/reports/utilization.txt stat -tech xilinx
