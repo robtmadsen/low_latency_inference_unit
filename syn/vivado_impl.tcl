@@ -56,10 +56,13 @@ report_utilization -file syn/reports/utilization_synth.txt
 opt_design
 
 place_design
+# Checkpoint after placement — recoverable if routing is interrupted.
+write_checkpoint -force syn/lliu_placed.dcp
 
 # Aggressive physical optimisation pass — targets routing-critical paths
 # through the DSP columns and the symbol_filter CAM comparison tree.
 phys_opt_design -directive AggressiveExplore
+write_checkpoint -force syn/lliu_physopt.dcp
 
 route_design
 
