@@ -16,11 +16,11 @@
 //   cam_wr_valid        — write-enable strobe (1 cycle)
 //   cam_wr_en_bit       — 1 = mark entry valid, 0 = invalidate entry
 //
-// Resource estimate (xc7k325t):
+// Resource estimate (xc7k160t):
 //   64 × 64-bit key registers = 4,096 FFs
 //   64 × 1-bit valid registers = 64 FFs
 //   Comparison tree ≈ 512 LUTs (64 × 8 XNOR gates collapsed to 64 × 1 LUT)
-//   Well within 203,800 LUT / 407,600 FF budget.
+//   Well within 101,440 LUT / 202,880 FF budget.
 
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
