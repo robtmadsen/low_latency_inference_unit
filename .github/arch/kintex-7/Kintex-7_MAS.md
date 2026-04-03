@@ -343,7 +343,7 @@ The Forencich `verilog-ethernet` modules are third-party IP — they are not pla
 | 1 | GTX transceiver lock time at reset | Medium — may delay link-up by seconds | Implement `gt_reset_sm` state machine per Xilinx UG476 |
 | 2 | Multicast IGMP join | Low for lab setup, required for production | Host sends IGMP join before traffic starts |
 | 3 | MoldUDP64 gap recovery | Out of scope v1 | Sequence number register exposed via AXI4-Lite |
-| 4 | 300 MHz timing closure | **High** — DSP column routing congestion is the most likely failure mode on Kintex-7 -2 for dense dot-product pipelines | (a) Ensure `dot_product_engine` is ≥ 3–4 pipeline stages (escalate to `rtl_engineer`); (b) apply DSP Pblock in XDC; (c) if negative slack remains after P&R, drop to 250 MHz fallback clock |
+| 4 | 300 MHz timing closure | **Known issue — WNS −6.188 ns** (P&R run 2026-04-03). Critical path: `fp32_acc` 32-bit mantissa ripple-carry chain (10× CARRY4 + 15× LUT, 25 logic levels, 9.2 ns data-path delay). 189/1047 endpoints failing setup; hold met (+0.071 ns). Design runs at ≈105 MHz equivalent. | Escalate to `rtl_engineer`: pipeline `fp32_acc` mantissa adder (1–2 register stages) to break the CARRY4 chain. See `reports/synthesis_results.md` §4 for full option analysis. |
 | 6 | FIFO overflow / MAC stall | **High** — backpressure into the Forencich MAC corrupts frame alignment at 10GbE line rate | Drop-on-Full policy: route `axis_async_fifo.almost_full` → `eth_axis_rx` drop flag; drop entire frames cleanly at wire; expose `dropped_frames` counter via AXI4-Lite |
 
 ---
