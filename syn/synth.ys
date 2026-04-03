@@ -13,7 +13,7 @@
 
 # ── Read RTL ──────────────────────────────────────────────────────
 # Package first (defines types used by all modules)
-read_verilog -sv -I../rtl ../rtl/lliu_pkg.sv
+read_verilog -sv -Irtl rtl/lliu_pkg.sv
 
 # Forencich third-party IP (network stack, 156.25 MHz domain)
 read_verilog -sv \
@@ -38,22 +38,22 @@ read_verilog -sv \
 
 # LLIU v1 compute core
 read_verilog -sv \
-  ../rtl/bfloat16_mul.sv \
-  ../rtl/fp32_acc.sv \
-  ../rtl/dot_product_engine.sv \
-  ../rtl/itch_parser.sv \
-  ../rtl/itch_field_extract.sv \
-  ../rtl/feature_extractor.sv \
-  ../rtl/weight_mem.sv \
-  ../rtl/axi4_lite_slave.sv \
-  ../rtl/output_buffer.sv
+  rtl/bfloat16_mul.sv \
+  rtl/fp32_acc.sv \
+  rtl/dot_product_engine.sv \
+  rtl/itch_parser.sv \
+  rtl/itch_field_extract.sv \
+  rtl/feature_extractor.sv \
+  rtl/weight_mem.sv \
+  rtl/axi4_lite_slave.sv \
+  rtl/output_buffer.sv
 
 # KC705 top-level and new modules
 read_verilog -sv \
-  ../rtl/moldupp64_strip.sv \
-  ../rtl/symbol_filter.sv \
-  ../rtl/eth_axis_rx_wrap.sv \
-  ../rtl/kc705_top.sv
+  rtl/moldupp64_strip.sv \
+  rtl/symbol_filter.sv \
+  rtl/eth_axis_rx_wrap.sv \
+  rtl/kc705_top.sv
 
 # ── Elaborate ─────────────────────────────────────────────────────
 hierarchy -check -top kc705_top
