@@ -1,20 +1,22 @@
-// fp32_acc.sv — Float32 accumulator, three-stage pipeline
+// fp32_acc.sv — Float32 accumulator, four-stage pipeline
 //
 // Accumulates float32 values over multiple cycles.
 // Supports clear (reset to zero) and accumulate enable.
 //
-// Three-stage pipeline to meet 300 MHz on Kintex-7 -2:
-//   Stage A (pipe A): exponent compare + mantissa alignment → registered
-//   Stage B (pipe B): mantissa add/subtract + normalise     → registered → partial_sum_r
-//   Stage C:          partial_sum_r → acc_reg               → acc_out
+// Four-stage pipeline to meet 300 MHz on Kintex-7 -2:
+//   Stage A0 (pipe A0): exponent compare                   → registered → *_r0
+//   Stage A1 (pipe A1): mantissa alignment (barrel shift)  → registered
+//   Stage B  (pipe B):  mantissa add/subtract + normalise  → registered → partial_sum_r
+//   Stage C:            partial_sum_r → acc_reg            → acc_out
 //
-// Splitting at the alignment/add boundary breaks the critical CARRY4 chain
-// that spanned both operations in the previous two-stage design.
+// Stage A was split into A0 (exponent compare) and A1 (barrel shift) to
+// break the critical feedback path: partial_sum_r → forwarding mux →
+// exponent compare → exp_diff → barrel shift → CARRY4 chain (11 levels,
+// 5.4 ns) that violated the 3.333 ns cycle budget at 300 MHz.
 //
 // Back-to-back acc_en forwarding:
-//   acc_en_d2 asserted (Stage C about to fire) → FP add (Stage A) uses partial_sum_r.
-//   acc_en_d1 asserted (Stage B about to fire) → FP add (Stage A) uses acc_reg.
-//   (Neither)                                  → FP add (Stage A) uses acc_reg.
+//   acc_en_d3 asserted (Stage C about to fire) → Stage A0 uses partial_sum_r.
+//   (Otherwise)                                → Stage A0 uses acc_reg.
 //
 // Uses a simplified float32 add: aligns mantissas by exponent difference,
 // adds, and renormalizes. Sufficient for small vector dot products where
@@ -38,75 +40,113 @@ module fp32_acc (
     // Stage B register (sum result from add/normalise, feeds Stage C)
     float32_t partial_sum_r;
     // Delayed enables: drive pipelined stages
-    logic     acc_en_d1;  // 1 cycle after acc_en → Stage B fires
-    logic     acc_en_d2;  // 2 cycles after acc_en → Stage C fires
+    logic     acc_en_d1;  // 1 cycle after acc_en  → Stage A1 fires
+    logic     acc_en_d2;  // 2 cycles after acc_en → Stage B fires
+    logic     acc_en_d3;  // 3 cycles after acc_en → Stage C fires
 
     // -------------------------------------------------------------------
     // Forwarding mux: decide which accumulated value to use as the
-    // feedback operand entering Stage A.
-    //   - acc_en_d2: Stage C is about to register partial_sum_r, so the
+    // feedback operand entering Stage A0.
+    //   - acc_en_d3: Stage C is about to register partial_sum_r, so the
     //     most recent committed sum is still in partial_sum_r.
     //   - Otherwise: acc_reg holds the most recent committed sum.
     // This eliminates the RAW hazard on consecutive acc_en pulses.
     // -------------------------------------------------------------------
     float32_t acc_fb;
-    assign acc_fb = acc_en_d2 ? partial_sum_r : acc_reg;
+    assign acc_fb = acc_en_d3 ? partial_sum_r : acc_reg;
 
     // -------------------------------------------------------------------
-    // Stage A combinational: decompose operands, align mantissas
-    // (no carry chain — just comparators, muxes, and a barrel shift)
+    // Stage A0 combinational: decompose operands, compare exponents
+    // (no carry chain — just comparators and muxes)
     // -------------------------------------------------------------------
-    logic        acc_sign_a, add_sign_a;
-    logic [7:0]  acc_exp_a,  add_exp_a;
-    logic [23:0] acc_man_a,  add_man_a;
-    logic        acc_zero_a, add_zero_a;
-    logic        acc_larger_a;
-    logic [23:0] big_man_a, small_man_a;
-    logic        big_sign_a, small_sign_a;
-    logic [7:0]  big_exp_a;
-    logic [7:0]  exp_diff_a;
-    logic [23:0] aligned_small_man_a;
-    logic        eff_sub_a;
-    float32_t    addend_a;  // registered copy of addend for stage B
-    float32_t    acc_fb_a;  // registered copy of acc_fb for stage B
+    logic        acc_sign_a0, add_sign_a0;
+    logic [7:0]  acc_exp_a0,  add_exp_a0;
+    logic [23:0] acc_man_a0,  add_man_a0;
+    logic        acc_zero_a0, add_zero_a0;
+    logic        acc_larger_a0;
+    logic [23:0] big_man_a0,  small_man_a0;
+    logic        big_sign_a0;
+    logic [7:0]  big_exp_a0;
+    logic [7:0]  exp_diff_a0;
+    logic        eff_sub_a0;
 
     always_comb begin
-        acc_sign_a = acc_fb[31];
-        acc_exp_a  = acc_fb[30:23];
-        acc_zero_a = (acc_fb[30:0] == 31'b0);
-        acc_man_a  = acc_zero_a ? 24'b0 : {1'b1, acc_fb[22:0]};
+        acc_sign_a0 = acc_fb[31];
+        acc_exp_a0  = acc_fb[30:23];
+        acc_zero_a0 = (acc_fb[30:0] == 31'b0);
+        acc_man_a0  = acc_zero_a0 ? 24'b0 : {1'b1, acc_fb[22:0]};
 
-        add_sign_a = addend[31];
-        add_exp_a  = addend[30:23];
-        add_zero_a = (addend[30:0] == 31'b0);
-        add_man_a  = add_zero_a ? 24'b0 : {1'b1, addend[22:0]};
+        add_sign_a0 = addend[31];
+        add_exp_a0  = addend[30:23];
+        add_zero_a0 = (addend[30:0] == 31'b0);
+        add_man_a0  = add_zero_a0 ? 24'b0 : {1'b1, addend[22:0]};
 
-        acc_larger_a = (acc_exp_a >= add_exp_a);
+        acc_larger_a0 = (acc_exp_a0 >= add_exp_a0);
 
-        if (acc_larger_a) begin
-            big_exp_a   = acc_exp_a;   big_man_a   = acc_man_a;
-            big_sign_a  = acc_sign_a;  small_man_a = add_man_a;
-            small_sign_a = add_sign_a;
+        if (acc_larger_a0) begin
+            big_exp_a0   = acc_exp_a0;  big_man_a0   = acc_man_a0;
+            big_sign_a0  = acc_sign_a0; small_man_a0 = add_man_a0;
         end else begin
-            big_exp_a   = add_exp_a;   big_man_a   = add_man_a;
-            big_sign_a  = add_sign_a;  small_man_a = acc_man_a;
-            small_sign_a = acc_sign_a;
+            big_exp_a0   = add_exp_a0;  big_man_a0   = add_man_a0;
+            big_sign_a0  = add_sign_a0; small_man_a0 = acc_man_a0;
         end
 
-        exp_diff_a = big_exp_a - (acc_larger_a ? add_exp_a : acc_exp_a);
-
-        if (exp_diff_a > 8'd24)
-            aligned_small_man_a = 24'b0;
-        else
-            aligned_small_man_a = small_man_a >> exp_diff_a;
-
-        eff_sub_a = big_sign_a ^ small_sign_a;
-
-        addend_a = addend;
-        acc_fb_a = acc_fb;
+        exp_diff_a0 = big_exp_a0 - (acc_larger_a0 ? add_exp_a0 : acc_exp_a0);
+        eff_sub_a0  = acc_sign_a0 ^ add_sign_a0;
     end
 
-    // Stage A intermediate registers (capture alignment result)
+    // Stage A0 registers (capture exponent-compare result; fires on acc_en)
+    logic [23:0] big_man_r0;
+    logic [23:0] small_man_r0;
+    logic        big_sign_r0;
+    logic [7:0]  big_exp_r0;
+    logic [7:0]  exp_diff_r0;
+    logic        eff_sub_r0;
+    logic        acc_zero_r0;
+    logic        add_zero_r0;
+    float32_t    addend_r0;
+    float32_t    acc_fb_r0;
+
+    always_ff @(posedge clk) begin
+        if (rst || acc_clear) begin
+            big_man_r0   <= 24'b0;
+            small_man_r0 <= 24'b0;
+            big_sign_r0  <= 1'b0;
+            big_exp_r0   <= 8'b0;
+            exp_diff_r0  <= 8'b0;
+            eff_sub_r0   <= 1'b0;
+            acc_zero_r0  <= 1'b1;
+            add_zero_r0  <= 1'b1;
+            addend_r0    <= 32'b0;
+            acc_fb_r0    <= 32'b0;
+        end else if (acc_en) begin
+            big_man_r0   <= big_man_a0;
+            small_man_r0 <= small_man_a0;
+            big_sign_r0  <= big_sign_a0;
+            big_exp_r0   <= big_exp_a0;
+            exp_diff_r0  <= exp_diff_a0;
+            eff_sub_r0   <= eff_sub_a0;
+            acc_zero_r0  <= acc_zero_a0;
+            add_zero_r0  <= add_zero_a0;
+            addend_r0    <= addend;
+            acc_fb_r0    <= acc_fb;
+        end
+    end
+
+    // -------------------------------------------------------------------
+    // Stage A1 combinational: mantissa alignment (barrel shift)
+    // Input: Stage A0 registers; no feedback from acc_reg.
+    // -------------------------------------------------------------------
+    logic [23:0] aligned_small_man_a1;
+
+    always_comb begin
+        if (exp_diff_r0 > 8'd24)
+            aligned_small_man_a1 = 24'b0;
+        else
+            aligned_small_man_a1 = small_man_r0 >> exp_diff_r0;
+    end
+
+    // Stage A1 registers (capture alignment result; fires on acc_en_d1)
     logic [23:0] big_man_r;
     logic [23:0] aligned_small_r;
     logic        big_sign_r;
@@ -114,8 +154,8 @@ module fp32_acc (
     logic [7:0]  big_exp_r;
     logic        acc_zero_r;
     logic        add_zero_r;
-    float32_t    addend_r;  // addend forwarded to Stage B for zero-passthrough
-    float32_t    acc_fb_r;  // acc_fb forwarded to Stage B for zero-passthrough
+    float32_t    addend_r;
+    float32_t    acc_fb_r;
 
     always_ff @(posedge clk) begin
         if (rst || acc_clear) begin
@@ -128,16 +168,16 @@ module fp32_acc (
             add_zero_r     <= 1'b1;
             addend_r       <= 32'b0;
             acc_fb_r       <= 32'b0;
-        end else if (acc_en) begin
-            big_man_r      <= big_man_a;
-            aligned_small_r <= aligned_small_man_a;
-            big_sign_r     <= big_sign_a;
-            eff_sub_r      <= eff_sub_a;
-            big_exp_r      <= big_exp_a;
-            acc_zero_r     <= acc_zero_a;
-            add_zero_r     <= add_zero_a;
-            addend_r       <= addend_a;
-            acc_fb_r       <= acc_fb_a;
+        end else if (acc_en_d1) begin
+            big_man_r      <= big_man_r0;
+            aligned_small_r <= aligned_small_man_a1;
+            big_sign_r     <= big_sign_r0;
+            eff_sub_r      <= eff_sub_r0;
+            big_exp_r      <= big_exp_r0;
+            acc_zero_r     <= acc_zero_r0;
+            add_zero_r     <= add_zero_r0;
+            addend_r       <= addend_r0;
+            acc_fb_r       <= acc_fb_r0;
         end
     end
 
@@ -218,9 +258,11 @@ module fp32_acc (
         if (rst || acc_clear) begin
             acc_en_d1 <= 1'b0;
             acc_en_d2 <= 1'b0;
+            acc_en_d3 <= 1'b0;
         end else begin
             acc_en_d1 <= acc_en;
             acc_en_d2 <= acc_en_d1;
+            acc_en_d3 <= acc_en_d2;
         end
     end
 
@@ -228,7 +270,7 @@ module fp32_acc (
     always_ff @(posedge clk) begin
         if (rst || acc_clear)
             partial_sum_r <= 32'b0;
-        else if (acc_en_d1)
+        else if (acc_en_d2)
             partial_sum_r <= sum_result_b;
     end
 
@@ -236,7 +278,7 @@ module fp32_acc (
     always_ff @(posedge clk) begin
         if (rst || acc_clear)
             acc_reg <= 32'b0;
-        else if (acc_en_d2)
+        else if (acc_en_d3)
             acc_reg <= partial_sum_r;
     end
 
