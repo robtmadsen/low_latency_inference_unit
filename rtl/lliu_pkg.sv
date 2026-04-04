@@ -30,7 +30,9 @@ package lliu_pkg;
   parameter int ITCH_PRICE_BYTES     = 4;
 
   // Pipeline depth from feature input to inference result
-  parameter int DOT_PRODUCT_LATENCY = FEATURE_VEC_LEN + 1; // iterate + final accumulate
+  // bfloat16_mul: 1 cycle + fp32_acc: 3 stages (A: align, B: add/norm, C: commit) +
+  // drain allowance: 1 element iteration + 1 final accumulate
+  parameter int DOT_PRODUCT_LATENCY = FEATURE_VEC_LEN + 2; // iterate + 2 final accumulate stages
 
   // AXI4-Lite register address map
   // v1 core registers
