@@ -272,6 +272,7 @@ P&R is run on an AWS EC2 `c5.4xlarge` instance (FPGA Developer AMI) over SSH, ke
 | 3 | `itch_field_extract` reg. | — | — | −2.217 ns | ≈ 180 MHz | `fp32_acc` A-stage feedback (`partial_sum_r`→`aligned_small_r`) |
 | 4 | `fp32_acc` 4-stage (A0+A1) | 1,466 | 700 | −2.307 ns | ≈ 177 MHz | `fp32_acc` Stage A1→B: add+normalize (14 levels, 74% route) |
 | 5 | PBLOCK `u_acc/*` | 1,460 | 697 | −2.251 ns | ≈ 180 MHz | `weight_mem`→`bfloat16_mul` mantissa multiply (13 levels) |
+| 6 | `bfloat16_mul` DSP48E1 | 1,378 | 706 | −2.142 ns | ≈ 182 MHz | `itch_field_extract`→`feature_extractor` price arithmetic (17 levels) |
 
 **Run 1 critical path:** `fp32_acc` CARRY4 chain — 25 logic levels, 9.228 ns data path. Root cause: single combinational block combining exponent compare, mantissa alignment, and accumulate add.
 
@@ -281,9 +282,11 @@ P&R is run on an AWS EC2 `c5.4xlarge` instance (FPGA Developer AMI) over SSH, ke
 
 **Run 4 critical path** (after 4-stage `fp32_acc`): Stage B combined add+normalize — 24-bit mantissa CARRY4 chain directly chained with normalization MUX tree (7×LUT6). 14 logic levels, 5.687 ns, 74% route delay.
 
-**Run 5 critical path** (after PBLOCK): `bfloat16_mul` mantissa multiply — 8×8 unsigned multiply in LUT/CARRY4 fabric (6 CARRY4 stages), 13 levels, 5.208 ns. Root cause: Vivado does not auto-infer DSP48E1 for sub-16-bit operands. Next action: add `(* use_dsp = "yes" *)` to the mantissa multiply in `bfloat16_mul.sv` to map it to DSP48E1, which runs well above 400 MHz on Kintex-7 -2.
+**Run 5 critical path** (after PBLOCK): `bfloat16_mul` mantissa multiply — 8×8 unsigned multiply in LUT/CARRY4 fabric (6 CARRY4 stages), 13 levels, 5.208 ns. Root cause: Vivado does not auto-infer DSP48E1 for sub-16-bit operands. Fix applied in Run 6: `(* use_dsp = "yes" *)` attribute + pipeline register in `bfloat16_mul.sv`.
 
-Hold slack is met in all runs; routing is complete with 0 unrouted nets. Bitstream generation is blocked by missing board I/O pin assignments (expected).
+**Run 6 critical path** (after DSP48E1 for `bfloat16_mul`): `feature_extractor` price arithmetic — 8 CARRY4 stages computing the price-to-feature conversion, 17 levels, 5.453 ns. DSP48E1 confirmed in utilization (1 DSP48E1); TNS improved 41% (−183.1 → −108.6 ns). Root cause: `feature_extractor` combinational price arithmetic depth is unchanged from the Run 2 bottleneck. Next action: add pipeline register stage inside `feature_extractor` to break the price-field arithmetic path.
+
+Hold slack is met in all six runs; routing is complete with 0 unrouted nets. Bitstream generation is blocked by missing board I/O pin assignments (expected).
 
 ### New RTL Modules (v2)
 

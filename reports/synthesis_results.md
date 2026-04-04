@@ -1,6 +1,6 @@
 # LLIU Synthesis & P&R Results — xc7k160tffg676-2
 
-**Updated:** 2026-04-05  
+**Updated:** 2026-04-04  
 **Tool:** Vivado ML Standard v2025.2  
 **Target:** `xc7k160tffg676-2` (Kintex-7, -2 speed grade)  
 **Synthesis top:** `lliu_top` (LLIU inference core, AXI4-S + AXI4-Lite)  
@@ -18,18 +18,19 @@
 | 3 | `200bdc6` (itch_field_extract reg.) | −2.217 ns | `fp32_acc` feedback: `partial_sum_r`→`aligned_small_r` (11 levels) | ❌ |
 | 4 | `223a498` (fp32_acc 4-stage) | −2.307 ns | `fp32_acc` Stage A1→B: add+normalize (14 levels) | ❌ |
 | 5 | `6b03819` (PBLOCK `u_dp_engine/u_acc/*`) | −2.251 ns | `weight_mem`→`bfloat16_mul`: mantissa multiply (13 levels) | ❌ |
+| 6 | `37b9a42` (DSP48E1 `bfloat16_mul` + PBLOCK) | −2.142 ns | `itch_field_extract`→`feature_extractor`: price arithmetic (17 levels) | ❌ |
 
 ---
 
 ## 1. Resource Utilization — Post-Implementation
 
-| Resource | Run 1 | Run 2 | Run 3 | Run 4 | Run 5 | Available | Util% (Run 5) |
-|----------|-------|-------|-------|-------|-------|-----------|---------------|
-| Slice LUTs | 1,599 | 1,534 | — | 1,466 | **1,460** | 101,400 | **1.44%** |
-| Slice Registers (FFs) | 417 | 534 | — | 700 | **697** | 202,800 | **0.34%** |
-| DSP48E1 | 0 | 0 | — | 0 | **0** | 600 | 0.00% |
-| Block RAM Tile | 0 | 0 | — | 0 | **0** | 325 | 0.00% |
-| IOB | 147¹ | 147¹ | — | 147¹ | **147¹** | 400 | — |
+| Resource | Run 1 | Run 2 | Run 3 | Run 4 | Run 5 | Run 6 | Available | Util% (Run 6) |
+|----------|-------|-------|-------|-------|-------|-------|-----------|---------------|
+| Slice LUTs | 1,599 | 1,534 | — | 1,466 | 1,460 | **1,378** | 101,400 | **1.36%** |
+| Slice Registers (FFs) | 417 | 534 | — | 700 | 697 | **706** | 202,800 | **0.35%** |
+| DSP48E1 | 0 | 0 | — | 0 | 0 | **1** | 600 | **0.17%** |
+| Block RAM Tile | 0 | 0 | — | 0 | 0 | **0** | 325 | 0.00% |
+| IOB | 147¹ | 147¹ | — | 147¹ | 147¹ | **147¹** | 400 | — |
 
 ¹ 147 `lliu_top` AXI ports are unconstrained (no board pin assignments yet — expected).
 
@@ -37,9 +38,9 @@
 — Run 3 reports were not committed (EC2 diagnostic run only).
 
 **Notes:**
-- **LUT trend (1,599 → 1,460 over five runs):** Each pipeline stage addition breaks a long combinational path; Vivado packs smaller per-stage logic more efficiently. The PBLOCK (Run 5) reduced LUTs slightly (1,466 → 1,460) through improved placement quality.
-- **FF trend (417 → 697):** Each new pipeline stage adds register banks. Run 4 added A0/A1 registers inside `fp32_acc`; Run 5 PBLOCK caused marginal FF reduction (700 → 697) through Vivado register merging.
-- **0 DSPs:** `bfloat16_mul` performs an 8×8 mantissa multiply in LUT/CARRY4 fabric. No `use_dsp` attribute is set; operands are sub-16-bit so Vivado does not infer DSP48E1 automatically. **This is the primary remaining timing bottleneck (see Section 4).**
+- **LUT trend (1,599 → 1,378 over six runs):** Each pipeline stage addition breaks a long combinational path; Vivado packs smaller per-stage logic more efficiently. Run 6 shows the largest single-run drop (1,460 → 1,378, −82 LUTs) from replacing the 8×8 CARRY4 multiply chain with DSP48E1.
+- **FF trend (417 → 706):** Each new pipeline stage adds register banks. Run 6 adds 9 FFs from the new Stage 1 register in `bfloat16_mul` (from 697 to 706).
+- **1 DSP48E1 (Run 6):** `bfloat16_mul` now maps its 8×8 mantissa multiply to DSP48E1 via `(* use_dsp = "yes" *)` (PR #35). DSP48E1 runs well above 400 MHz, eliminating the CARRY4 multiply chain. This improved TNS by 41% (−183.1 → −108.6 ns) and reduced failing endpoints from 122 to 109.
 - **0 BRAMs:** `weight_mem` DEPTH = 4 entries (16×4 = 64 bits) — well below the 512-bit RAMB18 threshold; synthesised to distributed RAM.
 - Utilization remains very low — LLIU fits comfortably in the smallest Kintex-7 variant.
 
@@ -47,21 +48,23 @@
 
 ## 2. Timing Summary — 300 MHz Target
 
-| Metric | Run 1 | Run 2 | Run 3 | Run 4 | Run 5 |
-|--------|-------|-------|-------|-------|-------|
-| Target clock | 300 MHz | 300 MHz | 300 MHz | 300 MHz | 300 MHz |
-| WNS (setup) | **−6.188 ns** ❌ | **−2.322 ns** ❌ | **−2.217 ns** ❌ | **−2.307 ns** ❌ | **−2.251 ns** ❌ |
-| TNS | −412.035 ns | −277.510 ns | — | −194.448 ns | −183.136 ns |
-| Failing endpoints | 189 / 1,047 | 194 | — | 148 / 1,821 | 122 / 1,821 |
-| WHS (hold) | +0.071 ns ✅ | +0.122 ns ✅ | — | +0.111 ns ✅ | +0.082 ns ✅ |
-| Routing | Complete | Complete | Complete | Complete | Complete |
-| Bitstream | Blocked (no LOC) | Blocked (no LOC) | — | Blocked (no LOC) | Blocked (no LOC) |
+| Metric | Run 1 | Run 2 | Run 3 | Run 4 | Run 5 | Run 6 |
+|--------|-------|-------|-------|-------|-------|-------|
+| Target clock | 300 MHz | 300 MHz | 300 MHz | 300 MHz | 300 MHz | 300 MHz |
+| WNS (setup) | **−6.188 ns** ❌ | **−2.322 ns** ❌ | **−2.217 ns** ❌ | **−2.307 ns** ❌ | **−2.251 ns** ❌ | **−2.142 ns** ❌ |
+| TNS | −412.035 ns | −277.510 ns | — | −194.448 ns | −183.136 ns | **−108.576 ns** |
+| Failing endpoints | 189 / 1,047 | 194 | — | 148 / 1,821 | 122 / 1,821 | **109 / 1,849** |
+| WHS (hold) | +0.071 ns ✅ | +0.122 ns ✅ | — | +0.111 ns ✅ | +0.082 ns ✅ | +0.080 ns ✅ |
+| Routing | Complete | Complete | Complete | Complete | Complete | Complete |
+| Bitstream | Blocked (no LOC) | Blocked (no LOC) | — | Blocked (no LOC) | Blocked (no LOC) | Blocked (no LOC) |
 
-**Status: Timing NOT MET at 300 MHz across all five runs.**
+**Status: Timing NOT MET at 300 MHz across all six runs.**
 
 **PBLOCK effect (Run 4 → Run 5):** Failing endpoints reduced 148 → 122 (−26), TNS reduced −194.4 → −183.1 ns (−11.3 ns). fp32_acc was successfully removed as the critical path; critical path moved to `bfloat16_mul` mantissa multiply. WNS improved only 0.056 ns because the failing-endpoint population is broad (many paths at ~2.25 ns slack).
 
-**Pattern:** Each run has WNS in the range −2.2 to −2.3 ns. Fixing individual paths consistently reveals the next queued path at similar slack. The design's achievable frequency in LUT/CARRY4 fabric is ≈ 180 MHz (period = 3.333 + 2.25 = 5.58 ns). Closing at 300 MHz requires architectural changes, not incremental pipelining.
+**DSP48 effect (Run 5 → Run 6):** TNS reduced −183.1 → −108.6 ns (−74.5 ns, 41% improvement). Failing endpoints reduced 122 → 109 (−13). The mantissa-multiply population is eliminated; the 1 DSP48E1 runs cleanly. WNS improved only 0.109 ns because the new bottleneck (`feature_extractor` price arithmetic, 8×CARRY4) was already queued at similar slack behind the now-removed bfloat16_mul path.
+
+**Pattern:** Each run has WNS in the range −2.1 to −2.3 ns. Fixing individual paths consistently reveals the next queued path at similar slack. The design's achievable frequency in LUT/CARRY4 fabric is ≈ 180 MHz (period = 3.333 + 2.14 = 5.47 ns). Closing at 300 MHz requires further pipelining of the arithmetic-heavy modules.
 
 ---
 
@@ -132,13 +135,27 @@ The PBLOCK successfully compacted `fp32_acc` cells and removed it from the criti
 
 $$f_{max}^{(5)} = \frac{1}{3.333 + 2.251\,\text{ns}} \approx 180\,\text{MHz}$$
 
+### Run 6
+
+**Worst path:** `u_parser/u_field_extract/price_reg[0]/C` (SLICE_X15Y83) → `u_feat_extract/features_reg[0][0]/D` (SLICE_X13Y88)  
+**Modules:** `itch_field_extract` → `feature_extractor` (price field-to-feature arithmetic)  
+**Data path delay:** 5.453 ns (logic 1.803 ns / 33.1%, route 3.650 ns / 66.9%)  
+**Logic levels:** 17 (CARRY4×8, LUT6×4, LUT5×3, LUT4×1, LUT1×1)  
+**Slack:** −2.142 ns
+
+The DSP48 change (PR #35) successfully eliminated `bfloat16_mul` from the critical path; 1 DSP48E1 is confirmed in utilization and TNS dropped 41%. The new worst path is the combinational price-field arithmetic inside `feature_extractor`. Starting from the registered `price_reg` output (registered since PR #29), the path traverses 8 chained CARRY4s computing the scaled price feature, followed by LUT merge logic into `features_reg`. This is structurally identical to the Run 2 path (18 levels, −2.322 ns) — the `itch_field_extract` register boundary removed one hierarchy hop, leaving 17 levels at effectively the same slack.
+
+**Root cause:** The price-to-feature arithmetic (CARRY4×8 + LUT fan-out) in `feature_extractor` forms a 5.453 ns combinational cloud from the registered `price_reg` output to `features_reg`. No intermediate register breaks this path. Route delay (66.9%) dominates, indicating a sub-optimal placement spread across the fabric.
+
+$$f_{max}^{(6)} = \frac{1}{3.333 + 2.142\,\text{ns}} \approx 182\,\text{MHz}$$
+
 ---
 
 ## 4. Timing Closure Path
 
-### Summary of all five runs
+### Summary of all six runs
 
-Every run has produced WNS in the range −2.2 to −2.3 ns. Each RTL or constraint fix has moved the critical path to a different sub-module, but the population of failing paths (≥ 122 endpoints) means no single-path fix will close timing — the achievable frequency in pure LUT/CARRY4 fabric is ≈ 180 MHz.
+Every run has produced WNS in the range −2.1 to −2.3 ns. Each fix moves the critical path to a different sub-module but does not reduce the overall failing-endpoint population proportionally — the achievable frequency in LUT/CARRY4 fabric is ≈ 180–182 MHz.
 
 | Run | Fix applied | New critical path |
 |-----|------------|-------------------|
@@ -146,31 +163,22 @@ Every run has produced WNS in the range −2.2 to −2.3 ns. Each RTL or constra
 | 2→3 | itch_field_extract registered boundary | fp32_acc A-stage feedback (partial_sum_r→acc_fb→aligned_small_r) |
 | 3→4 | fp32_acc A-stage split A0+A1 | fp32_acc Stage B: mantissa add + normalize combined |
 | 4→5 | PBLOCK to compact fp32_acc placement | weight_mem→bfloat16_mul: 8×8 mantissa multiply (CARRY4×6) |
+| 5→6 | DSP48E1 for `bfloat16_mul` + PBLOCK retained (PR #35) | `itch_field_extract`→`feature_extractor`: price arithmetic (CARRY4×8, 17 levels) |
 
-### Next action: DSP48E1 for `bfloat16_mul` mantissa multiply
+### Next action: Pipeline `feature_extractor` arithmetic
 
-**Root cause:** Kintex-7 DSP48E1 is purpose-built for multiplications up to 18×18 bits and can run well above 400 MHz at -2 speed grade. The bfloat16 mantissa multiply (8×8 unsigned) fits trivially. Vivado did not infer DSP48E1 automatically because the operands are sub-16-bit.
+**Root cause:** `feature_extractor` converts the registered raw ITCH price field into scaled feature values via fixed-point arithmetic involving 8 chained CARRY4 stages. The full combinational path from `price_reg` (registered output of `itch_field_extract`) through the price-to-feature computation to `features_reg` is 5.453 ns — exceeding the 3.333 ns budget by 2.14 ns. This is structurally the same bottleneck seen in Run 2 (itch-parse → feature compute, 18 levels), now re-exposed after fixing all earlier bottlenecks.
 
-**Fix:** Add `(* use_dsp = "yes" *)` attribute to the mantissa product computation in `bfloat16_mul.sv`, and pipeline the multiply with one register stage (DSP48E1 PREG=1). This eliminates the 6-stage CARRY4 chain entirely.
+**Fix:** Add a registered intermediate pipeline stage inside `feature_extractor` to break the price-to-feature arithmetic path. Split the computation: Stage 1 captures partial arithmetic results (first 4 CARRY4 levels), Stage 2 completes and registers into `features_reg`. Each sub-path becomes ≈ 2.5–2.8 ns, comfortably within the 3.333 ns budget.
 
-**Latency impact:** +1 cycle to the `bfloat16_mul` pipeline → `DOT_PRODUCT_LATENCY = FEATURE_VEC_LEN + 4`. All DV latency bounds +1 again.
+**Latency impact:** +1 cycle to `feature_extractor` → `FEATURE_EXTRACTOR_LATENCY` (currently implicit 1 cy) becomes 2 cy. All DV latency bounds +1.
 
 | Sub-path after fix | Estimated delay |
 |--------------------|----------------|
-| weight_mem → DSP48E1 input | ≈ 0.5–0.8 ns (registered input, short route) |
-| DSP48E1 multiply (registered PREG=1) | ≈ 1.5–2.0 ns (well within 3.333 ns) |
+| price_reg → mid-stage register (4×CARRY4 + LUT) | ≈ 2.0–2.5 ns |
+| mid-stage register → features_reg (remaining arithmetic) | ≈ 2.0–2.5 ns |
 
-With DSP for the multiply and the PBLOCK keeping fp32_acc compact, the design should close 300 MHz or reveal the next critical path at significantly better slack than the current −2.25 ns.
-
-**Escalate to:** `rtl_engineer` — add `use_dsp` attribute and pipeline register to `bfloat16_mul`, update `dot_product_engine` to accommodate the +1 cycle, update `lliu_pkg` `DOT_PRODUCT_LATENCY = FEATURE_VEC_LEN + 4`.
-
-| Option | Description | Estimated WNS after |
-|--------|-------------|---------------------|
-| **A — Register field_extract output** | Flop `itch_field_extract` port outputs; 1-cycle latency penalty | +2.0 to +2.5 ns → likely ≥ 0 at 300 MHz |
-| **B — 250 MHz fallback** | Widen to 4.000 ns period; no RTL change | WNS ≈ 4.000 − 5.604 = −1.6 ns → still ❌ |
-| **C — 200 MHz fallback** | Widen to 5.000 ns period; no RTL change | WNS ≈ 5.000 − 5.604 = −0.6 ns → close, check full TNS |
-
-> **Recommendation:** Option A. Registering the `itch_field_extract` boundary is low risk and is standard practice for parser/compute datapath boundaries. No DV contract changes needed beyond a +1 cycle parse latency adjustment.
+**Escalate to:** `rtl_engineer` — add pipeline register stage in `feature_extractor`, update `lliu_pkg` if a `FEATURE_EXTRACTOR_LATENCY` parameter exists, update DV latency bounds (+1 across all test files).
 
 ---
 
@@ -221,6 +229,19 @@ The routed checkpoint (`syn/lliu_routed.dcp`) is complete and can be re-entered 
 |------|-------------|
 | `syn/vivado_impl.tcl` | commit `6b03819` (PBLOCK `pblock_fp32acc`, PR #34) |
 | `syn/constraints_lliu_top.xdc` | commit `6b03819` — PBLOCK added |
+| `syn/reports/utilization_synth.txt` | Post-synthesis snapshot |
+| `syn/reports/utilization.txt` | Post-implementation snapshot |
+| `syn/reports/timing.txt` | `report_timing_summary -check_timing_verbose` |
+| `syn/reports/vivado.log` | Full Vivado run log |
+
+### Run 6
+
+| File | SHA / Notes |
+|------|-------------|
+| `rtl/bfloat16_mul.sv` | commit `37b9a42` — 2-stage DSP48E1 pipeline (PR #35) |
+| `rtl/dot_product_engine.sv` | commit `37b9a42` — 5-cycle drain, `feature_valid_d2` |
+| `rtl/lliu_pkg.sv` | commit `37b9a42` — `DOT_PRODUCT_LATENCY = FEATURE_VEC_LEN + 4` |
+| `syn/constraints_lliu_top.xdc` | commit `37b9a42` — PBLOCK `pblock_fp32acc` retained from Run 5 |
 | `syn/reports/utilization_synth.txt` | Post-synthesis snapshot |
 | `syn/reports/utilization.txt` | Post-implementation snapshot |
 | `syn/reports/timing.txt` | `report_timing_summary -check_timing_verbose` |
