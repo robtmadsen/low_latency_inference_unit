@@ -241,7 +241,21 @@ Full micro-architectural specification: [`.github/arch/kintex-7/Kintex-7_MAS.md`
 
 ### Synthesis Target
 
-> **Device change — April 2026:** The original v2 target was the KC705 board (`xc7k325tffg900-2`). The XC7K325T requires either Vivado Enterprise (no free tier, ≈ $4,400/year) or open-source P&R via nextpnr-xilinx — however, the XC7K325T fabric was never reverse-engineered by Project X-Ray and is absent from `prjxray-db`, making nextpnr-xilinx P&R impossible. The project has therefore switched to the **`xc7k160tffg676-2`**, which is on the Vivado ML Standard free device list (AMD UG973, 2025.x). The XC7K160T retains GTX transceivers (10GbE capable) and the LLIU design fits with substantial headroom: 101,440 LUTs, 600 DSP48E1, 162 RAMB36E1 available vs an expected < 30,000 LUTs and ~8–16 DSPs used. The RTL top module retains the `kc705_top` name from its original development context.
+The original v2 target was the KC705 board (`xc7k325tffg900-2`). During backend bring-up, two blockers disqualified it:
+
+1. **Vivado licensing.** The XC7K325T is not on the Vivado ML Standard free device list — it requires Vivado Enterprise (≈ $4,400/year).
+2. **No open-source P&R path.** The only free alternative, nextpnr-xilinx, relies on the Project X-Ray reverse-engineered bitstream database (`prjxray-db`). The XC7K325T fabric was never reverse-engineered and is absent from the database entirely, ruling out nextpnr-xilinx.
+
+The project switched to the **`xc7k160tffg676-2`**, which satisfies all requirements:
+
+| Requirement | How `xc7k160tffg676-2` meets it |
+|-------------|--------------------------------|
+| Free toolchain | On the Vivado ML Standard free device list (AMD UG973, 2025.x) |
+| 10GbE | Has GTX transceivers — supports 10GBASE-R SFP+ directly |
+| Enough fabric | 101,440 LUTs / 600 DSP48E1 / 162 RAMB36E1 vs < 5,000 LUTs and 0 DSPs currently used |
+| Cloud P&R | AWS FPGA Developer AMI ships Vivado pre-installed; `c5.4xlarge` handles the full flow in batch mode without a GUI |
+
+P&R is run on an AWS EC2 `c5.4xlarge` instance (FPGA Developer AMI) over SSH so no local Vivado installation is needed. The RTL top module retains the `kc705_top` name from its original development context.
 
 - Device: `xc7k160tffg676-2`
 - Synthesis top: `lliu_top`
