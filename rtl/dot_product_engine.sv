@@ -4,14 +4,14 @@
 //
 // Pipeline stages added for Kintex-7 300 MHz timing closure:
 //   bfloat16_mul: 1 registered output cycle (P-register)
-//   fp32_acc:     3-stage accumulator (Stage A: align, Stage B: add/norm, Stage C: commit)
+//   fp32_acc:     4-stage accumulator (Stage A0: exp compare, Stage A1: align, Stage B: add/norm, Stage C: commit)
 //
 // Because bfloat16_mul has 1-cycle latency, acc_en is driven by
 // feature_valid_d1 (1-cycle delayed from feature_valid).  After all
 // VEC_LEN elements have been consumed, the FSM enters S_DRAIN for 3
-// cycles to flush the three fp32_acc stages before asserting
+// cycles to flush the four fp32_acc stages before asserting
 // result_valid.  Total latency from first feature_valid to result_valid
-// is 7 cycles at VEC_LEN = 4.
+// is 8 cycles at VEC_LEN = 4.
 
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
@@ -48,7 +48,7 @@ module dot_product_engine #(
 
     state_t state, state_next;
     logic [$clog2(VEC_LEN+1)-1:0] elem_cnt, elem_cnt_next;
-    logic [1:0] drain_cnt, drain_cnt_next; // 2-bit: counts 0 → 1 → 2 (3 DRAIN cycles)
+    logic [1:0] drain_cnt, drain_cnt_next; // 2-bit: counts 0 → 1 → 2 → 3 (4 DRAIN cycles)
 
     // feature_valid delayed by 1 cycle: used to assert acc_en after mul pipeline
     logic feature_valid_d1;
@@ -128,10 +128,13 @@ module dot_product_engine #(
                     end
                     drain_cnt_next = 2'd1;
                 end else if (drain_cnt == 2'd1) begin
-                    // Stage B of fp32_acc (add/norm) fires this cycle
+                    // Stage A1 of fp32_acc (alignment) fires this cycle
                     drain_cnt_next = 2'd2;
+                end else if (drain_cnt == 2'd2) begin
+                    // Stage B of fp32_acc (add/norm) fires this cycle
+                    drain_cnt_next = 2'd3;
                 end else begin
-                    // drain_cnt=2: Stage C of fp32_acc commits final sum;
+                    // drain_cnt=3: Stage C of fp32_acc commits final sum;
                     // result will be stable in acc_reg when we enter S_DONE.
                     state_next = S_DONE;
                 end
