@@ -1,13 +1,15 @@
 // feature_extractor.sv — Transform parsed ITCH fields into bfloat16 feature vector
 //
-// Pipeline stage between itch_field_extract and dot_product_engine.
+// 2-stage pipeline between itch_field_extract and dot_product_engine.
 // Converts raw integer fields (price, side, order_ref) into bfloat16 features:
 //   [0] price delta  — current price minus last-seen price
 //   [1] side encoding — buy = +1.0, sell = -1.0
 //   [2] order flow    — running buy - sell imbalance counter
 //   [3] normalized price — raw price as bfloat16
 //
-// Registered outputs for timing closure.
+// Latency: 2 cycles (fields_valid → features_valid)
+//   Stage 1: integer arithmetic registered (breaks CARRY4 subtraction chain)
+//   Stage 2: bfloat16 conversion registered (output)
 
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
@@ -78,65 +80,60 @@ module feature_extractor #(
     endfunction
 
     // ------------------------------------------------------------------
-    // Conversion pipeline — compute features combinationally, register output
+    // Stage 1 intermediate registers
     // ------------------------------------------------------------------
-    logic signed [31:0] price_delta;
-    logic signed [31:0] side_enc_int;
-    logic signed [31:0] flow_val;
-    logic signed [31:0] price_norm;
+    logic signed [31:0] price_delta_r;
+    logic signed [31:0] side_enc_int_r;
+    logic signed [31:0] flow_val_r;
+    logic signed [31:0] price_norm_r;
+    logic               valid_d1;
 
-    bfloat16_t feat_price_delta;
-    bfloat16_t feat_side;
-    bfloat16_t feat_flow;
-    bfloat16_t feat_price;
-
-    always_comb begin
-        // Price delta: current - last (signed)
-        price_delta = 32'($signed({1'b0, price}) - $signed({1'b0, last_price}));
-
-        // Side encoding: +1 for buy, -1 for sell
-        side_enc_int = side ? 32'sd1 : -32'sd1;
-
-        // Order flow: current counter value + this order's contribution
-        // (value is captured BEFORE update, so we see the inc from this cycle)
-        if (side)
-            flow_val = $signed({{16{order_flow[15]}}, order_flow}) + 32'sd1;
-        else
-            flow_val = $signed({{16{order_flow[15]}}, order_flow}) - 32'sd1;
-
-        // Normalized price (raw value as signed int)
-        price_norm = 32'({1'b0, price[30:0]});
-
-        // Convert to bfloat16
-        feat_price_delta = int_to_bf16(price_delta);
-        feat_side        = int_to_bf16(side_enc_int);
-        feat_flow        = int_to_bf16(flow_val);
-        feat_price       = int_to_bf16(price_norm);
+    // ------------------------------------------------------------------
+    // Stage 1: register integer arithmetic, update state
+    // ------------------------------------------------------------------
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            price_delta_r  <= '0;
+            side_enc_int_r <= '0;
+            flow_val_r     <= '0;
+            price_norm_r   <= '0;
+            valid_d1       <= 1'b0;
+            last_price     <= 32'd0;
+            order_flow     <= 16'sd0;
+        end else begin
+            valid_d1 <= fields_valid;
+            if (fields_valid) begin
+                price_delta_r  <= 32'($signed({1'b0, price}) - $signed({1'b0, last_price}));
+                side_enc_int_r <= side ? 32'sd1 : -32'sd1;
+                if (side)
+                    flow_val_r <= $signed({{16{order_flow[15]}}, order_flow}) + 32'sd1;
+                else
+                    flow_val_r <= $signed({{16{order_flow[15]}}, order_flow}) - 32'sd1;
+                price_norm_r   <= {1'b0, price[30:0]};
+                // Update state for next message
+                last_price <= price;
+                if (side)
+                    order_flow <= order_flow + 16'sd1;
+                else
+                    order_flow <= order_flow - 16'sd1;
+            end
+        end
     end
 
     // ------------------------------------------------------------------
-    // Output registers
+    // Stage 2: bfloat16 conversion registered (output)
     // ------------------------------------------------------------------
     always_ff @(posedge clk) begin
         if (rst) begin
             features_valid <= 1'b0;
-            last_price     <= 32'd0;
-            order_flow     <= 16'sd0;
             for (int i = 0; i < VEC_LEN; i++)
                 features[i] <= 16'h0000;
-        end else if (fields_valid) begin
-            features[0]    <= feat_price_delta;
-            features[1]    <= feat_side;
-            features[2]    <= feat_flow;
-            features[3]    <= feat_price;
+        end else if (valid_d1) begin
+            features[0]    <= int_to_bf16(price_delta_r);
+            features[1]    <= int_to_bf16(side_enc_int_r);
+            features[2]    <= int_to_bf16(flow_val_r);
+            features[3]    <= int_to_bf16(price_norm_r);
             features_valid <= 1'b1;
-
-            // Update state for next message
-            last_price <= price;
-            if (side)
-                order_flow <= order_flow + 16'sd1;
-            else
-                order_flow <= order_flow - 16'sd1;
         end else begin
             features_valid <= 1'b0;
         end

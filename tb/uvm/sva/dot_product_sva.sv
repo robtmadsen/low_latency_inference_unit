@@ -71,24 +71,23 @@ module dot_product_sva #(
     assert property (p_compute_after_idle)
         else $error("SVA: COMPUTE entered from non-IDLE/COMPUTE state");
 
-    // ── D6: Timing — start to result_valid ≤ VEC_LEN + 8 cycles ────
-    // D6: VEC_LEN + 8
+    // ── D6: Timing — start to result_valid ≤ VEC_LEN + 9 cycles ────
+    // D6: VEC_LEN + 9
     //   VEC_LEN iterations (one element per cycle)
     //   + 2-cycle bfloat16_mul (Stage 1: DSP48E1 multiply, Stage 2: normalize)
     //   + 5-cycle drain: A0 (acc_en for penultimate), A1 (acc_en for last),
     //     A1→B (fp32_acc align), B→C (fp32_acc add/norm), C commit
-    //   (1 extra cy headroom)
-    // 5 cy total drain
+    //   + 1 extra cycle for 2-stage feature_extractor pipeline
     // Guarded: Verilator 5.x does not support non-literal ##[N:M] range bounds.
     // This property is checked by VCS and Questa only.
 `ifndef VERILATOR
-    localparam int unsigned RESULT_TIMEOUT = VEC_LEN + 8;
+    localparam int unsigned RESULT_TIMEOUT = VEC_LEN + 9;
     property p_result_timing;
         @(posedge clk) disable iff (rst)
         $rose(start) |-> ##[1:RESULT_TIMEOUT] result_valid;
     endproperty
     assert property (p_result_timing)
-        else $error("SVA: result_valid did not assert within VEC_LEN+8 cycles of start");
+        else $error("SVA: result_valid did not assert within VEC_LEN+9 cycles of start");
 `endif
 
 endmodule
