@@ -1,6 +1,8 @@
-// itch_field_extract.sv — Combinational field slicer for ITCH 5.0 Add Order
+// itch_field_extract.sv — Registered field slicer for ITCH 5.0 Add Order
 //
-// Pure combinational: extracts fields from an aligned message byte buffer.
+// Extracts fields from an aligned message byte buffer and registers all
+// outputs to close the timing path between msg_buf (itch_parser) and
+// features_reg (feature_extractor). Adds exactly one pipeline stage.
 // Only asserts fields_valid for Add Order messages (type 'A' = 0x41).
 //
 // ITCH Add Order layout (36 bytes):
@@ -19,6 +21,9 @@ import lliu_pkg::*;
 /* verilator lint_on IMPORTSTAR */
 
 module itch_field_extract (
+    input  logic        clk,
+    input  logic        rst,
+
     // Packed message data: byte N = msg_data[(B-1-N)*8 +: 8], B = ITCH_ADD_ORDER_LEN
     input  logic [ITCH_ADD_ORDER_LEN*8-1:0] msg_data,
     input  logic       msg_valid,
@@ -33,11 +38,19 @@ module itch_field_extract (
 
     localparam int B = ITCH_ADD_ORDER_LEN; // 36
 
+    // ----- Combinational decode -----
+    logic [7:0]  message_type_comb;
+    logic [63:0] order_ref_comb;
+    logic        side_comb;
+    logic [31:0] price_comb;
+    logic [63:0] stock_comb;
+    logic        fields_valid_comb;
+
     // Byte 0: message type
-    assign message_type = msg_data[(B-1)*8 +: 8];
+    assign message_type_comb = msg_data[(B-1)*8 +: 8];
 
     // Bytes 11–18: order reference number (8 bytes, big-endian)
-    assign order_ref = {
+    assign order_ref_comb = {
         msg_data[(B-1-11)*8 +: 8],
         msg_data[(B-1-12)*8 +: 8],
         msg_data[(B-1-13)*8 +: 8],
@@ -49,10 +62,10 @@ module itch_field_extract (
     };
 
     // Byte 19: buy/sell indicator ('B' = 0x42 → buy, anything else → sell)
-    assign side = (msg_data[(B-1-19)*8 +: 8] == 8'h42);
+    assign side_comb = (msg_data[(B-1-19)*8 +: 8] == 8'h42);
 
     // Bytes 32–35: price (4 bytes, big-endian)
-    assign price = {
+    assign price_comb = {
         msg_data[(B-1-32)*8 +: 8],
         msg_data[(B-1-33)*8 +: 8],
         msg_data[(B-1-34)*8 +: 8],
@@ -60,7 +73,7 @@ module itch_field_extract (
     };
 
     // Bytes 24–31: stock symbol (8-byte ASCII, zero-padded right)
-    assign stock = {
+    assign stock_comb = {
         msg_data[(B-1-24)*8 +: 8],
         msg_data[(B-1-25)*8 +: 8],
         msg_data[(B-1-26)*8 +: 8],
@@ -72,7 +85,26 @@ module itch_field_extract (
     };
 
     // Only assert fields_valid for Add Order messages
-    assign fields_valid = msg_valid && (message_type == ITCH_MSG_ADD_ORDER);
+    assign fields_valid_comb = msg_valid && (message_type_comb == ITCH_MSG_ADD_ORDER);
+
+    // ----- Output register stage (closes timing across module boundary) -----
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            message_type <= 8'h00;
+            order_ref    <= 64'd0;
+            side         <= 1'b0;
+            price        <= 32'd0;
+            stock        <= 64'd0;
+            fields_valid <= 1'b0;
+        end else begin
+            message_type <= message_type_comb;
+            order_ref    <= order_ref_comb;
+            side         <= side_comb;
+            price        <= price_comb;
+            stock        <= stock_comb;
+            fields_valid <= fields_valid_comb;
+        end
+    end
 
     // Bytes 1–10 (timestamp/locate) and 20–23 (shares) are not used in the
     // current feature set; sink them to suppress Verilator UNUSEDSIGNAL.

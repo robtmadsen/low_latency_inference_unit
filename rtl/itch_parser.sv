@@ -78,6 +78,8 @@ module itch_parser (
 
     // ----- Field extract instance -----
     itch_field_extract u_field_extract (
+        .clk          (clk),
+        .rst          (rst),
         .msg_data     (msg_data),
         .msg_valid    (msg_valid),
         .message_type (message_type),
