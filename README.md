@@ -130,7 +130,7 @@ reports/v1_dut/               # Archived v1 coverage, results, waveforms
 | UVM Verification | Accellera uvm-core (IEEE 1800.2), DPI-C |
 | cocotb Verification | cocotb 2.0+, Python 3.12, NumPy |
 | RTL Synthesis | Yosys (`synth_xilinx`) + Vivado ML Standard |
-| Place & Route | Vivado ML Standard (free tier) |
+| Place & Route | Vivado ML Standard (free tier), Vivado 2025.2 manually installed on AWS EC2 `c5.4xlarge` (FPGA Developer AMI, SSH alias `lliu-par`) |
 | Target FPGA | Xilinx Kintex-7 (`xc7k160tffg676-2`) |
 | Network Library | verilog-ethernet (Forencich) |
 | CI | GitHub Actions (Ubuntu), Verilator built from source |
@@ -241,12 +241,45 @@ Full micro-architectural specification: [`.github/arch/kintex-7/Kintex-7_MAS.md`
 
 ### Synthesis Target
 
-> **Device change — April 2026:** The original v2 target was the KC705 board (`xc7k325tffg900-2`). The XC7K325T requires either Vivado Enterprise (no free tier, ≈ $4,400/year) or open-source P&R via nextpnr-xilinx — however, the XC7K325T fabric was never reverse-engineered by Project X-Ray and is absent from `prjxray-db`, making nextpnr-xilinx P&R impossible. The project has therefore switched to the **`xc7k160tffg676-2`**, which is on the Vivado ML Standard free device list (AMD UG973, 2025.x). The XC7K160T retains GTX transceivers (10GbE capable) and the LLIU design fits with substantial headroom: 101,440 LUTs, 600 DSP48E1, 162 RAMB36E1 available vs an expected < 30,000 LUTs and ~8–16 DSPs used. The RTL top module retains the `kc705_top` name from its original development context.
+The original v2 target was the KC705 board (`xc7k325tffg900-2`). During backend bring-up, two blockers disqualified it:
+
+1. **Vivado licensing.** The XC7K325T is not on the Vivado ML Standard free device list — it requires Vivado Enterprise (≈ $4,400/year).
+2. **No open-source P&R path.** The only free alternative, nextpnr-xilinx, relies on the Project X-Ray reverse-engineered bitstream database (`prjxray-db`). The XC7K325T fabric was never reverse-engineered and is absent from the database entirely, ruling out nextpnr-xilinx.
+
+The project switched to the **`xc7k160tffg676-2`**, which satisfies all requirements:
+
+| Requirement | How `xc7k160tffg676-2` meets it |
+|-------------|--------------------------------|
+| Free toolchain | On the Vivado ML Standard free device list (AMD UG973, 2025.x) |
+| 10GbE | Has GTX transceivers — supports 10GBASE-R SFP+ directly |
+| Enough fabric | 101,440 LUTs / 600 DSP48E1 / 162 RAMB36E1 vs < 5,000 LUTs and 0 DSPs currently used |
+| Cloud P&R | AWS FPGA Developer AMI ships Vivado pre-installed; `c5.4xlarge` handles the full flow in batch mode without a GUI |
+
+P&R is run on an AWS EC2 `c5.4xlarge` instance (FPGA Developer AMI) over SSH, keeping the local machine free of a Vivado install. The FPGA Developer AMI ships with an older Vivado version; Vivado 2025.2 was manually installed on the instance to get Kintex-7 `xc7k160tffg676-2` support on the free tier. The RTL top module retains the `kc705_top` name from its original development context.
 
 - Device: `xc7k160tffg676-2`
-- Toolchain: Yosys (pre-Vivado utilization preview) → Vivado ML Standard (synthesis, P&R, bitstream)
-- Constraints: `syn/constraints.xdc`
+- Synthesis top: `lliu_top`
+- Toolchain: Yosys (pre-Vivado utilization preview) → Vivado ML Standard 2025.2 (synthesis, P&R, bitstream), running on AWS EC2 `c5.4xlarge` (FPGA Developer AMI) via SSH (`lliu-par`)
+- Constraints: `syn/constraints_lliu_top.xdc` (300 MHz clock, false paths on all AXI I/Os)
 - Timing target: 300 MHz; fallback to 250 MHz if `dot_product_engine` DSP routing fails — a stable 250 MHz with zero slack violations is preferable to an unreliable 300 MHz clock
+
+### First P&R Run Results
+
+First place-and-route run completed (Vivado 2025.2, `lliu_top`, `xc7k160tffg676-2`). Reports committed to `syn/reports/`.
+
+| Metric | Value |
+|--------|-------|
+| LUTs used | 1,599 / 101,400 (1.58%) |
+| Flip-Flops | 417 |
+| DSP48E1 | 0 |
+| BRAM | 0 |
+| WNS @ 300 MHz | −6.188 ns |
+| Hold slack | Met |
+| Achieved fmax | ≈ 105 MHz |
+
+Critical path: `fp32_acc` CARRY4 chain — 25 logic levels, 9.228 ns data path.
+Root cause: single combinational block combining exponent compare, mantissa alignment, and accumulate add.
+Fix: 3-stage pipeline for `fp32_acc` (Stage A: exp compare + align; Stage B: CARRY add + normalize; Stage C: commit) — in progress. Timing closure re-run pending.
 
 ### New RTL Modules (v2)
 
