@@ -27,7 +27,7 @@ module dot_product_sva #(
     localparam logic [1:0] S_IDLE    = 2'b00;
     localparam logic [1:0] S_COMPUTE = 2'b01;
     localparam logic [1:0] S_DONE    = 2'b10;
-    localparam logic [1:0] S_DRAIN   = 2'b11;  // 2-cycle drain added by RTL plan
+    localparam logic [1:0] S_DRAIN   = 2'b11;  // 3-cycle drain (drain_cnt 0→1→2)
 
     // ── D1: FSM must only be in valid states ────────────────────────
     property p_valid_state;
@@ -73,8 +73,9 @@ module dot_product_sva #(
 
     // ── D6: Timing — start to result_valid ≤ VEC_LEN + 6 cycles ────
     // Accounts for VEC_LEN MAC cycles + registered bfloat16_mul output
-    // (1 cy) + two-stage fp32_acc pipeline (2 cy) + FSM overhead (2 cy)
-    // + 1 cy slack.
+    // (1 cy) + 3-stage fp32_acc drain: 1 cycle Stage A→B (acc_en_d1),
+    // 1 cycle Stage B→C (acc_en_d2), result in acc_reg (3 cy total)
+    // + FSM overhead (2 cy) + 1 cy slack.
     // Guarded: Verilator 5.x does not support non-literal ##[N:M] range bounds.
     // This property is checked by VCS and Questa only.
 `ifndef VERILATOR
