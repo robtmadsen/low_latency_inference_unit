@@ -269,12 +269,18 @@ P&R is run on an AWS EC2 `c5.4xlarge` instance (FPGA Developer AMI) over SSH, ke
 |-----|-----|------|-----|---------------|------|---------------|
 | 1 | `fp32_acc` 1-stage | 1,599 | 417 | −6.188 ns | ≈ 105 MHz | `fp32_acc` CARRY4 chain (25 levels) |
 | 2 | `fp32_acc` 3-stage | 1,534 | 534 | −2.322 ns | ≈ 177 MHz | `itch_parser`→`feature_extractor` (18 levels) |
+| 3 | `itch_field_extract` reg. | — | — | −2.217 ns | ≈ 180 MHz | `fp32_acc` A-stage feedback (`partial_sum_r`→`aligned_small_r`) |
+| 4 | `fp32_acc` 4-stage (A0+A1) | 1,466 | 700 | −2.307 ns | ≈ 177 MHz | `fp32_acc` Stage A1→B: add+normalize (14 levels, 74% route) |
 
 **Run 1 critical path:** `fp32_acc` CARRY4 chain — 25 logic levels, 9.228 ns data path. Root cause: single combinational block combining exponent compare, mantissa alignment, and accumulate add.
 
-**Run 2 critical path** (after 3-stage `fp32_acc` fix): combinational decode path from `itch_parser` message buffer through `itch_field_extract` arithmetic into `feature_extractor/features_reg` — 18 logic levels, 5.604 ns. Fix: register the `itch_field_extract` outputs at the module boundary (escalated to `rtl_engineer`).
+**Run 2 critical path** (after 3-stage `fp32_acc` fix): combinational decode path from `itch_parser` message buffer through `itch_field_extract` arithmetic into `feature_extractor/features_reg` — 18 logic levels, 5.604 ns. Fix: register the `itch_field_extract` outputs at the module boundary.
 
-Hold slack is met in both runs; routing is complete with 0 unrouted nets. Bitstream generation is blocked by missing board I/O pin assignments (expected).
+**Run 3 critical path** (after `itch_field_extract` registered): `fp32_acc` feedback — `partial_sum_r` feeds back through the `acc_fb` forwarding mux → exponent compare → barrel-shift alignment (`aligned_small_r`). 11 logic levels, 5.418 ns. Fix: split `fp32_acc` Stage A into A0+A1.
+
+**Run 4 critical path** (after 4-stage `fp32_acc`): Stage B in `fp32_acc` — a 24-bit mantissa add (CARRY4 chain) directly chained with the normalization MUX tree (7×LUT6) in one clock cycle. 14 logic levels, 5.687 ns; 74% of delay is routing (high-fanout signals `sum_man_b1` fo=27 and `sel0[6]` fo=41 spread across a wide placement region). Next action: split Stage B into B0 (add only) + B1 (normalize) **or** add a PBLOCK constraint to compact `fp32_acc` placement.
+
+Hold slack is met in all runs; routing is complete with 0 unrouted nets. Bitstream generation is blocked by missing board I/O pin assignments (expected).
 
 ### New RTL Modules (v2)
 
