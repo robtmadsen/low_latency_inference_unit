@@ -31,9 +31,9 @@ package lliu_pkg;
 
   // Pipeline depth from feature input to inference result
   // bfloat16_mul: 2 cycles (Stage 1: DSP48E1 multiply, Stage 2: normalize) +
-  // fp32_acc: 4 stages (A0: exp compare, A1: align, B: add/norm, C: commit) +
-  // drain allowance: VEC_LEN iterations + 4 drain cycles
-  parameter int DOT_PRODUCT_LATENCY = FEATURE_VEC_LEN + 4; // iterate + 4 drain cycles (2-cycle bfloat16_mul + 4-stage fp32_acc)
+  // fp32_acc: 5 stages (A0: exp compare, A1: align, B1: raw adder sum, B2: normalize, C: commit) +
+  // drain allowance: VEC_LEN iterations + 5 drain cycles
+  parameter int DOT_PRODUCT_LATENCY = FEATURE_VEC_LEN + 5; // iterate + 5 drain cycles (2-cycle bfloat16_mul + 5-stage fp32_acc)
 
   // AXI4-Lite register address map
   // v1 core registers

@@ -1,21 +1,21 @@
-// fp32_acc.sv — Float32 accumulator, four-stage pipeline
+// fp32_acc.sv — Float32 accumulator, five-stage pipeline
 //
 // Accumulates float32 values over multiple cycles.
 // Supports clear (reset to zero) and accumulate enable.
 //
-// Four-stage pipeline to meet 300 MHz on Kintex-7 -2:
-//   Stage A0 (pipe A0): exponent compare                   → registered → *_r0
-//   Stage A1 (pipe A1): mantissa alignment (barrel shift)  → registered
-//   Stage B  (pipe B):  mantissa add/subtract + normalise  → registered → partial_sum_r
-//   Stage C:            partial_sum_r → acc_reg            → acc_out
+// Five-stage pipeline to meet 300 MHz on Kintex-7 -2:
+//   Stage A0: exponent compare                   → registered → *_r0
+//   Stage A1: mantissa alignment (barrel shift)  → registered
+//   Stage B1: mantissa add/subtract (CARRY4)     → registered → sum_man_b1_r
+//   Stage B2: normalise                          → registered → partial_sum_r
+//   Stage C:  partial_sum_r → acc_reg            → acc_out
 //
-// Stage A was split into A0 (exponent compare) and A1 (barrel shift) to
-// break the critical feedback path: partial_sum_r → forwarding mux →
-// exponent compare → exp_diff → barrel shift → CARRY4 chain (11 levels,
-// 5.4 ns) that violated the 3.333 ns cycle budget at 300 MHz.
+// Stage B was split into B1 (CARRY4 adder) and B2 (normalisation LUT tree)
+// to break the Run 7 critical path: aligned_small_r → CARRY4×6 adder →
+// normalization LUT tree → partial_sum_r (15 levels, 5.065 ns, WNS −1.852 ns).
 //
 // Back-to-back acc_en forwarding:
-//   acc_en_d3 asserted (Stage C about to fire) → Stage A0 uses partial_sum_r.
+//   acc_en_d4 asserted (Stage C about to fire) → Stage A0 uses partial_sum_r.
 //   (Otherwise)                                → Stage A0 uses acc_reg.
 //
 // Uses a simplified float32 add: aligns mantissas by exponent difference,
@@ -37,23 +37,24 @@ module fp32_acc (
 
     // Stage C register (final accumulated result, feeds output and back-path)
     float32_t acc_reg;
-    // Stage B register (sum result from add/normalise, feeds Stage C)
+    // Stage B2 register (sum result from normalise, feeds Stage C)
     float32_t partial_sum_r;
     // Delayed enables: drive pipelined stages
     logic     acc_en_d1;  // 1 cycle after acc_en  → Stage A1 fires
-    logic     acc_en_d2;  // 2 cycles after acc_en → Stage B fires
-    logic     acc_en_d3;  // 3 cycles after acc_en → Stage C fires
+    logic     acc_en_d2;  // 2 cycles after acc_en → Stage B1 fires
+    logic     acc_en_d3;  // 3 cycles after acc_en → Stage B2 fires
+    logic     acc_en_d4;  // 4 cycles after acc_en → Stage C fires
 
     // -------------------------------------------------------------------
     // Forwarding mux: decide which accumulated value to use as the
     // feedback operand entering Stage A0.
-    //   - acc_en_d3: Stage C is about to register partial_sum_r, so the
+    //   - acc_en_d4: Stage C is about to register partial_sum_r, so the
     //     most recent committed sum is still in partial_sum_r.
     //   - Otherwise: acc_reg holds the most recent committed sum.
     // This eliminates the RAW hazard on consecutive acc_en pulses.
     // -------------------------------------------------------------------
     float32_t acc_fb;
-    assign acc_fb = acc_en_d3 ? partial_sum_r : acc_reg;
+    assign acc_fb = acc_en_d4 ? partial_sum_r : acc_reg;
 
     // -------------------------------------------------------------------
     // Stage A0 combinational: decompose operands, compare exponents
@@ -182,74 +183,97 @@ module fp32_acc (
     end
 
     // -------------------------------------------------------------------
-    // Stage B combinational: mantissa add/subtract + normalise
-    // (CARRY chain lives only here — broken from Stage A by the register)
+    // Stage B1 registers (raw adder output; fires on acc_en_d2)
     // -------------------------------------------------------------------
-    logic [24:0] sum_man_b;
-    logic        sum_sign_b;
-    logic [7:0]  sum_exp_b;
-    float32_t    sum_result_b;
+    logic [24:0] sum_man_b1_r;    // raw 25-bit mantissa sum/difference
+    logic        sum_sign_b1_r;   // sign of result
+    logic [7:0]  sum_exp_b1_r;    // exponent of result
+    logic        both_zero_b1_r;  // acc_zero_r && add_zero_r
+    logic        acc_zero_b1_r;   // acc operand was zero
+    logic        add_zero_b1_r;   // add operand was zero
+    float32_t    addend_b1_r;     // passthrough: addend when acc was zero
+    float32_t    acc_fb_b1_r;     // passthrough: acc_fb when add was zero
+
+    always_ff @(posedge clk) begin
+        if (rst || acc_clear) begin
+            sum_man_b1_r   <= 25'b0;
+            sum_sign_b1_r  <= 1'b0;
+            sum_exp_b1_r   <= 8'b0;
+            both_zero_b1_r <= 1'b1;
+            acc_zero_b1_r  <= 1'b1;
+            add_zero_b1_r  <= 1'b1;
+            addend_b1_r    <= 32'b0;
+            acc_fb_b1_r    <= 32'b0;
+        end else if (acc_en_d2) begin
+            sum_exp_b1_r   <= big_exp_r;
+            both_zero_b1_r <= acc_zero_r && add_zero_r;
+            acc_zero_b1_r  <= acc_zero_r;
+            add_zero_b1_r  <= add_zero_r;
+            addend_b1_r    <= addend_r;
+            acc_fb_b1_r    <= acc_fb_r;
+            if (eff_sub_r) begin
+                if (big_man_r >= aligned_small_r) begin
+                    sum_man_b1_r  <= {1'b0, big_man_r} - {1'b0, aligned_small_r};
+                    sum_sign_b1_r <= big_sign_r;
+                end else begin
+                    sum_man_b1_r  <= {1'b0, aligned_small_r} - {1'b0, big_man_r};
+                    sum_sign_b1_r <= !big_sign_r;
+                end
+            end else begin
+                sum_man_b1_r  <= {1'b0, big_man_r} + {1'b0, aligned_small_r};
+                sum_sign_b1_r <= big_sign_r;
+            end
+        end
+    end
+
+    // -------------------------------------------------------------------
+    // Stage B2 combinational: normalise the registered raw adder result
+    // -------------------------------------------------------------------
+    float32_t sum_result_b2;
 
     always_comb begin
-        sum_exp_b = big_exp_r;
-
-        if (eff_sub_r) begin
-            if (big_man_r >= aligned_small_r) begin
-                sum_man_b  = {1'b0, big_man_r} - {1'b0, aligned_small_r};
-                sum_sign_b = big_sign_r;
-            end else begin
-                sum_man_b  = {1'b0, aligned_small_r} - {1'b0, big_man_r};
-                sum_sign_b = !big_sign_r;
-            end
-        end else begin
-            sum_man_b  = {1'b0, big_man_r} + {1'b0, aligned_small_r};
-            sum_sign_b = big_sign_r;
-        end
-
-        // Normalise
-        if (acc_zero_r && add_zero_r) begin
-            sum_result_b = 32'b0;
-        end else if (acc_zero_r) begin
-            sum_result_b = addend_r;
-        end else if (add_zero_r) begin
-            sum_result_b = acc_fb_r;
+        if (both_zero_b1_r) begin
+            sum_result_b2 = 32'b0;
+        end else if (acc_zero_b1_r) begin
+            sum_result_b2 = addend_b1_r;
+        end else if (add_zero_b1_r) begin
+            sum_result_b2 = acc_fb_b1_r;
         /* verilator coverage_off */  // exact cancellation: requires identical-magnitude opposing products
-        end else if (sum_man_b == 25'b0) begin
-            sum_result_b = 32'b0;
+        end else if (sum_man_b1_r == 25'b0) begin
+            sum_result_b2 = 32'b0;
         /* verilator coverage_on */
-        end else if (sum_man_b[24]) begin
-            sum_exp_b    = big_exp_r + 8'd1;
-            sum_result_b = {sum_sign_b, sum_exp_b, sum_man_b[23:1]};
-        end else if (!sum_man_b[23]) begin
-            sum_result_b = {sum_sign_b, sum_exp_b, sum_man_b[22:0]}; // default
-            if      (sum_man_b[22]) begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd1,  sum_man_b[21:0], 1'b0};  end
-            else if (sum_man_b[21]) begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd2,  sum_man_b[20:0], 2'b0};  end
-            else if (sum_man_b[20]) begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd3,  sum_man_b[19:0], 3'b0};  end
-            else if (sum_man_b[19]) begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd4,  sum_man_b[18:0], 4'b0};  end
-            else if (sum_man_b[18]) begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd5,  sum_man_b[17:0], 5'b0};  end
-            else if (sum_man_b[17]) begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd6,  sum_man_b[16:0], 6'b0};  end
-            else if (sum_man_b[16]) begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd7,  sum_man_b[15:0], 7'b0};  end
-            else if (sum_man_b[15]) begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd8,  sum_man_b[14:0], 8'b0};  end
-            else if (sum_man_b[14]) begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd9,  sum_man_b[13:0], 9'b0};  end
-            else if (sum_man_b[13]) begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd10, sum_man_b[12:0], 10'b0}; end
-            else if (sum_man_b[12]) begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd11, sum_man_b[11:0], 11'b0}; end
-            else if (sum_man_b[11]) begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd12, sum_man_b[10:0], 12'b0}; end
+        end else if (sum_man_b1_r[24]) begin
+            sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r + 8'd1, sum_man_b1_r[23:1]};
+        end else if (!sum_man_b1_r[23]) begin
+            sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r, sum_man_b1_r[22:0]}; // default
+            if      (sum_man_b1_r[22]) begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd1,  sum_man_b1_r[21:0], 1'b0};  end
+            else if (sum_man_b1_r[21]) begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd2,  sum_man_b1_r[20:0], 2'b0};  end
+            else if (sum_man_b1_r[20]) begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd3,  sum_man_b1_r[19:0], 3'b0};  end
+            else if (sum_man_b1_r[19]) begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd4,  sum_man_b1_r[18:0], 4'b0};  end
+            else if (sum_man_b1_r[18]) begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd5,  sum_man_b1_r[17:0], 5'b0};  end
+            else if (sum_man_b1_r[17]) begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd6,  sum_man_b1_r[16:0], 6'b0};  end
+            else if (sum_man_b1_r[16]) begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd7,  sum_man_b1_r[15:0], 7'b0};  end
+            else if (sum_man_b1_r[15]) begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd8,  sum_man_b1_r[14:0], 8'b0};  end
+            else if (sum_man_b1_r[14]) begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd9,  sum_man_b1_r[13:0], 9'b0};  end
+            else if (sum_man_b1_r[13]) begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd10, sum_man_b1_r[12:0], 10'b0}; end
+            else if (sum_man_b1_r[12]) begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd11, sum_man_b1_r[11:0], 11'b0}; end
+            else if (sum_man_b1_r[11]) begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd12, sum_man_b1_r[10:0], 12'b0}; end
             /* verilator coverage_off */  // deep renorm [10:0]: repeating pattern proven by [22:11] coverage;
             //   requires >13 bits cancellation precision — unreachable with bfloat16 dot product
-            else if (sum_man_b[10]) begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd13, sum_man_b[9:0],  13'b0}; end
-            else if (sum_man_b[9])  begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd14, sum_man_b[8:0],  14'b0}; end
-            else if (sum_man_b[8])  begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd15, sum_man_b[7:0],  15'b0}; end
-            else if (sum_man_b[7])  begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd16, sum_man_b[6:0],  16'b0}; end
-            else if (sum_man_b[6])  begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd17, sum_man_b[5:0],  17'b0}; end
-            else if (sum_man_b[5])  begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd18, sum_man_b[4:0],  18'b0}; end
-            else if (sum_man_b[4])  begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd19, sum_man_b[3:0],  19'b0}; end
-            else if (sum_man_b[3])  begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd20, sum_man_b[2:0],  20'b0}; end
-            else if (sum_man_b[2])  begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd21, sum_man_b[1:0],  21'b0}; end
-            else if (sum_man_b[1])  begin sum_result_b = {sum_sign_b, sum_exp_b - 8'd22, sum_man_b[0],    22'b0}; end
-            else                    begin sum_result_b = 32'b0; end
+            else if (sum_man_b1_r[10]) begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd13, sum_man_b1_r[9:0],  13'b0}; end
+            else if (sum_man_b1_r[9])  begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd14, sum_man_b1_r[8:0],  14'b0}; end
+            else if (sum_man_b1_r[8])  begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd15, sum_man_b1_r[7:0],  15'b0}; end
+            else if (sum_man_b1_r[7])  begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd16, sum_man_b1_r[6:0],  16'b0}; end
+            else if (sum_man_b1_r[6])  begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd17, sum_man_b1_r[5:0],  17'b0}; end
+            else if (sum_man_b1_r[5])  begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd18, sum_man_b1_r[4:0],  18'b0}; end
+            else if (sum_man_b1_r[4])  begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd19, sum_man_b1_r[3:0],  19'b0}; end
+            else if (sum_man_b1_r[3])  begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd20, sum_man_b1_r[2:0],  20'b0}; end
+            else if (sum_man_b1_r[2])  begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd21, sum_man_b1_r[1:0],  21'b0}; end
+            else if (sum_man_b1_r[1])  begin sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r - 8'd22, sum_man_b1_r[0],    22'b0}; end
+            else                       begin sum_result_b2 = 32'b0; end
             /* verilator coverage_on */
         end else begin
-            sum_result_b = {sum_sign_b, sum_exp_b, sum_man_b[22:0]};
+            sum_result_b2 = {sum_sign_b1_r, sum_exp_b1_r, sum_man_b1_r[22:0]};
         end
     end
 
@@ -259,26 +283,28 @@ module fp32_acc (
             acc_en_d1 <= 1'b0;
             acc_en_d2 <= 1'b0;
             acc_en_d3 <= 1'b0;
+            acc_en_d4 <= 1'b0;
         end else begin
             acc_en_d1 <= acc_en;
             acc_en_d2 <= acc_en_d1;
             acc_en_d3 <= acc_en_d2;
+            acc_en_d4 <= acc_en_d3;
         end
     end
 
-    // Stage B register: capture normalised sum
+    // Stage B2 register: capture normalised sum (fires on acc_en_d3)
     always_ff @(posedge clk) begin
         if (rst || acc_clear)
             partial_sum_r <= 32'b0;
-        else if (acc_en_d2)
-            partial_sum_r <= sum_result_b;
+        else if (acc_en_d3)
+            partial_sum_r <= sum_result_b2;
     end
 
-    // Stage C register: move Stage B result into feedback accumulator
+    // Stage C register: move Stage B2 result into feedback accumulator
     always_ff @(posedge clk) begin
         if (rst || acc_clear)
             acc_reg <= 32'b0;
-        else if (acc_en_d3)
+        else if (acc_en_d4)
             acc_reg <= partial_sum_r;
     end
 

@@ -26,7 +26,7 @@ REG_CTRL   = 0x00
 REG_STATUS = 0x04
 REG_RESULT = 0x10
 
-DEFAULT_MAX_END_TO_END_LATENCY = int(os.getenv("LLIU_MAX_LATENCY", "16"))
+DEFAULT_MAX_END_TO_END_LATENCY = int(os.getenv("LLIU_MAX_LATENCY", "18"))
 
 
 def bits_to_float32(bits: int) -> float:

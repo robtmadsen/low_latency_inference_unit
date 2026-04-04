@@ -8,10 +8,10 @@
 //
 // Because bfloat16_mul has 2-cycle latency, acc_en is driven by
 // feature_valid_d2 (2-cycle delayed from feature_valid).  After all
-// VEC_LEN elements have been consumed, the FSM enters S_DRAIN for 5
-// cycles (drain_cnt 0→1→2→3→4) to flush the pipeline before asserting
-// result_valid.  Total latency from first feature_valid to result_valid
-// is VEC_LEN + 5 cycles at VEC_LEN = 4.
+// VEC_LEN elements have been consumed, the FSM enters S_DRAIN for 6
+// cycles (drain_cnt 0→5) to flush the 5-stage fp32_acc pipeline before
+// asserting result_valid.  Total latency from first feature_valid to
+// result_valid is VEC_LEN + 6 cycles at VEC_LEN = 4.
 
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
@@ -48,7 +48,7 @@ module dot_product_engine #(
 
     state_t state, state_next;
     logic [$clog2(VEC_LEN+1)-1:0] elem_cnt, elem_cnt_next;
-    logic [2:0] drain_cnt, drain_cnt_next; // 3-bit: counts 0 → 1 → 2 → 3 → 4 (5 DRAIN cycles)
+    logic [2:0] drain_cnt, drain_cnt_next; // 3-bit: counts 0 → 1 → 2 → 3 → 4 → 5 (6 DRAIN cycles)
 
     // feature_valid delayed by 1 and 2 cycles: used to assert acc_en after 2-cycle mul pipeline
     logic feature_valid_d1;
@@ -139,11 +139,14 @@ module dot_product_engine #(
                     // Stage A1 of fp32_acc (alignment) fires this cycle.
                     drain_cnt_next = 3'd3;
                 end else if (drain_cnt == 3'd3) begin
-                    // Stage B of fp32_acc (add/norm) fires this cycle.
+                    // Stage B1 of fp32_acc (raw adder sum registered) fires this cycle.
                     drain_cnt_next = 3'd4;
+                end else if (drain_cnt == 3'd4) begin
+                    // Stage B2 of fp32_acc (normalize → partial_sum_r) fires this cycle.
+                    drain_cnt_next = 3'd5;
                 end else begin
-                    // drain_cnt=4: Stage C of fp32_acc commits final sum;
-                    // result will be stable in acc_reg when we enter S_DONE.
+                    // drain_cnt=5: Stage C of fp32_acc commits final sum;
+                    // acc_reg stable on entry to S_DONE.
                     state_next = S_DONE;
                 end
             end
