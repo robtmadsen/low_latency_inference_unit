@@ -27,7 +27,7 @@ module dot_product_sva #(
     localparam logic [1:0] S_IDLE    = 2'b00;
     localparam logic [1:0] S_COMPUTE = 2'b01;
     localparam logic [1:0] S_DONE    = 2'b10;
-    localparam logic [1:0] S_DRAIN   = 2'b11;  // 4-cycle drain (drain_cnt 0→1→2→3)
+    localparam logic [1:0] S_DRAIN   = 2'b11;  // 5-cycle drain (drain_cnt 0→1→2→3→4)
 
     // ── D1: FSM must only be in valid states ────────────────────────
     property p_valid_state;
@@ -71,21 +71,24 @@ module dot_product_sva #(
     assert property (p_compute_after_idle)
         else $error("SVA: COMPUTE entered from non-IDLE/COMPUTE state");
 
-    // ── D6: Timing — start to result_valid ≤ VEC_LEN + 7 cycles ────
-    // Accounts for VEC_LEN MAC cycles + registered bfloat16_mul output
-    // (1 cy) + 4-stage fp32_acc drain: A0→A1 (acc_en_d1), A1→B (acc_en_d2),
-    // B→C (acc_en_d3), result in acc_reg (4 cy total)
-    // + FSM overhead (2 cy) + 1 cy slack.
+    // ── D6: Timing — start to result_valid ≤ VEC_LEN + 8 cycles ────
+    // D6: VEC_LEN + 8
+    //   VEC_LEN iterations (one element per cycle)
+    //   + 2-cycle bfloat16_mul (Stage 1: DSP48E1 multiply, Stage 2: normalize)
+    //   + 5-cycle drain: A0 (acc_en for penultimate), A1 (acc_en for last),
+    //     A1→B (fp32_acc align), B→C (fp32_acc add/norm), C commit
+    //   (1 extra cy headroom)
+    // 5 cy total drain
     // Guarded: Verilator 5.x does not support non-literal ##[N:M] range bounds.
     // This property is checked by VCS and Questa only.
 `ifndef VERILATOR
-    localparam int unsigned RESULT_TIMEOUT = VEC_LEN + 7;
+    localparam int unsigned RESULT_TIMEOUT = VEC_LEN + 8;
     property p_result_timing;
         @(posedge clk) disable iff (rst)
         $rose(start) |-> ##[1:RESULT_TIMEOUT] result_valid;
     endproperty
     assert property (p_result_timing)
-        else $error("SVA: result_valid did not assert within VEC_LEN+7 cycles of start");
+        else $error("SVA: result_valid did not assert within VEC_LEN+8 cycles of start");
 `endif
 
 endmodule
