@@ -63,6 +63,12 @@ write_checkpoint -force syn/lliu_physopt.dcp
 
 route_design
 
+# Post-route physical optimisation — replicates high-fanout drivers and
+# inserts hold buffers on paths that remain marginal after routing.
+# Needed to close the fo=24 leading-zero encoder net in feature_extractor Stage 2b.
+phys_opt_design -directive AggressiveExplore
+route_design -directive NoTimingRelaxation
+
 # ── Save routed checkpoint ─────────────────────────────────────────────────
 # Allows bitstream regeneration without re-running P&R.
 write_checkpoint -force syn/lliu_routed.dcp
