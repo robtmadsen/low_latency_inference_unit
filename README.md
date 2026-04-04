@@ -271,14 +271,17 @@ P&R is run on an AWS EC2 `c5.4xlarge` instance (FPGA Developer AMI) over SSH, ke
 | 2 | `fp32_acc` 3-stage | 1,534 | 534 | −2.322 ns | ≈ 177 MHz | `itch_parser`→`feature_extractor` (18 levels) |
 | 3 | `itch_field_extract` reg. | — | — | −2.217 ns | ≈ 180 MHz | `fp32_acc` A-stage feedback (`partial_sum_r`→`aligned_small_r`) |
 | 4 | `fp32_acc` 4-stage (A0+A1) | 1,466 | 700 | −2.307 ns | ≈ 177 MHz | `fp32_acc` Stage A1→B: add+normalize (14 levels, 74% route) |
+| 5 | PBLOCK `u_acc/*` | 1,460 | 697 | −2.251 ns | ≈ 180 MHz | `weight_mem`→`bfloat16_mul` mantissa multiply (13 levels) |
 
 **Run 1 critical path:** `fp32_acc` CARRY4 chain — 25 logic levels, 9.228 ns data path. Root cause: single combinational block combining exponent compare, mantissa alignment, and accumulate add.
 
-**Run 2 critical path** (after 3-stage `fp32_acc` fix): combinational decode path from `itch_parser` message buffer through `itch_field_extract` arithmetic into `feature_extractor/features_reg` — 18 logic levels, 5.604 ns. Fix: register the `itch_field_extract` outputs at the module boundary.
+**Run 2 critical path** (after 3-stage `fp32_acc` fix): combinational decode path from `itch_parser` message buffer through `itch_field_extract` arithmetic into `feature_extractor/features_reg` — 18 logic levels, 5.604 ns.
 
-**Run 3 critical path** (after `itch_field_extract` registered): `fp32_acc` feedback — `partial_sum_r` feeds back through the `acc_fb` forwarding mux → exponent compare → barrel-shift alignment (`aligned_small_r`). 11 logic levels, 5.418 ns. Fix: split `fp32_acc` Stage A into A0+A1.
+**Run 3 critical path** (after `itch_field_extract` registered): `fp32_acc` feedback — `partial_sum_r` feeds back through the `acc_fb` forwarding mux into Stage A exponent compare and barrel-shift alignment. 11 logic levels, 5.418 ns.
 
-**Run 4 critical path** (after 4-stage `fp32_acc`): Stage B in `fp32_acc` — a 24-bit mantissa add (CARRY4 chain) directly chained with the normalization MUX tree (7×LUT6) in one clock cycle. 14 logic levels, 5.687 ns; 74% of delay is routing (high-fanout signals `sum_man_b1` fo=27 and `sel0[6]` fo=41 spread across a wide placement region). Next action: split Stage B into B0 (add only) + B1 (normalize) **or** add a PBLOCK constraint to compact `fp32_acc` placement.
+**Run 4 critical path** (after 4-stage `fp32_acc`): Stage B combined add+normalize — 24-bit mantissa CARRY4 chain directly chained with normalization MUX tree (7×LUT6). 14 logic levels, 5.687 ns, 74% route delay.
+
+**Run 5 critical path** (after PBLOCK): `bfloat16_mul` mantissa multiply — 8×8 unsigned multiply in LUT/CARRY4 fabric (6 CARRY4 stages), 13 levels, 5.208 ns. Root cause: Vivado does not auto-infer DSP48E1 for sub-16-bit operands. Next action: add `(* use_dsp = "yes" *)` to the mantissa multiply in `bfloat16_mul.sv` to map it to DSP48E1, which runs well above 400 MHz on Kintex-7 -2.
 
 Hold slack is met in all runs; routing is complete with 0 unrouted nets. Bitstream generation is blocked by missing board I/O pin assignments (expected).
 

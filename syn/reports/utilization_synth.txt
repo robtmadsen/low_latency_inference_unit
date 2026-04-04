@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.2 (lin64) Build 6299465 Fri Nov 14 12:34:56 MST 2025
-| Date         : Sat Apr  4 18:06:46 2026
+| Date         : Sat Apr  4 18:24:51 2026
 | Host         : ip-172-31-32-102 running 64-bit Ubuntu 20.04.6 LTS
 | Command      : report_utilization -file syn/reports/utilization_synth.txt
 | Design       : lliu_top

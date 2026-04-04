@@ -5,7 +5,7 @@
 **Target:** `xc7k160tffg676-2` (Kintex-7, -2 speed grade)  
 **Synthesis top:** `lliu_top` (LLIU inference core, AXI4-S + AXI4-Lite)  
 **EC2 instance:** `c5.4xlarge` — IP `3.86.63.142`  
-**Constraints:** `syn/constraints_lliu_top.xdc` (300 MHz clock on `clk`, false-path I/Os)  
+**Constraints:** `syn/constraints_lliu_top.xdc` (300 MHz clock on `clk`, false-path I/Os; PBLOCK `pblock_fp32acc` added Run 5)  
 
 ---
 
@@ -17,28 +17,29 @@
 | 2 | `b938747` (fp32_acc 3-stage) | −2.322 ns | `itch_parser`→`feature_extractor` (18 levels) | ❌ |
 | 3 | `200bdc6` (itch_field_extract reg.) | −2.217 ns | `fp32_acc` feedback: `partial_sum_r`→`aligned_small_r` (11 levels) | ❌ |
 | 4 | `223a498` (fp32_acc 4-stage) | −2.307 ns | `fp32_acc` Stage A1→B: add+normalize (14 levels) | ❌ |
+| 5 | `6b03819` (PBLOCK `u_dp_engine/u_acc/*`) | −2.251 ns | `weight_mem`→`bfloat16_mul`: mantissa multiply (13 levels) | ❌ |
 
 ---
 
 ## 1. Resource Utilization — Post-Implementation
 
-| Resource | Run 1 | Run 2 | Run 3 | Run 4 | Available | Util% (Run 4) |
-|----------|-------|-------|-------|-------|-----------|---------------|
-| Slice LUTs | 1,599 | 1,534 | — | **1,466** | 101,400 | **1.45%** |
-| Slice Registers (FFs) | 417 | 534 | — | **700** | 202,800 | **0.35%** |
-| DSP48E1 | 0 | 0 | — | **0** | 600 | 0.00% |
-| Block RAM Tile | 0 | 0 | — | **0** | 325 | 0.00% |
-| IOB | 147¹ | 147¹ | — | **147¹** | 400 | — |
+| Resource | Run 1 | Run 2 | Run 3 | Run 4 | Run 5 | Available | Util% (Run 5) |
+|----------|-------|-------|-------|-------|-------|-----------|---------------|
+| Slice LUTs | 1,599 | 1,534 | — | 1,466 | **1,460** | 101,400 | **1.44%** |
+| Slice Registers (FFs) | 417 | 534 | — | 700 | **697** | 202,800 | **0.34%** |
+| DSP48E1 | 0 | 0 | — | 0 | **0** | 600 | 0.00% |
+| Block RAM Tile | 0 | 0 | — | 0 | **0** | 325 | 0.00% |
+| IOB | 147¹ | 147¹ | — | 147¹ | **147¹** | 400 | — |
 
 ¹ 147 `lliu_top` AXI ports are unconstrained (no board pin assignments yet — expected).
 
-¹ 147 `lliu_top` AXI ports are unconstrained (no board pin assignments yet — expected).
-— Run 3 reports were not committed (EC2 run for diagnostic purposes only).
+¹ 147 `lliu_top` AXI ports are unconstrained (no board pin assignments yet — expected).  
+— Run 3 reports were not committed (EC2 diagnostic run only).
 
 **Notes:**
-- **LUT decrease (1,599 → 1,466 over four runs):** Each pipeline stage addition breaks a long combinational path; Vivado can pack the smaller per-stage logic more efficiently. The 4-stage `fp32_acc` (Run 4) removed ~70 LUTs vs Run 2 primarily through better DFG optimization.
-- **FF increase (417 → 700 over four runs):** Expected — each new pipeline stage adds register banks. Run 4 added three more `acc_en_dN` delay registers plus the A0/A1 stage registers.
-- **0 DSPs:** `bfloat16_mul` performs an 8×8 mantissa multiply in LUT fabric. Vivado did not infer a DSP48E1 because no `use_dsp` attribute is set and the operands are sub-16-bit.
+- **LUT trend (1,599 → 1,460 over five runs):** Each pipeline stage addition breaks a long combinational path; Vivado packs smaller per-stage logic more efficiently. The PBLOCK (Run 5) reduced LUTs slightly (1,466 → 1,460) through improved placement quality.
+- **FF trend (417 → 697):** Each new pipeline stage adds register banks. Run 4 added A0/A1 registers inside `fp32_acc`; Run 5 PBLOCK caused marginal FF reduction (700 → 697) through Vivado register merging.
+- **0 DSPs:** `bfloat16_mul` performs an 8×8 mantissa multiply in LUT/CARRY4 fabric. No `use_dsp` attribute is set; operands are sub-16-bit so Vivado does not infer DSP48E1 automatically. **This is the primary remaining timing bottleneck (see Section 4).**
 - **0 BRAMs:** `weight_mem` DEPTH = 4 entries (16×4 = 64 bits) — well below the 512-bit RAMB18 threshold; synthesised to distributed RAM.
 - Utilization remains very low — LLIU fits comfortably in the smallest Kintex-7 variant.
 
@@ -46,21 +47,21 @@
 
 ## 2. Timing Summary — 300 MHz Target
 
-| Metric | Run 1 | Run 2 | Run 3 | Run 4 |
-|--------|-------|-------|-------|-------|
-| Target clock | 300 MHz | 300 MHz | 300 MHz | 300 MHz |
-| WNS (setup) | **−6.188 ns** ❌ | **−2.322 ns** ❌ | **−2.217 ns** ❌ | **−2.307 ns** ❌ |
-| TNS | −412.035 ns | −277.510 ns | — | −194.448 ns |
-| Failing endpoints | 189 / 1,047 | 194 / (unknown) | — | 148 / 1,821 |
-| WHS (hold) | +0.071 ns ✅ | +0.122 ns ✅ | — | +0.111 ns ✅ |
-| Routing | Complete | Complete | Complete | Complete |
-| Bitstream | Blocked (no LOC) | Blocked (no LOC) | — | Blocked (no LOC) |
+| Metric | Run 1 | Run 2 | Run 3 | Run 4 | Run 5 |
+|--------|-------|-------|-------|-------|-------|
+| Target clock | 300 MHz | 300 MHz | 300 MHz | 300 MHz | 300 MHz |
+| WNS (setup) | **−6.188 ns** ❌ | **−2.322 ns** ❌ | **−2.217 ns** ❌ | **−2.307 ns** ❌ | **−2.251 ns** ❌ |
+| TNS | −412.035 ns | −277.510 ns | — | −194.448 ns | −183.136 ns |
+| Failing endpoints | 189 / 1,047 | 194 | — | 148 / 1,821 | 122 / 1,821 |
+| WHS (hold) | +0.071 ns ✅ | +0.122 ns ✅ | — | +0.111 ns ✅ | +0.082 ns ✅ |
+| Routing | Complete | Complete | Complete | Complete | Complete |
+| Bitstream | Blocked (no LOC) | Blocked (no LOC) | — | Blocked (no LOC) | Blocked (no LOC) |
 
-**Status: Timing NOT MET at 300 MHz across all four runs.**
+**Status: Timing NOT MET at 300 MHz across all five runs.**
 
-**Run 2:** WNS +3.866 ns improvement (fp32_acc 3-stage). Critical path moved to itch_parser→feature_extractor.
-**Run 3:** WNS +0.105 ns improvement (itch_field_extract registered). Critical path moved back to fp32_acc feedback path.
-**Run 4:** WNS −0.090 ns regression (fp32_acc 4-stage A0+A1 split). The 4-stage split did not help because the critical path is _within Stage B_ (mantissa add + normalize), not the A-stage feedback loop.
+**PBLOCK effect (Run 4 → Run 5):** Failing endpoints reduced 148 → 122 (−26), TNS reduced −194.4 → −183.1 ns (−11.3 ns). fp32_acc was successfully removed as the critical path; critical path moved to `bfloat16_mul` mantissa multiply. WNS improved only 0.056 ns because the failing-endpoint population is broad (many paths at ~2.25 ns slack).
+
+**Pattern:** Each run has WNS in the range −2.2 to −2.3 ns. Fixing individual paths consistently reveals the next queued path at similar slack. The design's achievable frequency in LUT/CARRY4 fabric is ≈ 180 MHz (period = 3.333 + 2.25 = 5.58 ns). Closing at 300 MHz requires architectural changes, not incremental pipelining.
 
 ---
 
@@ -96,7 +97,7 @@ $$f_{max}^{(2)} = \frac{1}{3.333 + 2.322\,\text{ns}} \approx 177\,\text{MHz}$$
 **Logic levels:** 11  
 **Slack:** −2.217 ns
 
-Registering the `itch_field_extract` outputs (PR #29) eliminated the itch-parse critical path. However, the hot-path now reverts to a _cross-stage feedback_ within `fp32_acc`: the accumulator result feeds back through the `acc_fb` mux (forwarding bypass) into the Stage-A exponent comparison and barrel-shift alignment logic. The forward data path from `partial_sum_r` to the next A-stage is the new bottleneck.
+Registering the `itch_field_extract` outputs (PR #29) eliminated the itch-parse critical path. However, the hot-path reverts to a _cross-stage feedback_ within `fp32_acc`: the accumulator result feeds back through the `acc_fb` mux (forwarding bypass) into the Stage-A exponent comparison and barrel-shift alignment logic.
 
 $$f_{max}^{(3)} = \frac{1}{3.333 + 2.217\,\text{ns}} \approx 180\,\text{MHz}$$
 
@@ -104,63 +105,64 @@ $$f_{max}^{(3)} = \frac{1}{3.333 + 2.217\,\text{ns}} \approx 180\,\text{MHz}$$
 
 **Worst path:** `u_dp_engine/u_acc/aligned_small_r_reg[8]/C` (SLICE_X9Y125) → `u_dp_engine/u_acc/partial_sum_r_reg[19]/D` (SLICE_X6Y130)  
 **Module:** `fp32_acc` — Stage A1 (barrel-shifted small mantissa) feeding into Stage B (mantissa add + normalize)  
-**Data path delay:** 5.687 ns (logic 1.458 ns / **25.6%**, route 4.229 ns / **74.4%**)  
-**Logic levels:** 14 (CARRY4 ×4, LUT4 ×3, LUT6 ×7)  
+**Data path delay:** 5.687 ns (logic 1.458 ns / 25.6%, route 4.229 ns / 74.4%)  
+**Logic levels:** 14 (CARRY4×4, LUT4×3, LUT6×7)  
 **Slack:** −2.307 ns
 
-The 4-stage `fp32_acc` split removed the A-stage feedback from the critical path. The critical path is now _within Stage B_ — the mantissa add (CARRY4 chain) directly chained with the normalization logic (leading-zero detect mux tree) in a single clock cycle. Two high-fanout intermediate nets dominate the route delay:
+The 4-stage `fp32_acc` split removed the A-stage feedback from the critical path. The critical path is now _within Stage B_ — mantissa add (CARRY4 chain) directly chained with normalization logic (leading-zero detect MUX tree) in a single clock cycle. Two high-fanout intermediate nets dominate the route delay:
 
 | Signal | Fanout | Route delay |
 |--------|--------|-------------|
 | `sum_man_b1` | 27 | 0.472 ns |
 | `sel0[6]` | 41 | 0.660 ns |
 
-The normalization MUX tree (7 LUT6 levels) is spread across SLICE_X6Y126 – SLICE_X11Y134, causing substantial routing zigzag despite the small total logic. Route delay at 74% indicates a placement-driven problem.
-
 $$f_{max}^{(4)} = \frac{1}{3.333 + 2.307\,\text{ns}} \approx 177\,\text{MHz}$$
+
+### Run 5
+
+**Worst path:** `u_weight_mem/rd_data_reg[0]/C` (SLICE_X7Y125) → `u_dp_engine/u_mul/result_reg[15]/R` (SLICE_X1Y129)  
+**Modules:** `weight_mem` → `bfloat16_mul` (8×8 mantissa multiply → result-zero reset logic)  
+**Data path delay:** 5.208 ns (logic 1.910 ns / 36.7%, route 3.298 ns / 63.3%)  
+**Logic levels:** 13 (CARRY4×6, LUT4×2, LUT5×2, LUT6×3)  
+**Slack:** −2.251 ns
+
+The PBLOCK successfully compacted `fp32_acc` cells and removed it from the critical path (failing endpoints: 148 → 122). The new worst path is the 8×8 unsigned mantissa multiply inside `bfloat16_mul`, implemented in LUT/CARRY4 fabric. The path terminates at the synchronous reset pin of a result register — this is the end-of-multiply zero-detection logic. With 6 CARRY4 stages in the multiply chain plus additional correction logic, the combinational logic alone is 1.910 ns with no room for further route-delay reduction below the 3.333 ns budget.
+
+**Root cause:** 8×8 LUT multiply is inherently a ≈2-cycle operation at 300 MHz. Vivado did not infer DSP48E1 (8-bit operands fall below the automatic inference threshold). DSP48E1 can perform this multiply in a single registered cycle well above 400 MHz on Kintex-7 -2.
+
+$$f_{max}^{(5)} = \frac{1}{3.333 + 2.251\,\text{ns}} \approx 180\,\text{MHz}$$
 
 ---
 
 ## 4. Timing Closure Path
 
-### Run 4 root-cause and next action
+### Summary of all five runs
 
-All four runs have exhibited WNS in the range −2.2 to −2.3 ns, and the critical path has shifted with each pipeline addition:
+Every run has produced WNS in the range −2.2 to −2.3 ns. Each RTL or constraint fix has moved the critical path to a different sub-module, but the population of failing paths (≥ 122 endpoints) means no single-path fix will close timing — the achievable frequency in pure LUT/CARRY4 fabric is ≈ 180 MHz.
 
-| Run | Fixed | New critical path |
-|-----|-------|-------------------|
-| 1→2 | fp32_acc CARRY4 monolithic block | itch_parser→feature_extractor combinational decode |
-| 2→3 | itch_field_extract registered boundary | fp32_acc A-stage feedback (`partial_sum_r`→`acc_fb`→`aligned_small_r`) |
-| 3→4 | fp32_acc A-stage split A0+A1 | fp32_acc Stage B: mantissa add + normalize combined (14 levels) |
+| Run | Fix applied | New critical path |
+|-----|------------|-------------------|
+| 1→2 | fp32_acc monolithic → 3-stage pipeline | itch_parser→feature_extractor combinational decode |
+| 2→3 | itch_field_extract registered boundary | fp32_acc A-stage feedback (partial_sum_r→acc_fb→aligned_small_r) |
+| 3→4 | fp32_acc A-stage split A0+A1 | fp32_acc Stage B: mantissa add + normalize combined |
+| 4→5 | PBLOCK to compact fp32_acc placement | weight_mem→bfloat16_mul: 8×8 mantissa multiply (CARRY4×6) |
 
-The root cause is now the **Stage B add+normalize block**: a 24-bit mantissa add (CARRY4 chain) chained with a full normalization MUX tree (7× LUT6 levels) executed in one 3.333 ns clock cycle. This path has 1.458 ns of logic (14 levels) with 4.229 ns of routing, suggesting Vivado is spreading the normalization LUT tree across a wide placement region.
+### Next action: DSP48E1 for `bfloat16_mul` mantissa multiply
 
-### Option A — Split Stage B into B0 + B1 (recommended)
+**Root cause:** Kintex-7 DSP48E1 is purpose-built for multiplications up to 18×18 bits and can run well above 400 MHz at -2 speed grade. The bfloat16 mantissa multiply (8×8 unsigned) fits trivially. Vivado did not infer DSP48E1 automatically because the operands are sub-16-bit.
 
-**B0 (new):** Mantissa addition only → register the raw sum `sum_man_r` and carry flag `sum_ov_r`  
-**B1 (old B):** Normalization (leading-zero detect, barrel-shift, exponent update) → register `partial_sum_r`
+**Fix:** Add `(* use_dsp = "yes" *)` attribute to the mantissa product computation in `bfloat16_mul.sv`, and pipeline the multiply with one register stage (DSP48E1 PREG=1). This eliminates the 6-stage CARRY4 chain entirely.
 
-| Sub-path | Logic budget | Est. delay |
-|----------|-------------|------------|
-| A1→B0: aligned_small + big_man CARRY4 chain | 4 CARRY4 | ≈ 1.2–1.5 ns |
-| B0→B1: normalization LUT tree only | 7 LUT6 levels | ≈ 1.0–1.4 ns |
+**Latency impact:** +1 cycle to the `bfloat16_mul` pipeline → `DOT_PRODUCT_LATENCY = FEATURE_VEC_LEN + 4`. All DV latency bounds +1 again.
 
-**Latency impact:** +1 drain cycle. `DOT_PRODUCT_LATENCY = FEATURE_VEC_LEN + 4`. All DV latency bounds +1 again.
+| Sub-path after fix | Estimated delay |
+|--------------------|----------------|
+| weight_mem → DSP48E1 input | ≈ 0.5–0.8 ns (registered input, short route) |
+| DSP48E1 multiply (registered PREG=1) | ≈ 1.5–2.0 ns (well within 3.333 ns) |
 
-**Escalate to:** `rtl_engineer`
+With DSP for the multiply and the PBLOCK keeping fp32_acc compact, the design should close 300 MHz or reveal the next critical path at significantly better slack than the current −2.25 ns.
 
-### Option B — PBLOCK placement constraint (backend alternative)
-
-With 74% of path delay in routing, a tight PBLOCK forcing all `u_dp_engine/u_acc/*` cells into a compact region (≈ 12×12 slices) may reduce route delay sufficiently. If route delay drops from 4.229 ns to ≤ 1.9 ns while logic stays at 1.458 ns, the path would close (1.458 + 1.9 = 3.358 ns ≤ 3.333 ns is still marginal; would need ≤ 1.8 ns route).
-
-This is a backend-only change (add to `syn/constraints_lliu_top.xdc`) and requires no DV updates. However, PBLOCK constraints are fragile: any logic growth in fp32_acc can cause placement overflow.
-
-| Option | RTL change | DV change | Risk |
-|--------|-----------|-----------|------|
-| A — Split Stage B | Yes (+1 stage) | Yes (+1 latency bound) | Low — clean pipelining |
-| B — PBLOCK | No | No | Medium — fragile if design grows |
-
-**Recommendation:** Try Option B first (zero-cost trial run); if it closes, commit the PBLOCK. If not, escalate to Option A.
+**Escalate to:** `rtl_engineer` — add `use_dsp` attribute and pipeline register to `bfloat16_mul`, update `dot_product_engine` to accommodate the +1 cycle, update `lliu_pkg` `DOT_PRODUCT_LATENCY = FEATURE_VEC_LEN + 4`.
 
 | Option | Description | Estimated WNS after |
 |--------|-------------|---------------------|
@@ -203,7 +205,7 @@ The routed checkpoint (`syn/lliu_routed.dcp`) is complete and can be re-entered 
 | File | SHA / Notes |
 |------|-------------|
 | `syn/vivado_impl.tcl` | commit `200bdc6` (`itch_field_extract` registered, PR #29) |
-| `syn/reports/` | Not committed — diagnostic run only; WNS −2.217 ns result captured in this document |
+| `syn/reports/` | Not committed — diagnostic run only; WNS −2.217 ns captured in this document |
 
 ### Run 4
 
@@ -211,6 +213,14 @@ The routed checkpoint (`syn/lliu_routed.dcp`) is complete and can be re-entered 
 |------|-------------|
 | `syn/vivado_impl.tcl` | commit `223a498` (fp32_acc 4-stage A0+A1 split, PR #31) |
 | `syn/constraints_lliu_top.xdc` | commit `223a498` — unchanged from Run 1 |
+| `syn/reports/` | Superseded by Run 5; WNS −2.307 ns data retained in this document |
+
+### Run 5
+
+| File | SHA / Notes |
+|------|-------------|
+| `syn/vivado_impl.tcl` | commit `6b03819` (PBLOCK `pblock_fp32acc`, PR #34) |
+| `syn/constraints_lliu_top.xdc` | commit `6b03819` — PBLOCK added |
 | `syn/reports/utilization_synth.txt` | Post-synthesis snapshot |
 | `syn/reports/utilization.txt` | Post-implementation snapshot |
 | `syn/reports/timing.txt` | `report_timing_summary -check_timing_verbose` |
