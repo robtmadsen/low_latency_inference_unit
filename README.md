@@ -130,7 +130,7 @@ reports/v1_dut/               # Archived v1 coverage, results, waveforms
 | UVM Verification | Accellera uvm-core (IEEE 1800.2), DPI-C |
 | cocotb Verification | cocotb 2.0+, Python 3.12, NumPy |
 | RTL Synthesis | Yosys (`synth_xilinx`) + Vivado ML Standard |
-| Place & Route | Vivado ML Standard (free tier), Vivado 2025.2 on AWS EC2 `c5.4xlarge` (FPGA Developer AMI, SSH alias `lliu-par`) |
+| Place & Route | Vivado ML Standard (free tier), Vivado 2025.2 manually installed on AWS EC2 `c5.4xlarge` (FPGA Developer AMI, SSH alias `lliu-par`) |
 | Target FPGA | Xilinx Kintex-7 (`xc7k160tffg676-2`) |
 | Network Library | verilog-ethernet (Forencich) |
 | CI | GitHub Actions (Ubuntu), Verilator built from source |
@@ -255,7 +255,7 @@ The project switched to the **`xc7k160tffg676-2`**, which satisfies all requirem
 | Enough fabric | 101,440 LUTs / 600 DSP48E1 / 162 RAMB36E1 vs < 5,000 LUTs and 0 DSPs currently used |
 | Cloud P&R | AWS FPGA Developer AMI ships Vivado pre-installed; `c5.4xlarge` handles the full flow in batch mode without a GUI |
 
-P&R is run on an AWS EC2 `c5.4xlarge` instance (FPGA Developer AMI) over SSH so no local Vivado installation is needed. The RTL top module retains the `kc705_top` name from its original development context.
+P&R is run on an AWS EC2 `c5.4xlarge` instance (FPGA Developer AMI) over SSH, keeping the local machine free of a Vivado install. The FPGA Developer AMI ships with an older Vivado version; Vivado 2025.2 was manually installed on the instance to get Kintex-7 `xc7k160tffg676-2` support on the free tier. The RTL top module retains the `kc705_top` name from its original development context.
 
 - Device: `xc7k160tffg676-2`
 - Synthesis top: `lliu_top`
