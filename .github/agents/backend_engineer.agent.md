@@ -43,7 +43,7 @@ P&R runs on an AWS EC2 instance over SSH. The local machine only needs `ssh` and
 | Property | Value |
 |----------|-------|
 | Instance type | `c5.4xlarge` |
-| OS | Ubuntu (AWS default AMI) |
+| AMI | AWS FPGA Developer AMI (Ubuntu, AWS Marketplace) |
 | SSH alias | `lliu-par` (configured in `~/.ssh/config` → `ubuntu@<ec2-ip>`) |
 | Vivado path on EC2 | `/opt/Xilinx/2025.2/Vivado/bin/vivado` |
 | Repo path on EC2 | `/home/ubuntu/low_latency_inference_unit/` |

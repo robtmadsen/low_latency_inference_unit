@@ -130,7 +130,7 @@ reports/v1_dut/               # Archived v1 coverage, results, waveforms
 | UVM Verification | Accellera uvm-core (IEEE 1800.2), DPI-C |
 | cocotb Verification | cocotb 2.0+, Python 3.12, NumPy |
 | RTL Synthesis | Yosys (`synth_xilinx`) + Vivado ML Standard |
-| Place & Route | Vivado ML Standard (free tier), Vivado 2025.2 on EC2 (`c5.4xlarge`, SSH alias `lliu-par`) |
+| Place & Route | Vivado ML Standard (free tier), Vivado 2025.2 on AWS EC2 `c5.4xlarge` (FPGA Developer AMI, SSH alias `lliu-par`) |
 | Target FPGA | Xilinx Kintex-7 (`xc7k160tffg676-2`) |
 | Network Library | verilog-ethernet (Forencich) |
 | CI | GitHub Actions (Ubuntu), Verilator built from source |
@@ -245,7 +245,7 @@ Full micro-architectural specification: [`.github/arch/kintex-7/Kintex-7_MAS.md`
 
 - Device: `xc7k160tffg676-2`
 - Synthesis top: `lliu_top`
-- Toolchain: Yosys (pre-Vivado utilization preview) → Vivado ML Standard 2025.2 (synthesis, P&R, bitstream), running on EC2 via SSH (`lliu-par`)
+- Toolchain: Yosys (pre-Vivado utilization preview) → Vivado ML Standard 2025.2 (synthesis, P&R, bitstream), running on AWS EC2 `c5.4xlarge` (FPGA Developer AMI) via SSH (`lliu-par`)
 - Constraints: `syn/constraints_lliu_top.xdc` (300 MHz clock, false paths on all AXI I/Os)
 - Timing target: 300 MHz; fallback to 250 MHz if `dot_product_engine` DSP routing fails — a stable 250 MHz with zero slack violations is preferable to an unreliable 300 MHz clock
 
