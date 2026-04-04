@@ -1,8 +1,9 @@
 // bfloat16_mul.sv — bfloat16 multiplier producing float32 result
 //
 // Takes two bfloat16 operands and produces a float32 product.
-// One registered output stage: result is valid 1 cycle after inputs.
-// Intended to help Kintex-7 Synthesis meet 300 MHz timing via DSP48E1 P-register.
+// Two registered pipeline stages: result is valid 2 cycles after inputs.
+// Stage 1: 8×8 mantissa multiply → man_product_r (maps to DSP48E1 P-register via use_dsp="yes")
+// Stage 2: normalize + assemble → result
 //
 // bfloat16 format: [15] sign | [14:7] exponent (8-bit, bias 127) | [6:0] mantissa (7-bit, implicit leading 1)
 // float32 format:  [31] sign | [30:23] exponent (8-bit, bias 127) | [22:0] mantissa (23-bit, implicit leading 1)
@@ -40,19 +41,37 @@ module bfloat16_mul (
     logic r_sign;
     assign r_sign = a_sign ^ b_sign;
 
-    // Mantissa multiply: 8-bit × 8-bit = 16-bit product
-    // Format: if both normalized, product is [1.xxx] × [1.yyy] = [01.xx...] or [1x.xx...]
-    logic [15:0] man_product;
-    assign man_product = a_man * b_man;
-
     // Exponent sum with bias correction
     // Result exponent = a_exp + b_exp - bias
     // Use wider intermediate to detect overflow/underflow
     logic [9:0] exp_sum;
     assign exp_sum = {2'b0, a_exp} + {2'b0, b_exp} - 10'd127;
 
+    // Stage 1 registered signals — capture multiply result and auxiliaries for Stage 2
+    (* use_dsp = "yes" *) logic [15:0] man_product_r;
+    logic        a_zero_r, b_zero_r;
+    logic [9:0]  exp_sum_r;
+    logic        r_sign_r;
+
+    // Stage 1: register multiply inputs/product (DSP48E1 P-register) and auxiliary signals
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            man_product_r <= '0;
+            a_zero_r      <= 1'b1;
+            b_zero_r      <= 1'b1;
+            exp_sum_r     <= '0;
+            r_sign_r      <= 1'b0;
+        end else begin
+            man_product_r <= a_man * b_man;
+            a_zero_r      <= a_zero;
+            b_zero_r      <= b_zero;
+            exp_sum_r     <= exp_sum;
+            r_sign_r      <= r_sign;
+        end
+    end
+
     // Normalize: check if product has a leading 1 in bit [15]
-    // If man_product[15] == 1: shift right by 1, increment exponent
+    // If man_product_r[15] == 1: shift right by 1, increment exponent
     // Otherwise: no shift needed
     /* verilator coverage_off */  // declaration — no executable code
     logic        norm_shift;
@@ -61,31 +80,31 @@ module bfloat16_mul (
     logic [9:0]  r_exp_wide;
     logic [7:0]  r_exp;
 
-    assign norm_shift = man_product[15];
+    assign norm_shift = man_product_r[15];
 
     always_comb begin
-        if (a_zero || b_zero) begin
+        if (a_zero_r || b_zero_r) begin
             // Zero result
             r_man      = 23'b0;
             r_exp_wide = 10'b0;
         end else if (norm_shift) begin
             // Product >= 2.0 in fixed point, shift right, bump exponent
-            // man_product[15:1] is 15 bits; we need 23 mantissa bits for float32
+            // man_product_r[15:1] is 15 bits; we need 23 mantissa bits for float32
             // Place the 14 significant bits (excluding implicit 1) into top of mantissa
-            r_man      = {man_product[14:1], 9'b0};
-            r_exp_wide = exp_sum + 10'd1;
+            r_man      = {man_product_r[14:1], 9'b0};
+            r_exp_wide = exp_sum_r + 10'd1;
         end else begin
             // Product < 2.0, no shift
-            // man_product[14:0] is 15 bits; bit [14] is the implicit 1
+            // man_product_r[14:0] is 15 bits; bit [14] is the implicit 1
             // Place the 13 significant bits into top of mantissa
-            r_man      = {man_product[13:0], 9'b0};
-            r_exp_wide = exp_sum;
+            r_man      = {man_product_r[13:0], 9'b0};
+            r_exp_wide = exp_sum_r;
         end
     end
 
     // Clamp exponent
     always_comb begin
-        if (a_zero || b_zero) begin
+        if (a_zero_r || b_zero_r) begin
             r_exp = 8'b0;
         /* verilator coverage_off */  // unreachable: int_to_bf16 features always have exp≥127, so exp_sum≥0
         end else if (r_exp_wide[9]) begin
@@ -102,10 +121,10 @@ module bfloat16_mul (
 
     // Assemble float32 result (combinational)
     logic result_is_zero;
-    assign result_is_zero = a_zero || b_zero || (r_exp == 8'b0 && !a_zero && !b_zero);
+    assign result_is_zero = a_zero_r || b_zero_r || (r_exp == 8'b0 && !a_zero_r && !b_zero_r);
 
     float32_t result_comb;
-    assign result_comb = result_is_zero ? {r_sign, 31'b0} : {r_sign, r_exp, r_man};
+    assign result_comb = result_is_zero ? {r_sign_r, 31'b0} : {r_sign_r, r_exp, r_man};
 
     // Output register: 1-cycle latency, enables DSP48E1 P-register inference
     always_ff @(posedge clk) begin

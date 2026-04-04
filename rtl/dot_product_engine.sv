@@ -3,15 +3,15 @@
 // Sequencing FSM: IDLE → COMPUTE (iterate over elements) → DRAIN → DONE
 //
 // Pipeline stages added for Kintex-7 300 MHz timing closure:
-//   bfloat16_mul: 1 registered output cycle (P-register)
+//   bfloat16_mul: 2 registered output cycles (Stage 1: DSP48E1 multiply, Stage 2: normalize)
 //   fp32_acc:     4-stage accumulator (Stage A0: exp compare, Stage A1: align, Stage B: add/norm, Stage C: commit)
 //
-// Because bfloat16_mul has 1-cycle latency, acc_en is driven by
-// feature_valid_d1 (1-cycle delayed from feature_valid).  After all
-// VEC_LEN elements have been consumed, the FSM enters S_DRAIN for 3
-// cycles to flush the four fp32_acc stages before asserting
+// Because bfloat16_mul has 2-cycle latency, acc_en is driven by
+// feature_valid_d2 (2-cycle delayed from feature_valid).  After all
+// VEC_LEN elements have been consumed, the FSM enters S_DRAIN for 5
+// cycles (drain_cnt 0→1→2→3→4) to flush the pipeline before asserting
 // result_valid.  Total latency from first feature_valid to result_valid
-// is 8 cycles at VEC_LEN = 4.
+// is VEC_LEN + 5 cycles at VEC_LEN = 4.
 
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
@@ -48,10 +48,11 @@ module dot_product_engine #(
 
     state_t state, state_next;
     logic [$clog2(VEC_LEN+1)-1:0] elem_cnt, elem_cnt_next;
-    logic [1:0] drain_cnt, drain_cnt_next; // 2-bit: counts 0 → 1 → 2 → 3 (4 DRAIN cycles)
+    logic [2:0] drain_cnt, drain_cnt_next; // 3-bit: counts 0 → 1 → 2 → 3 → 4 (5 DRAIN cycles)
 
-    // feature_valid delayed by 1 cycle: used to assert acc_en after mul pipeline
+    // feature_valid delayed by 1 and 2 cycles: used to assert acc_en after 2-cycle mul pipeline
     logic feature_valid_d1;
+    logic feature_valid_d2;
 
     // bfloat16_mul instance signals
     bfloat16_t mul_a, mul_b;
@@ -99,14 +100,14 @@ module dot_product_engine #(
                 if (start) begin
                     state_next     = S_COMPUTE;
                     elem_cnt_next  = '0;
-                    drain_cnt_next = 2'd0;
+                    drain_cnt_next = 3'd0;
                     acc_clear      = 1'b1;
                 end
             end
 
             S_COMPUTE: begin
-                // acc_en fires on delayed feature_valid (1 cycle after mul input)
-                if (feature_valid_d1) begin
+                // acc_en fires on delayed feature_valid (2 cycles after mul input)
+                if (feature_valid_d2) begin
                     acc_en = 1'b1;
                 end
                 // elem_cnt advances on the raw feature_valid
@@ -114,27 +115,34 @@ module dot_product_engine #(
                     elem_cnt_next = elem_cnt + 1;
                     if (elem_cnt == VEC_LEN[$clog2(VEC_LEN+1)-1:0] - 1) begin
                         state_next     = S_DRAIN;
-                        drain_cnt_next = 2'd0;
+                        drain_cnt_next = 3'd0;
                     end
                 end
             end
 
             S_DRAIN: begin
-                // drain_cnt=0: fire acc_en for the last element's mul output
-                // (feature_valid_d1 is still 1 from the last COMPUTE cycle)
-                if (drain_cnt == 2'd0) begin
-                    if (feature_valid_d1) begin
+                // drain_cnt=0: bfloat16_mul Stage 2 still computing (man_product_r → normalize).
+                // feature_valid_d2 is 1 here for the penultimate element;
+                // acc_en fires to feed the penultimate element into fp32_acc.
+                if (drain_cnt == 3'd0) begin
+                    if (feature_valid_d2) begin
                         acc_en = 1'b1;
                     end
-                    drain_cnt_next = 2'd1;
-                end else if (drain_cnt == 2'd1) begin
-                    // Stage A1 of fp32_acc (alignment) fires this cycle
-                    drain_cnt_next = 2'd2;
-                end else if (drain_cnt == 2'd2) begin
-                    // Stage B of fp32_acc (add/norm) fires this cycle
-                    drain_cnt_next = 2'd3;
+                    drain_cnt_next = 3'd1;
+                end else if (drain_cnt == 3'd1) begin
+                    // Last element's bfloat16_mul result arrives; feed into fp32_acc.
+                    if (feature_valid_d2) begin
+                        acc_en = 1'b1;
+                    end
+                    drain_cnt_next = 3'd2;
+                end else if (drain_cnt == 3'd2) begin
+                    // Stage A1 of fp32_acc (alignment) fires this cycle.
+                    drain_cnt_next = 3'd3;
+                end else if (drain_cnt == 3'd3) begin
+                    // Stage B of fp32_acc (add/norm) fires this cycle.
+                    drain_cnt_next = 3'd4;
                 end else begin
-                    // drain_cnt=3: Stage C of fp32_acc commits final sum;
+                    // drain_cnt=4: Stage C of fp32_acc commits final sum;
                     // result will be stable in acc_reg when we enter S_DONE.
                     state_next = S_DONE;
                 end
@@ -158,15 +166,16 @@ module dot_product_engine #(
         if (rst) begin
             state             <= S_IDLE;
             elem_cnt          <= '0;
-            drain_cnt         <= 2'd0;
+            drain_cnt         <= 3'd0;
             feature_valid_d1  <= 1'b0;
+            feature_valid_d2  <= 1'b0;
         end else begin
             state    <= state_next;
             elem_cnt <= elem_cnt_next;
             drain_cnt <= drain_cnt_next;
-            // feature_valid_d1: register feature_valid when in COMPUTE state so
-            // acc_en fires one cycle after the mul input is presented
+            // feature_valid_d1/d2: pipeline feature_valid for 2-cycle bfloat16_mul latency
             feature_valid_d1 <= (state == S_COMPUTE) && feature_valid;
+            feature_valid_d2 <= feature_valid_d1;
         end
     end
 
