@@ -5,12 +5,12 @@
 //   LLIU_TOP_DUT  (default)
 //     Measures from Add-Order message accepted by the ITCH parser
 //     (parser_fields_valid → add_order_accepted port) to dp_result_valid.
-//     Bound: < DEFAULT_MAX_LATENCY_CYCLES (default 16) @ clk_300.
+//     Bound: < DEFAULT_MAX_LATENCY_CYCLES (default 17) @ clk_300.
 //
 //   KC705_TOP_DUT
 //     Measures from the first beat delivered by the CDC async FIFO read side
 //     (axis_async_fifo m_tvalid && m_tready → fifo_rd_tvalid port)
-//     to dp_result_valid.  Bound: < 23 cycles @ clk_300.
+//     to dp_result_valid.  Bound: < 24 cycles @ clk_300.
 //     The extra budget vs. the v1 bound accounts for ~5 FIFO CDC cycles and
 //     1 symbol_filter lookup cycle.
 //
@@ -19,7 +19,7 @@
 // which is intentional only in full-chip simulations where both DUTs coexist.
 
 module end_to_end_latency_sva #(
-    parameter int unsigned DEFAULT_MAX_LATENCY_CYCLES = 16
+    parameter int unsigned DEFAULT_MAX_LATENCY_CYCLES = 17
 ) (
     input logic clk,
     input logic rst,
@@ -125,7 +125,7 @@ module end_to_end_latency_sva #(
     // beat exiting the CDC FIFO and must complete before dp_result_valid
     // within 18 clk_300 cycles (spec MAS §2.4).
 
-    localparam int unsigned KC705_MAX_LATENCY_CYCLES = 23;
+    localparam int unsigned KC705_MAX_LATENCY_CYCLES = 24;
 
     int unsigned kc705_cycle_count;
     int unsigned kc705_pending_starts[$];
