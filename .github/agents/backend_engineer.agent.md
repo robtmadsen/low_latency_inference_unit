@@ -36,6 +36,20 @@ You own the synthesis and place-and-route flow for the LLIU project. Your scope 
 | Synthesis + P&R | Vivado ML Standard (free tier) |
 | Bitstream | Vivado `write_bitstream` |
 
+## Compute Environment
+
+P&R runs on an AWS EC2 instance over SSH. The local machine only needs `ssh` and `scp`.
+
+| Property | Value |
+|----------|-------|
+| Instance type | `c5.4xlarge` |
+| OS | Ubuntu (AWS default AMI) |
+| SSH alias | `lliu-par` (configured in `~/.ssh/config` → `ubuntu@<ec2-ip>`) |
+| Vivado path on EC2 | `/opt/Xilinx/2025.2/Vivado/bin/vivado` |
+| Repo path on EC2 | `/home/ubuntu/low_latency_inference_unit/` |
+
+> Vivado 2024.1 is not installed on the instance. Always use the 2025.2 binary path above.
+
 ## Toolchain Flow
 
 ### 1 — Pre-synthesis inspection (Yosys, optional)
@@ -50,49 +64,67 @@ grep -E "Number of|LUT|Flip|BRAM|DSP" syn/reports/utilization.txt
 - Treat all Yosys warnings about latches as errors — the RTL must be latch-free.
 - Outputs `syn/lliu.json` and `syn/lliu_synth.v` for inspection.
 
-### 2 — Synthesis + P&R (Vivado ML Standard)
+### 2 — Synthesis + P&R (Vivado ML Standard, via EC2)
 
-Create `syn/vivado_impl.tcl` (see BACKEND_PLAN_kintex-7.md Step 5.1 for the full
-script template), then run:
+`syn/vivado_impl.tcl` synthesises `lliu_top` with no external IP dependency.
+Upload any changed files and run Vivado remotely:
 
 ```sh
-export VERILOG_ETHERNET_DIR=./lib/verilog-ethernet
-vivado -mode batch -source syn/vivado_impl.tcl \
-       -tclargs ${VERILOG_ETHERNET_DIR} \
-       2>&1 | tee syn/reports/vivado.log
+# Upload updated TCL/XDC to EC2
+scp syn/vivado_impl.tcl           lliu-par:~/low_latency_inference_unit/syn/
+scp syn/constraints_lliu_top.xdc  lliu-par:~/low_latency_inference_unit/syn/
+
+# Kick off Vivado in the background on EC2
+ssh lliu-par 'cd ~/low_latency_inference_unit && \
+  nohup /opt/Xilinx/2025.2/Vivado/bin/vivado \
+    -mode batch -source syn/vivado_impl.tcl \
+    > syn/reports/vivado.log 2>&1 &'
+
+# Pull reports back once the job completes
+scp lliu-par:~/low_latency_inference_unit/syn/reports/utilization_synth.txt syn/reports/
+scp lliu-par:~/low_latency_inference_unit/syn/reports/utilization.txt       syn/reports/
+scp lliu-par:~/low_latency_inference_unit/syn/reports/timing.txt            syn/reports/
+scp lliu-par:~/low_latency_inference_unit/syn/reports/vivado.log            syn/reports/
 ```
 
-- XDC constraints live in `syn/constraints.xdc` — clock definitions, CDC exceptions,
-  Pblocks. **Update section 4 pin assignments for the actual target board.**
-- Timing closure target: **300 MHz** (`clk_300`), 250 MHz fallback.
+- **Synthesis top:** `lliu_top` (not `kc705_top`).
+- **Active constraints:** `syn/constraints_lliu_top.xdc` — 300 MHz clock (`sys_clk`, 3.333 ns period) and `set_false_path` on all AXI I/Os. `syn/constraints.xdc` is the KC705/`kc705_top` reference file — do **not** use it for `lliu_top` synthesis.
+- Timing closure target: **300 MHz**, 250 MHz fallback.
 - If Vivado cannot meet timing, report the critical path and escalate before relaxing.
 
 ### 3 — Bitstream
 
 The bitstream is generated automatically by `syn/vivado_impl.tcl` (`write_bitstream`).
-To regenerate from a saved routed checkpoint:
+To regenerate from a saved routed checkpoint on EC2:
 
 ```sh
-vivado -mode batch -source - <<'EOF'
+ssh lliu-par 'cd ~/low_latency_inference_unit && \
+  /opt/Xilinx/2025.2/Vivado/bin/vivado -mode batch -source - <<'\''EOF'\'' 
 open_checkpoint syn/lliu_routed.dcp
 write_bitstream -force syn/lliu.bit
-EOF
+EOF'
+
+# Pull bitstream back to local
+scp lliu-par:~/low_latency_inference_unit/syn/lliu.bit syn/
 ```
 
 ## `syn/` Directory Layout
 
 ```
 syn/
-  synth.ys              # Yosys synthesis script (pre-Vivado inspection)
-  vivado_impl.tcl       # Vivado synthesis + P&R + bitstream Tcl script
-  constraints.xdc       # Clock, CDC exceptions, Pblocks (update section 4 for target board)
-  lliu.json             # Yosys netlist (inspection)
-  lliu_synth.v          # Flattened Verilog (inspection only)
-  lliu_routed.dcp       # Vivado placed-and-routed checkpoint
-  lliu.bit              # Final bitstream
-  reports/              # Utilization and timing summaries
-    utilization.txt
-    timing.txt
+  synth.ys                    # Yosys synthesis script (pre-Vivado inspection)
+  vivado_impl.tcl             # Vivado synthesis + P&R + bitstream Tcl script
+  constraints_lliu_top.xdc    # Active XDC: 300 MHz clock + false paths (lliu_top target)
+  constraints.xdc             # KC705/kc705_top reference only — NOT used in synthesis
+  lliu.json                   # Yosys netlist (inspection)
+  lliu_synth.v                # Flattened Verilog (inspection only)
+  lliu_routed.dcp             # Vivado placed-and-routed checkpoint
+  lliu.bit                    # Final bitstream
+  reports/                    # Utilization and timing summaries
+    utilization_synth.txt     # Post-synthesis resource counts
+    utilization.txt           # Post-route resource counts
+    timing.txt                # Post-route timing summary (WNS/WHS)
+    vivado.log                # Full Vivado batch run log
 ```
 
 ## Performance Contract (from `.github/arch/SPEC.md`)
