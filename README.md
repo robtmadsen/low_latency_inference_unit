@@ -263,23 +263,18 @@ P&R is run on an AWS EC2 `c5.4xlarge` instance (FPGA Developer AMI) over SSH, ke
 - Constraints: `syn/constraints_lliu_top.xdc` (300 MHz clock, false paths on all AXI I/Os)
 - Timing target: 300 MHz; fallback to 250 MHz if `dot_product_engine` DSP routing fails — a stable 250 MHz with zero slack violations is preferable to an unreliable 300 MHz clock
 
-### First P&R Run Results
+### P&R Run History
 
-First place-and-route run completed (Vivado 2025.2, `lliu_top`, `xc7k160tffg676-2`). Reports committed to `syn/reports/`.
+| Run | RTL | LUTs | FFs | WNS @ 300 MHz | fmax | Critical path |
+|-----|-----|------|-----|---------------|------|---------------|
+| 1 | `fp32_acc` 1-stage | 1,599 | 417 | −6.188 ns | ≈ 105 MHz | `fp32_acc` CARRY4 chain (25 levels) |
+| 2 | `fp32_acc` 3-stage | 1,534 | 534 | −2.322 ns | ≈ 177 MHz | `itch_parser`→`feature_extractor` (18 levels) |
 
-| Metric | Value |
-|--------|-------|
-| LUTs used | 1,599 / 101,400 (1.58%) |
-| Flip-Flops | 417 |
-| DSP48E1 | 0 |
-| BRAM | 0 |
-| WNS @ 300 MHz | −6.188 ns |
-| Hold slack | Met |
-| Achieved fmax | ≈ 105 MHz |
+**Run 1 critical path:** `fp32_acc` CARRY4 chain — 25 logic levels, 9.228 ns data path. Root cause: single combinational block combining exponent compare, mantissa alignment, and accumulate add.
 
-Critical path: `fp32_acc` CARRY4 chain — 25 logic levels, 9.228 ns data path.
-Root cause: single combinational block combining exponent compare, mantissa alignment, and accumulate add.
-Fix: 3-stage pipeline for `fp32_acc` (Stage A: exp compare + align; Stage B: CARRY add + normalize; Stage C: commit) — in progress. Timing closure re-run pending.
+**Run 2 critical path** (after 3-stage `fp32_acc` fix): combinational decode path from `itch_parser` message buffer through `itch_field_extract` arithmetic into `feature_extractor/features_reg` — 18 logic levels, 5.604 ns. Fix: register the `itch_field_extract` outputs at the module boundary (escalated to `rtl_engineer`).
+
+Hold slack is met in both runs; routing is complete with 0 unrouted nets. Bitstream generation is blocked by missing board I/O pin assignments (expected).
 
 ### New RTL Modules (v2)
 
