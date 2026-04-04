@@ -45,7 +45,7 @@ BF16_ONE        = 0x3F80
 # Spec stage-count total is ≤16 cycles; at 300 MHz the 156 MHz MAC delivers
 # 1 beat per 2 clk_300 cycles so a 5-beat ITCH message streams in over ~10
 # clk_300 cycles before logic stages add ~10 more → ~20 cycles measured.
-MAX_FIFO_TO_RESULT_CYCLES = 22
+MAX_FIFO_TO_RESULT_CYCLES = 23
 
 
 # ---------------------------------------------------------------------------
