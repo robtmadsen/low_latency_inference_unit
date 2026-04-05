@@ -52,19 +52,29 @@ cd ~/low_latency_inference_unit
 On the instance, confirm prerequisites are available:
 
 ```bash
-verilator --version          # must show 5.x
-echo $UVM_HOME               # e.g. /opt/uvm-reference/src or ~/uvm-reference/src
+verilator --version          # must show 5.046 2026-02-28
+echo $UVM_HOME               # ~/uvm-reference/src
 ls $UVM_HOME/uvm_pkg.sv      # must exist
 ```
 
 If `UVM_HOME` is not already exported in `~/.bashrc`, set it before any `make` call:
 
 ```bash
-export UVM_HOME=~/uvm-reference/src   # adjust path to actual location on the instance
+export UVM_HOME=~/uvm-reference/src
 ```
 
 > All `make`, `simv`, and `python3 scripts/run_uvm_regression.py` commands shown
 > in this skill are executed **on the EC2 instance**, inside the cloned repo directory.
+
+#### One-time EC2 bootstrap (already done — do not repeat)
+
+The following setup was performed once and persists on the instance:
+
+- Verilator 5.046 built from source with `CXX=g++-11` (so `verilated.mk` uses g++-11)
+- `g++-11` installed via `ppa:ubuntu-toolchain-r/test` (Ubuntu 20.04 default g++-9 lacks C++20 `<coroutine>`)
+- UVM IEEE 1800.2-2020 cloned to `~/uvm-reference/` from `accellera-official/uvm-core`
+- `python3-dev` installed for `dpi_bridge.c` compilation
+- `/usr/local/share/verilator/include/verilated_types.h` patched to add `operator==(VlNull, T*)` and `operator!=(VlNull, T*)` (absent in 5.046, causes g++-11 type errors on virtual-interface null comparisons)
 
 ### Local macOS — NOT SUPPORTED
 
@@ -191,9 +201,17 @@ UVM report server error/fatal count; the simulation returns non-zero if any
 | `lliu_stress_test` | `lliu_stress_test.sv` | Back-to-back messages with random AXI4-Stream backpressure; checks throughput and latency bounds |
 | `lliu_error_test` | `lliu_error_test.sv` | Injects truncated, malformed-type, and garbage byte sequences; checks parser recovery and no propagation |
 | `lliu_coverage_test` | `lliu_coverage_test.sv` | Comprehensive functional coverage closure — runs all message type × price × side bins; checks coverage targets met |
+| `lliu_order_book_test` | `lliu_order_book_test.sv` | Order-book stress test — add/cancel/replace/execute + BBO query; scoreboard checks |
 
 > **`lliu_replay_test` dependency:** requires `data/tvagg_sample.bin`. If the file
 > is absent the test will hit a `UVM_FATAL` when the ITCH feeder opens the file.
+
+> **`lliu_order_book_test` requires a separate compile with `TOPLEVEL=order_book`:**
+> ```bash
+> make SIM=verilator UVM_HOME=$UVM_HOME TOPLEVEL=order_book compile
+> ```
+> Running this test against a `TOPLEVEL=lliu_top` binary will result in
+> `UVM_FATAL [NOVIF] Virtual interface not found for order_book_driver`.
 
 ---
 
