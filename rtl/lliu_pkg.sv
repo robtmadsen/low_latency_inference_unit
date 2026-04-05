@@ -53,6 +53,36 @@ package lliu_pkg;
   parameter logic [7:0] AXIL_REG_SEQ_HI        = 8'h30; // expected_seq_num[63:32]
   parameter logic [7:0] AXIL_REG_GTX_LOCK      = 8'h34; // [0] GTX PLL locked (tied 1 in sim)
 
+  // v2.0 parameters
+  parameter logic [7:0] ITCH_MSG_ADD_ORDER_MPID = 8'h46;
+  parameter logic [7:0] ITCH_MSG_ORDER_CANCEL   = 8'h58;
+  parameter logic [7:0] ITCH_MSG_ORDER_DELETE   = 8'h44;
+  parameter logic [7:0] ITCH_MSG_ORDER_REPLACE  = 8'h55;
+  parameter logic [7:0] ITCH_MSG_ORDER_EXEC     = 8'h45;
+  parameter logic [7:0] ITCH_MSG_ORDER_EXEC_PX  = 8'h43;
+  parameter logic [7:0] ITCH_MSG_TRADE          = 8'h50;
+  parameter int ITCH_ADD_ORDER_MPID_LEN = 40;
+  parameter int ITCH_ORDER_CANCEL_LEN   = 23;
+  parameter int ITCH_ORDER_DELETE_LEN   = 19;
+  parameter int ITCH_ORDER_REPLACE_LEN  = 35;
+  parameter int ITCH_ORDER_EXEC_LEN     = 30;
+  parameter int ITCH_ORDER_EXEC_PX_LEN  = 35;
+  parameter int ITCH_TRADE_LEN          = 43;
+  parameter int ITCH_MAX_MSG_LEN        = 43;
+  parameter int OB_NUM_SYMBOLS    = 500;
+  parameter int OB_LEVELS         = 16;
+  parameter int OB_REF_TABLE_BITS = 17;
+  parameter int PTP_SYNC_PERIOD  = 1024;
+  parameter int PTP_SUBCNT_WIDTH = 10;
+  parameter int SYM_FILTER_ENTRIES = 512;
+  parameter int SYM_FILTER_IDX_W   = 9;
+  parameter logic [7:0] AXIL_REG_CAM_INDEX_HI   = 8'h38;
+  parameter logic [7:0] AXIL_REG_HIST_ADDR       = 8'h3C;
+  parameter logic [7:0] AXIL_REG_HIST_DATA       = 8'h40;
+  parameter logic [7:0] AXIL_REG_HIST_CLEAR      = 8'h44;
+  parameter logic [7:0] AXIL_REG_COLLISION_COUNT = 8'h48;
+  parameter logic [7:0] AXIL_REG_HIST_OVERFLOW   = 8'h4C;
+
   // Typedef for bfloat16 packed representation
   typedef logic [BF16_WIDTH-1:0] bfloat16_t;
 
