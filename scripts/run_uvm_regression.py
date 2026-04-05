@@ -49,16 +49,24 @@ ALL_TESTS = [
     "lliu_coverage_test",
 ]
 
+# Tests that require a separate compilation with a different TOPLEVEL.
+# Each entry: (toplevel_name, [test_names])
+EXTRA_TOPLEVEL_TESTS = [
+    # Phase 1 v2.0 — order book stress (needs TOPLEVEL=order_book for DUT ifdef)
+    ("order_book", ["lliu_order_book_test"]),
+]
+
 
 # ---------------------------------------------------------------------------
 # Compile
 # ---------------------------------------------------------------------------
 
-def compile_uvm() -> bool:
-    """Run make compile. Returns True on success."""
-    print("Compiling UVM testbench...")
+def compile_uvm(toplevel: str = "lliu_top") -> bool:
+    """Run make compile for the given TOPLEVEL. Returns True on success."""
+    print(f"Compiling UVM testbench (TOPLEVEL={toplevel})...")
     result = subprocess.run(
-        ["make", "SIM=verilator", f"UVM_HOME={UVM_HOME}", "compile"],
+        ["make", "SIM=verilator", f"UVM_HOME={UVM_HOME}",
+         f"TOPLEVEL={toplevel}", "compile"],
         cwd=UVM_DIR,
         capture_output=True,
         text=True,
@@ -222,7 +230,10 @@ def main() -> int:
 
     if args.no_run:
         print("--no-run: parsing existing log files\n")
-        for test_name in ALL_TESTS:
+        all_test_names = list(ALL_TESTS)
+        for _, names in EXTRA_TOPLEVEL_TESTS:
+            all_test_names.extend(names)
+        for test_name in all_test_names:
             log_path = LOG_DIR / f"{test_name}.log"
             if log_path.exists():
                 print(f"  {test_name} ... ", end="", flush=True)
@@ -230,6 +241,7 @@ def main() -> int:
             else:
                 print(f"  {test_name} ... MISSING LOG — skipped")
     else:
+        # --- Default toplevel tests --------------------------------------
         if not args.no_compile:
             if not compile_uvm():
                 return 2
@@ -241,6 +253,29 @@ def main() -> int:
         print("Running tests:\n")
         for test_name in ALL_TESTS:
             results.append(run_test(test_name))
+
+        # --- Extra toplevel groups (Phase 1 v2.0 order_book, etc.) ------
+        for toplevel, test_names in EXTRA_TOPLEVEL_TESTS:
+            print(f"\nCompiling extra group (TOPLEVEL={toplevel}):")
+            if not args.no_compile:
+                if not compile_uvm(toplevel):
+                    # Mark all tests in this group as failed
+                    for test_name in test_names:
+                        results.append({
+                            "name": test_name, "passed": False, "failed": True,
+                            "verdict": "FAILED", "errors": 1, "warnings": 0,
+                            "fatals": 0, "sim_time_ns": "", "exit_code": 2,
+                            "failure_msg": f"Compilation failed for TOPLEVEL={toplevel}",
+                        })
+                    continue
+
+            if not SIMV.exists():
+                print(f"  ERROR: simv not found after {toplevel} compile.")
+                continue
+
+            print(f"Running {toplevel} tests:\n")
+            for test_name in test_names:
+                results.append(run_test(test_name))
 
     build_report(results, output_path)
 

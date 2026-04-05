@@ -29,6 +29,17 @@ else ifeq ($(TOPLEVEL),moldupp64_strip)
     VERILOG_SOURCES += $(RTL_DIR)/moldupp64_strip.sv
 else ifeq ($(TOPLEVEL),symbol_filter)
     VERILOG_SOURCES += $(RTL_DIR)/symbol_filter.sv
+else ifeq ($(TOPLEVEL),itch_parser_v2)
+    VERILOG_SOURCES += $(RTL_DIR)/itch_parser_v2.sv
+else ifeq ($(TOPLEVEL),order_book)
+    VERILOG_SOURCES += $(RTL_DIR)/order_book.sv
+    EXTRA_ARGS += -Wno-MULTIDRIVEN
+else ifeq ($(TOPLEVEL),ptp_core)
+    VERILOG_SOURCES += $(RTL_DIR)/ptp_core.sv
+else ifeq ($(TOPLEVEL),timestamp_tap)
+    VERILOG_SOURCES += $(RTL_DIR)/timestamp_tap.sv
+else ifeq ($(TOPLEVEL),latency_histogram)
+    VERILOG_SOURCES += $(RTL_DIR)/latency_histogram.sv
 else ifeq ($(TOPLEVEL),eth_axis_rx_wrap)
     VERILOG_SOURCES += $(RTL_DIR)/eth_axis_rx_wrap.sv
     # eth_axis_rx_wrap instantiates Forencich eth_axis_rx internally
@@ -115,7 +126,11 @@ COV_TESTS  := \
 	fp32_acc:test_fp32_acc_edge \
 	axi4_lite_slave:test_axil_regmap \
 	lliu_top:test_wgtmem_outbuf \
-	lliu_top:test_integration_sweep
+	lliu_top:test_integration_sweep \
+	order_book:test_order_book \
+	order_book:test_order_book_collision \
+	ptp_core:test_ptp \
+	latency_histogram:test_histogram
 
 .PHONY: coverage-run coverage-merge coverage-report coverage-clean
 

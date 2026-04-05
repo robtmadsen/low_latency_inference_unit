@@ -32,10 +32,12 @@ RTL_SRC   := $(filter-out $(RTL_PKG), $(wildcard $(RTL_DIR)/*.sv))
 # ---- UVM testbench files ----
 TB_IFS    := $(TB_DIR)/axi4_stream_if.sv \
              $(TB_DIR)/axi4_lite_if.sv \
-             $(TB_DIR)/kc705_ctrl_if.sv
+             $(TB_DIR)/kc705_ctrl_if.sv \
+             $(TB_DIR)/order_book_if.sv
 
 TB_PKGS   := $(TB_DIR)/agents/axi4_stream_agent/axi4_stream_agent_pkg.sv \
              $(TB_DIR)/agents/axi4_lite_agent/axi4_lite_agent_pkg.sv \
+             $(TB_DIR)/agents/order_book_agent/order_book_agent_pkg.sv \
              $(TB_DIR)/env/lliu_env_pkg.sv \
              $(TB_DIR)/sequences/lliu_seq_pkg.sv \
              $(TB_DIR)/tests/lliu_test_pkg.sv
@@ -52,6 +54,9 @@ TB_PERF   := $(wildcard $(TB_DIR)/perf/*.sv)
 DPI_SRC   := $(TB_DIR)/golden_model/dpi_bridge.c
 GM_PY     := $(TB_DIR)/golden_model/golden_model.py
 
+# ---- Forencich verilog-ethernet library (required by eth_axis_rx_wrap) ----
+LIB_VER_ETH := $(PROJ_ROOT)/lib/verilog-ethernet/rtl/eth_axis_rx.v
+
 # ---- Python configuration (for DPI-C) ----
 PYTHON    ?= python3
 PY_VER    := $(shell $(PYTHON) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
@@ -63,7 +68,7 @@ PY_LDFLAGS:= $(shell $(PYTHON)-config --ldflags --embed 2>/dev/null || echo "-L$
 BUILD_DIR := $(TB_DIR)/sim_build/$(SIM)
 
 # ---- All SV sources in compile order ----
-ALL_SV    := $(RTL_PKG) $(RTL_SRC) $(TB_IFS) $(TB_PKGS) $(TB_SVA) $(TB_PERF) $(TB_TOP)
+ALL_SV    := $(RTL_PKG) $(RTL_SRC) $(LIB_VER_ETH) $(TB_IFS) $(TB_PKGS) $(TB_SVA) $(TB_PERF) $(TB_TOP)
 
 # ==============================================================================
 # VCS
@@ -166,6 +171,9 @@ else ifeq ($(TOPLEVEL),symbol_filter)
 VL_FLAGS   += +define+SYMFILTER_DUT
 else ifeq ($(TOPLEVEL),eth_axis_rx_wrap)
 VL_FLAGS   += +define+DROPFULL_DUT
+else ifeq ($(TOPLEVEL),order_book)
+VL_FLAGS   += +define+ORDER_BOOK_DUT
+VL_FLAGS   += -Wno-MULTIDRIVEN
 else
 VL_FLAGS   += +define+LLIU_TOP_DUT
 endif
@@ -173,7 +181,7 @@ endif
 UVM_PKG    := $(UVM_HOME)/uvm_pkg.sv
 
 # All SV sources in compile order: RTL, interfaces, packages, tb_top.
-VL_SV      := $(RTL_PKG) $(RTL_SRC) $(TB_IFS) $(TB_PKGS) $(TB_SVA) $(TB_PERF) $(TB_TOP)
+VL_SV      := $(RTL_PKG) $(RTL_SRC) $(LIB_VER_ETH) $(TB_IFS) $(TB_PKGS) $(TB_SVA) $(TB_PERF) $(TB_TOP)
 
 .PHONY: compile run clean help
 

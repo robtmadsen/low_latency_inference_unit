@@ -37,3 +37,6 @@ JDs/
 !.github/agents/
 !.github/arch/
 !.github/plan/
+
+# SSH key files
+*.pem
