@@ -61,8 +61,12 @@ LIB_VER_ETH := $(PROJ_ROOT)/lib/verilog-ethernet/rtl/eth_axis_rx.v
 PYTHON    ?= python3
 PY_VER    := $(shell $(PYTHON) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 PY_PREFIX := $(shell $(PYTHON) -c "import sys; print(sys.prefix)")
-PY_CFLAGS := $(shell $(PYTHON)-config --cflags 2>/dev/null || echo "-I$(PY_PREFIX)/include/python$(PY_VER)")
-PY_LDFLAGS:= $(shell $(PYTHON)-config --ldflags --embed 2>/dev/null || echo "-L$(PY_PREFIX)/lib -lpython$(PY_VER)")
+# Use sysconfig for include path to avoid distro-injected flags (e.g. -specs=no-pie)
+# that cause PIE relocation conflicts on Ubuntu 20.04 + g++-11.
+PY_INC    := $(shell $(PYTHON) -c "import sysconfig; print(sysconfig.get_path('include'))")
+PY_LIBDIR := $(shell $(PYTHON) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR') or '')")
+PY_CFLAGS := -I$(PY_INC)
+PY_LDFLAGS:= -L$(PY_LIBDIR) -lpython$(PY_VER) -lpthread -ldl -lutil -lm
 
 # ---- Build directory ----
 BUILD_DIR := $(TB_DIR)/sim_build/$(SIM)
