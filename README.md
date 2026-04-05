@@ -2,29 +2,123 @@
 
 [![CI](https://github.com/robtmadsen/low_latency_inference_unit/actions/workflows/ci.yml/badge.svg)](https://github.com/robtmadsen/low_latency_inference_unit/actions/workflows/ci.yml)
 
-A hardware accelerator for real-time inference on streaming NASDAQ ITCH 5.0 market data, verified independently with both UVM and cocotb, and now being brought up on a Xilinx Kintex-7 XC7K160T FPGA.
+A hardware accelerator for real-time inference on streaming NASDAQ ITCH 5.0 market data, verified independently with both UVM and cocotb, and synthesized and placed-and-routed on a Xilinx Kintex-7 XC7K160T FPGA.
 
 > **100% AI-agent built.** Every RTL module, testbench, golden model, CI workflow, and this README was authored by a GitHub Copilot agent — no hand-written code.
 
-## What It Does
+---
 
-Parses live-format NASDAQ ITCH 5.0 binary data from a 10GbE feed, extracts trading features, and runs single-sample inference through a pipelined bfloat16 dot-product engine. The v1 simulation-only core has a verified full-path latency of fewer than 12 cycles at 300 MHz (final AXI4-Stream beat accepted → `dp_result_valid`). The v2 work brings the same core to real hardware via a full UDP/IP network stack.
+## v2.0 — Full HFT Trading System (Planning)
 
-**v1 — simulation core (complete)**
+Spec: [`.github/arch/kintex-7/2p0_kintex-7_MAS.md`](.github/arch/kintex-7/2p0_kintex-7_MAS.md)
+
+Expands the timing-closed inference core into a complete trading system targeting 75–85% LUT utilization of the XC7K160T. Clock derived as 312.5 MHz (156.25 × 2) from the GTP reference, eliminating async-FIFO synchronization penalty between network and application domains.
+
+### What's New Over v1 Kintex-7
+
+| Capability | v1 Kintex-7 | v2.0 |
+|------------|-------------|------|
+| Market data | ITCH Add Order only | Full ITCH 5.0 (8 message types) |
+| Order book state | None (stateless) | L3 full-depth, top 500 symbols |
+| Inference engines | 1 × LLIU | 8 × LLIU (`FEATURE_VEC_LEN=32`, `HIDDEN_LAYER=32`) |
+| Output | `dp_result_valid` flag | NASDAQ OUCH 5.0 packet out (template + hot-patch) |
+| Risk controls | None | Price band, position limits, fat-finger, kill switch |
+| Timestamping | None | 64-bit PTP v2, local sub-counter per tap (fanout mitigation) |
+| Latency visibility | Cycle-count DV only | On-chip histograms (5 ns bins, P50/P99 per core) |
+| Host interface | None | PCIe Gen2 ×4, DMA snapshot engine |
+| Clock | 300 MHz | 312.5 MHz (156.25 × 2, period = 3.2 ns) |
+| BRAM | 0 tiles | ~280 tiles (87%) — dominated by 128K-entry order-ref hash table |
+| DSP48E1 | 1 | ~550 (92%) |
+| LUT estimate | 1,172 | ~78,000 (77%) |
+
+### Phase plan
+
+| Phase | Goal | Key modules |
+|-------|------|-------------|
+| 1 | Order book + PTP measurement infrastructure | `itch_parser_v2`, `order_book`, `ptp_core`, `timestamp_tap`, `latency_histogram` |
+| 2 | OUCH output + risk controls | `feature_extractor_v2`, 8× `lliu_core`, `risk_check`, `ouch_engine` |
+| 3 | PCIe DMA + host integration | `pcie_dma_engine`, BBO snapshot, Linux driver stub |
+
+**Key timing discipline for v2:** Pblock constraints required from Run 1. DSP columns are fixed-position; 550 DSPs at 312.5 MHz will not close timing with organic placement. Each `lliu_core` gets its own clock-region Pblock; `order_book` BRAMs placed in adjacent stripe. `report_cdc` must pass zero CRITICAL/HIGH crossings before any run is accepted (§6.1 of spec).
+
+---
+
+## v1 Kintex-7 — 300 MHz P&R Timing Closed ✅
+
+**Status: Complete.** RTL changes were driven entirely by backend timing requirements (P&R iterations on `xc7k160tffg676-2`). Coverage closure and mutation testing were not performed for this iteration; those campaigns belong to the v1 simulation-core DUT below.
+
+**v1 pipeline**
 ```
 AXI4-Stream → ITCH Parser → Feature Extractor → Dot-Product Engine → Result
                                                        ↑
                                               AXI4-Lite (weights)
 ```
 
-**v2 — XC7K160T FPGA (in progress)**
+**v2 (Kintex-7) data path**
 ```
-SFP+ 10GbE → eth_mac_phy_10g → ip_complete_64 → udp_complete_64
-    → [async FIFO] → MoldUDP64 strip → Symbol Filter
+SFP+ 10GbE → eth_mac_phy_10g → [MoldUDP64 strip] → Symbol Filter
     → ITCH Parser → Feature Extractor → Dot-Product Engine → Result
 ```
 
-## RTL Architecture
+### Synthesis Target
+
+Original v2 target was the KC705 board (`xc7k325tffg900-2`). Two blockers disqualified it:
+
+1. **Vivado licensing.** `xc7k325t` is not on the Vivado ML Standard free device list.
+2. **No open-source P&R path.** nextpnr-xilinx/Project X-Ray has no `xc7k325t` database.
+
+Switched to **`xc7k160tffg676-2`**: on the Vivado ML Standard free list, has GTX transceivers for 10GBASE-R SFP+, and is supported by the AWS FPGA Developer AMI. P&R runs on an EC2 `c5.4xlarge` over SSH (`lliu-par`), with Vivado 2025.2 manually installed.
+
+- Synthesis top: `lliu_top` (RTL module) / `kc705_top` (chip-level wrapper, name kept from original development)
+- Toolchain: Yosys (pre-Vivado utilization preview) → Vivado ML Standard 2025.2
+- Constraints: `syn/constraints_lliu_top.xdc` (300 MHz clock, false paths on all AXI I/Os)
+- Timing target: 300 MHz — **closed at Run 10** (WNS +0.001 ns, 0 failing endpoints)
+
+### RTL Changes Were Backend-Driven
+
+All RTL changes in this iteration existed solely to close timing — no new functional behaviour was added.
+
+| Change | Reason |
+|--------|--------|
+| `fp32_acc`: 1-stage → 3-stage (A0, A1, B combined) | 25-level CARRY4 chain in Run 1 |
+| `itch_field_extract`: add output register | 18-level combinational decode path in Run 2 |
+| `fp32_acc`: 4-stage split (A0, A1 explicit) | A-feedback through alignment barrel shift in Run 3 |
+| PBLOCK on `fp32_acc` instance | Stage A1→B routing congestion (74% route delay) in Run 4 |
+| `bfloat16_mul`: `(* use_dsp = "yes" *)` + pipeline reg | LUT/CARRY4 8×8 multiply; Vivado wouldn't infer DSP48E1 automatically in Run 5 |
+| `feature_extractor`: 2-stage pipeline | 17-level price CARRY4 arithmetic in Run 6 |
+| `fp32_acc`: 5-stage (B1 + B2 split) | Stage B adder+normalize combined (15 levels) in Run 7 |
+| `feature_extractor`: 3-stage (2a magnitude + 2b normalize) | Stage 2 CARRY4×5 + LUT×9 combined (14 levels) in Run 8 |
+| `vivado_impl.tcl`: post-route `phys_opt_design -directive AggressiveExplore` | fo=24 routing net in Stage 2b (4 endpoints, WNS −0.068 ns) in Run 9 |
+
+### P&R Run History
+
+| Run | RTL | LUTs | FFs | WNS @ 300 MHz | Critical path |
+|-----|-----|------|-----|---------------|---------------|
+| 1 | `fp32_acc` 1-stage | 1,599 | 417 | −6.188 ns | `fp32_acc` CARRY4 chain (25 levels) |
+| 2 | `fp32_acc` 3-stage | 1,534 | 534 | −2.322 ns | `itch_parser`→`feature_extractor` (18 levels) |
+| 3 | `itch_field_extract` reg. | — | — | −2.217 ns | `fp32_acc` A-feedback (`partial_sum_r`→`aligned_small_r`) |
+| 4 | `fp32_acc` 4-stage (A0+A1) | 1,466 | 700 | −2.307 ns | Stage A1→B: add+normalize (14 levels, 74% route) |
+| 5 | PBLOCK `u_acc/*` | 1,460 | 697 | −2.251 ns | `bfloat16_mul` mantissa multiply (13 levels) |
+| 6 | `bfloat16_mul` DSP48E1 | 1,378 | 706 | −2.142 ns | `feature_extractor` price CARRY4 (17 levels) |
+| 7 | `feature_extractor` 2-stage | — | — | −1.852 ns | `fp32_acc` Stage B: adder+normalize (15 levels, 5.065 ns) |
+| 8 | `fp32_acc` 5-stage (B1+B2) | — | — | −1.322 ns | `feature_extractor` Stage 2: magnitude+normalize (14 levels) |
+| 9 | `feature_extractor` 3-stage (2a+2b) | 1,172 | 932 | −0.068 ns | Stage 2b fo=24 routing (7 levels, 83% route) |
+| **10** | Post-route phys_opt | **1,172** | **932** | **+0.001 ns** | **✅ TIMING CLOSED — 0 failing endpoints** |
+
+Final utilization: **1,172 LUTs (1.16%), 932 FFs (0.46%), 1 DSP48E1 (0.17%), 0 BRAM, CARRY4=47**.
+
+### New RTL Modules (v1 Kintex-7)
+
+| Module | Description |
+|--------|-------------|
+| `moldupp64_strip` | Runs at 156.25 MHz. Strips 20-byte MoldUDP64 header; validates sequence numbers; drops duplicates/malformed datagrams; exposes `seq_num` via AXI4-Lite |
+| `eth_axis_rx_wrap` | Wraps Forencich `eth_axis_rx`; asserts drop-on-full when `axis_async_fifo.almost_full` is high; increments `dropped_frames` counter |
+| `symbol_filter` | LUT-CAM: 64 × 64-bit registers, parallel equality reduction, single-cycle `watchlist_hit`; loaded via AXI4-Lite |
+| `kc705_top` | Chip-level top: GTX pins, MMCM (300/250 MHz), dual sync-resets, Forencich network stack, LLIU core |
+
+---
+
+## Shared RTL Architecture
 
 | Module | Description |
 |--------|-------------|
@@ -83,9 +177,9 @@ GitHub Actions runs on every push and PR to `main`. All jobs use Verilator 5.046
 | **cocotb** | 7-job test matrix (block-level + system-level) via cocotb 2.0 + Verilator |
 | **uvm** | Compile + run `lliu_base_test` and `lliu_smoke_test` with the bound end-to-end latency checker via Verilator |
 
-Primary performance contract in CI:
+Primary performance contract in CI (v1 simulation core):
 
-- Full hardware datapath latency: final AXI4-Stream beat accepted to `dp_result_valid` in fewer than 12 cycles
+- Full hardware datapath latency: final AXI4-Stream beat accepted to `dp_result_valid` in fewer than 18 cycles (5-stage `fp32_acc`, 3-stage `feature_extractor`)
 - Stage-level latency: `parser_fields_valid` to `feat_valid` in fewer than 5 cycles
 
 Waveforms (VCD) are uploaded as artifacts on UVM test failure.
@@ -109,7 +203,8 @@ data/
 │   │   ├── COCOTB_ARCH.md    # cocotb testbench architecture
 │   │   └── UVM_ARCH.md       # UVM testbench architecture
 │   └── kintex-7/
-│       └── Kintex-7_MAS.md   # KC705 micro-architectural spec
+│       ├── Kintex-7_MAS.md       # v1 Kintex-7 micro-arch spec
+│       └── 2p0_kintex-7_MAS.md  # v2.0 full system spec (planning)
 ├── plan/                     # Per-target implementation plans
 │   └── kintex-7/
 │       ├── RTL_PLAN_kintex-7.md
@@ -135,9 +230,9 @@ reports/v1_dut/               # Archived v1 coverage, results, waveforms
 | Network Library | verilog-ethernet (Forencich) |
 | CI | GitHub Actions (Ubuntu), Verilator built from source |
 
-## v1 DUT — First Iteration Complete
+## v1 Simulation Core — First DUT Iteration ✅
 
-The first complete DUT iteration is archived under [`reports/v1_dut/`](reports/v1_dut/).
+Archived under [`reports/v1_dut/`](reports/v1_dut/). This was a simulation-only design; coverage closure and mutation testing were performed here before any FPGA backend work began.
 
 ### What It Was
 
@@ -210,111 +305,9 @@ Full campaign notes: [`reports/v1_dut/bug_detection.md`](reports/v1_dut/bug_dete
 
 ---
 
-## v2 DUT — Kintex-7 KC705 Bring-up (In Progress)
-
-With v1 complete (100% line coverage, 10/10 mutation kill rate on both testbenches), the design is advancing to real FPGA hardware.
-
-### What's New
-
-The v1 LLIU core is unchanged. v2 wraps it in a complete 10GbE receive stack connecting an SFP+ cage to the existing ITCH parser. The network stack and pre-processing all run in the **156.25 MHz** GTX clock domain; only clean, validated ITCH data crosses the async FIFO into the **300 MHz** application domain.
-
-| Layer | Domain | Module | Role |
-|-------|--------|--------|------|
-| Physical + MAC | 156.25 MHz | `eth_mac_phy_10g` (Forencich) | 64b/66b, CRC32, GTX SERDES |
-| Ethernet RX | 156.25 MHz | `eth_axis_rx` (drop-on-full wrapper) | Frame → payload; drops whole frames when FIFO is almost full |
-| IP | 156.25 MHz | `ip_complete_64` | IPv4 checksum, multicast filter |
-| UDP | 156.25 MHz | `udp_complete_64` | Port filter → raw datagram |
-| Pre-FIFO (new) | 156.25 MHz | `moldupp64_strip` | Strip 20-byte MoldUDP64 header; validate & drop on bad/duplicate seq number |
-| CDC | crossing | `axis_async_fifo` | 156.25 MHz → 300/250 MHz; drop-on-full policy prevents MAC stall |
-| App (new) | 300/250 MHz | `symbol_filter` | LUT-CAM watchlist (64 entries, single-cycle match); gates inference engine |
-| App (existing) | 300/250 MHz | LLIU v1 core | ITCH parse → feature extract → dot-product inference → result |
-
-Full micro-architectural specification: [`.github/arch/kintex-7/Kintex-7_MAS.md`](.github/arch/kintex-7/Kintex-7_MAS.md)
-
-### Clock Domains
-
-| Domain | Frequency | Scope |
-|--------|-----------|-------|
-| `clk_156` | 156.25 MHz | GTX + Forencich network stack + pre-FIFO processing |
-| `clk_300` | 300 MHz (target) | Application hot path (LLIU core) |
-| `clk_250` | 250 MHz (fallback) | Used if 300 MHz P&R fails timing on DSP columns |
-
-### Synthesis Target
-
-The original v2 target was the KC705 board (`xc7k325tffg900-2`). During backend bring-up, two blockers disqualified it:
-
-1. **Vivado licensing.** The XC7K325T is not on the Vivado ML Standard free device list — it requires Vivado Enterprise (≈ $4,400/year).
-2. **No open-source P&R path.** The only free alternative, nextpnr-xilinx, relies on the Project X-Ray reverse-engineered bitstream database (`prjxray-db`). The XC7K325T fabric was never reverse-engineered and is absent from the database entirely, ruling out nextpnr-xilinx.
-
-The project switched to the **`xc7k160tffg676-2`**, which satisfies all requirements:
-
-| Requirement | How `xc7k160tffg676-2` meets it |
-|-------------|--------------------------------|
-| Free toolchain | On the Vivado ML Standard free device list (AMD UG973, 2025.x) |
-| 10GbE | Has GTX transceivers — supports 10GBASE-R SFP+ directly |
-| Enough fabric | 101,440 LUTs / 600 DSP48E1 / 162 RAMB36E1 vs < 5,000 LUTs and 0 DSPs currently used |
-| Cloud P&R | AWS FPGA Developer AMI ships Vivado pre-installed; `c5.4xlarge` handles the full flow in batch mode without a GUI |
-
-P&R is run on an AWS EC2 `c5.4xlarge` instance (FPGA Developer AMI) over SSH, keeping the local machine free of a Vivado install. The FPGA Developer AMI ships with an older Vivado version; Vivado 2025.2 was manually installed on the instance to get Kintex-7 `xc7k160tffg676-2` support on the free tier. The RTL top module retains the `kc705_top` name from its original development context.
-
-- Device: `xc7k160tffg676-2`
-- Synthesis top: `lliu_top`
-- Toolchain: Yosys (pre-Vivado utilization preview) → Vivado ML Standard 2025.2 (synthesis, P&R, bitstream), running on AWS EC2 `c5.4xlarge` (FPGA Developer AMI) via SSH (`lliu-par`)
-- Constraints: `syn/constraints_lliu_top.xdc` (300 MHz clock, false paths on all AXI I/Os)
-- Timing target: 300 MHz — **closed at Run 10** (WNS +0.001 ns, 0 failing endpoints)
-
-### P&R Run History
-
-| Run | RTL | LUTs | FFs | WNS @ 300 MHz | fmax | Critical path |
-|-----|-----|------|-----|---------------|------|---------------|
-| 1 | `fp32_acc` 1-stage | 1,599 | 417 | −6.188 ns | ≈ 105 MHz | `fp32_acc` CARRY4 chain (25 levels) |
-| 2 | `fp32_acc` 3-stage | 1,534 | 534 | −2.322 ns | ≈ 177 MHz | `itch_parser`→`feature_extractor` (18 levels) |
-| 3 | `itch_field_extract` reg. | — | — | −2.217 ns | ≈ 180 MHz | `fp32_acc` A-stage feedback (`partial_sum_r`→`aligned_small_r`) |
-| 4 | `fp32_acc` 4-stage (A0+A1) | 1,466 | 700 | −2.307 ns | ≈ 177 MHz | `fp32_acc` Stage A1→B: add+normalize (14 levels, 74% route) |
-| 5 | PBLOCK `u_acc/*` | 1,460 | 697 | −2.251 ns | ≈ 180 MHz | `weight_mem`→`bfloat16_mul` mantissa multiply (13 levels) |
-| 6 | `bfloat16_mul` DSP48E1 | 1,378 | 706 | −2.142 ns | ≈ 182 MHz | `itch_field_extract`→`feature_extractor` price arithmetic (17 levels) |
-| 7 | `feature_extractor` 2-stage | — | — | −1.852 ns | ≈ 193 MHz | `fp32_acc` Stage B: adder+normalize combined (15 levels, 5.065 ns) |
-| 8 | `fp32_acc` 5-stage (B1+B2) | — | — | −1.322 ns | ≈ 215 MHz | `feature_extractor` Stage 2: magnitude+normalize combined (14 levels) |
-| 9 | `feature_extractor` 3-stage (2a+2b) | 1,172 | 932 | −0.068 ns | ≈ 294 MHz | Stage 2b fo=24 routing (7 levels, 83% route, 3.390 ns) |
-| **10** | Post-route phys_opt | **1,172** | **932** | **+0.001 ns** | **>300 MHz** | **✅ TIMING CLOSED — 0 failing endpoints** |
-
-**Run 1 critical path:** `fp32_acc` CARRY4 chain — 25 logic levels, 9.228 ns data path. Root cause: single combinational block combining exponent compare, mantissa alignment, and accumulate add.
-
-**Run 2 critical path** (after 3-stage `fp32_acc` fix): combinational decode path from `itch_parser` message buffer through `itch_field_extract` arithmetic into `feature_extractor/features_reg` — 18 logic levels, 5.604 ns.
-
-**Run 3 critical path** (after `itch_field_extract` registered): `fp32_acc` feedback — `partial_sum_r` feeds back through the `acc_fb` forwarding mux into Stage A exponent compare and barrel-shift alignment. 11 logic levels, 5.418 ns.
-
-**Run 4 critical path** (after 4-stage `fp32_acc`): Stage B combined add+normalize — 24-bit mantissa CARRY4 chain directly chained with normalization MUX tree (7×LUT6). 14 logic levels, 5.687 ns, 74% route delay.
-
-**Run 5 critical path** (after PBLOCK): `bfloat16_mul` mantissa multiply — 8×8 unsigned multiply in LUT/CARRY4 fabric (6 CARRY4 stages), 13 levels, 5.208 ns. Root cause: Vivado does not auto-infer DSP48E1 for sub-16-bit operands. Fix applied in Run 6: `(* use_dsp = "yes" *)` attribute + pipeline register in `bfloat16_mul.sv`.
-
-**Run 6 critical path** (after DSP48E1 for `bfloat16_mul`): `feature_extractor` price arithmetic — 8 CARRY4 stages, 17 levels, 5.453 ns. TNS improved 41%.
-
-**Run 7 critical path** (after `feature_extractor` 2-stage): `fp32_acc` Stage B — 25-bit mantissa adder (CARRY4×6) directly chained with normalization priority encoder (LUT×9) in one cycle. 15 levels, 5.065 ns.
-
-**Run 8 critical path** (after `fp32_acc` 5-stage B1+B2 split): `feature_extractor` Stage 2 — two's-complement magnitude (CARRY4×5) chained with leading-zero encoder. 14 levels, 4.584 ns.
-
-**Run 9 critical path** (after `feature_extractor` 3-stage 2a+2b split): single fo=24 routing net in Stage 2b. Only 7 logic levels / 0.560 ns; 83.5% routing. WNS −0.068 ns, 4 endpoints.
-
-**Run 10: TIMING CLOSED.** Post-route `phys_opt_design -directive AggressiveExplore` replicated the fo=24 driver. WNS **+0.001 ns**, TNS 0.000 ns, 0 failing endpoints. Final resource count: **1,172 LUTs (1.16%), 932 FFs (0.46%), 1 DSP48E1**.
-
-Hold slack is met in all runs; routing is complete with 0 unrouted nets. Bitstream generation is blocked by missing board I/O pin assignments (expected — no target board selected).
-
-### New RTL Modules (v2)
-
-| Module | Description |
-|--------|-------------|
-| `moldupp64_strip` | Runs at 156.25 MHz. Absorbs the 20-byte MoldUDP64 header; validates sequence numbers; drops duplicate/malformed datagrams before the FIFO; outputs `seq_num` register for gap detection |
-| `eth_axis_rx_wrap` | Wraps the Forencich `eth_axis_rx`; asserts drop-on-full when `axis_async_fifo.almost_full` is high; increments `dropped_frames` counter exposed via AXI4-Lite |
-| `symbol_filter` | LUT-CAM: 64 × 64-bit registers, parallel equality reduction, single-cycle `watchlist_hit`; loaded via AXI4-Lite; ~512 LUTs + 4,096 FFs |
-| `kc705_top` | KC705 top-level: GTX pins, MMCM (300/250 MHz), dual sync-resets, Forencich stack, LLIU core |
-
----
-
 ## Design Choices
-
 
 - **ITCH 5.0**: Real HFT protocol, not a toy — validated against actual NASDAQ sample data
 - **bfloat16 multiply + float32 accumulate**: Mixed-precision arithmetic used in production ML accelerators
 - **Batch size = 1**: Latency-optimized for HFT, not throughput-optimized for training
-- **Small inference engine**: Verification is the focus, not model complexity
+- **312.5 MHz derived from network clock**: Eliminates async-FIFO synchronization penalty (∼10–15 ns) between the 156.25 MHz GTX domain and the application domain
