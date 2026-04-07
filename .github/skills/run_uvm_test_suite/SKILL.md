@@ -34,30 +34,52 @@ tb/uvm/                     ← all commands must be run from here (or with -C t
 
 ## 2. Prerequisites
 
-### Primary environment — GitHub Codespaces
+### Primary environment — EC2 instance (`lliu-par`)
 
-All UVM compiles run in **GitHub Codespaces**. The devcontainer pre-installs
-Verilator 5.046 and sets `UVM_HOME` automatically — no setup required.
+> ⚠️ **ALL UVM compiles and test runs MUST execute on the EC2 instance (`lliu-par`).**
+> Never run `make compile`, `make run`, `simv`, or the regression script locally on macOS.
+> The EC2 instance has sufficient RAM and CPU for Verilator elaboration of the full
+> UVM testbench. Running locally causes OOM failures and multi-hour compile times.
 
-```bash
-# UVM_HOME is already set in the devcontainer environment:
-echo $UVM_HOME   # /opt/uvm-reference/src
-ls $UVM_HOME/uvm_pkg.sv   # must exist
-```
-
-Open a Codespace from the repo's main page (green **Code** button → **Codespaces**).
-All `make` and `simv` commands below run in the Codespace terminal.
-
-### Fallback — local macOS (avoid if possible)
-
-If Codespaces is unavailable, set `UVM_HOME` manually before any `make` call:
+Connect via VS Code Remote SSH (see `.github/plan/kintex-7/AWS_INSTANCE_PLAN.md` for
+full setup) or a plain SSH session:
 
 ```bash
-export UVM_HOME=/Users/robertmadsen/Documents/projects/uvm-reference/src
-ls $UVM_HOME/uvm_pkg.sv   # must exist
+ssh lliu-par
+cd ~/low_latency_inference_unit
 ```
 
-Verilator must also be on `PATH` (`verilator --version` should show 5.x).
+On the instance, confirm prerequisites are available:
+
+```bash
+verilator --version          # must show 5.046 2026-02-28
+echo $UVM_HOME               # ~/uvm-reference/src
+ls $UVM_HOME/uvm_pkg.sv      # must exist
+```
+
+If `UVM_HOME` is not already exported in `~/.bashrc`, set it before any `make` call:
+
+```bash
+export UVM_HOME=~/uvm-reference/src
+```
+
+> All `make`, `simv`, and `python3 scripts/run_uvm_regression.py` commands shown
+> in this skill are executed **on the EC2 instance**, inside the cloned repo directory.
+
+#### One-time EC2 bootstrap (already done — do not repeat)
+
+The following setup was performed once and persists on the instance:
+
+- Verilator 5.046 built from source with `CXX=g++-11` (so `verilated.mk` uses g++-11)
+- `g++-11` installed via `ppa:ubuntu-toolchain-r/test` (Ubuntu 20.04 default g++-9 lacks C++20 `<coroutine>`)
+- UVM IEEE 1800.2-2020 cloned to `~/uvm-reference/` from `accellera-official/uvm-core`
+- `python3-dev` installed for `dpi_bridge.c` compilation
+- `/usr/local/share/verilator/include/verilated_types.h` patched to add `operator==(VlNull, T*)` and `operator!=(VlNull, T*)` (absent in 5.046, causes g++-11 type errors on virtual-interface null comparisons)
+
+### Local macOS — NOT SUPPORTED
+
+Do **not** run UVM compiles or tests on the local macOS machine. It is not a
+supported environment for the UVM testbench.
 
 ### Python (for DPI-C golden model)
 
@@ -84,10 +106,12 @@ is available for VCS/Questa only. No Python dependency when running with `SIM=ve
 
 ### Run with the regression script
 
-From the repo root:
+From the repo root **on the EC2 instance**:
 
 ```bash
-export UVM_HOME=/Users/robertmadsen/Documents/projects/uvm-reference/src
+ssh lliu-par   # connect first if not already in a Remote SSH session
+cd ~/low_latency_inference_unit
+export UVM_HOME=~/uvm-reference/src   # adjust to actual path on instance
 python3 scripts/run_uvm_regression.py
 ```
 
@@ -113,9 +137,11 @@ The merged report path to share with the user is: **`reports/uvm_results.xml`**
 ## 4. Compile (Manual / Partial Runs)
 
 Compilation is done **once** per clean build. All UVM tests share the same binary.
+Run **on the EC2 instance**:
 
 ```bash
-cd tb/uvm
+# On EC2 instance:
+cd ~/low_latency_inference_unit/tb/uvm
 make SIM=verilator UVM_HOME=$UVM_HOME compile
 ```
 
@@ -133,9 +159,10 @@ Recompilation is only needed after RTL or testbench source changes.
 
 ## 4. Run a Single Test
 
-After compiling, run any test directly:
+After compiling, run any test directly **on the EC2 instance**:
 
 ```bash
+# On EC2 instance, from tb/uvm/
 make SIM=verilator UVM_HOME=$UVM_HOME TEST=<test_name> run
 ```
 
@@ -174,20 +201,29 @@ UVM report server error/fatal count; the simulation returns non-zero if any
 | `lliu_stress_test` | `lliu_stress_test.sv` | Back-to-back messages with random AXI4-Stream backpressure; checks throughput and latency bounds |
 | `lliu_error_test` | `lliu_error_test.sv` | Injects truncated, malformed-type, and garbage byte sequences; checks parser recovery and no propagation |
 | `lliu_coverage_test` | `lliu_coverage_test.sv` | Comprehensive functional coverage closure — runs all message type × price × side bins; checks coverage targets met |
+| `lliu_order_book_test` | `lliu_order_book_test.sv` | Order-book stress test — add/cancel/replace/execute + BBO query; scoreboard checks |
 
 > **`lliu_replay_test` dependency:** requires `data/tvagg_sample.bin`. If the file
 > is absent the test will hit a `UVM_FATAL` when the ITCH feeder opens the file.
+
+> **`lliu_order_book_test` requires a separate compile with `TOPLEVEL=order_book`:**
+> ```bash
+> make SIM=verilator UVM_HOME=$UVM_HOME TOPLEVEL=order_book compile
+> ```
+> Running this test against a `TOPLEVEL=lliu_top` binary will result in
+> `UVM_FATAL [NOVIF] Virtual interface not found for order_book_driver`.
 
 ---
 
 ## 6. Running Individual Tests (Manual)
 
 > For full regressions, prefer the script in Section 3. Use manual commands only
-> for targeted single-test runs or debugging.
+> for targeted single-test runs or debugging. All commands run **on the EC2 instance**.
 
 After compiling, run any test directly:
 
 ```bash
+# On EC2 instance, from tb/uvm/
 make SIM=verilator UVM_HOME=$UVM_HOME TEST=<test_name> run
 ```
 

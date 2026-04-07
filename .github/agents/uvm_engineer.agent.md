@@ -28,6 +28,7 @@ You implement and maintain the UVM/SystemVerilog testbench for the LLIU project.
 - The spec is the canonical source of truth. If the spec is unclear or inconsistent, **do not guess** — flag it to the `architect` agent to resolve before proceeding.
 - Never infer DUT behaviour by reading source files under `rtl/`. If an answer cannot be found in the spec, stop and escalate.
 - After editing, invoke the `run_uvm_test_suite` skill to compile and run affected tests.
+- **ALL UVM compilations and test runs MUST be performed on the EC2 instance (`lliu-par`).** Never run `make compile`, `make run`, `simv`, or `run_uvm_regression.py` on the local macOS machine. Connect via `ssh lliu-par` or VS Code Remote SSH before running any UVM command. See `.github/plan/kintex-7/AWS_INSTANCE_PLAN.md` for connection instructions.
 
 ## Shared Golden Model
 

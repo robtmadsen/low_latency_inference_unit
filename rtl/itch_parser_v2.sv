@@ -36,14 +36,20 @@
 //   'U' 0x55 = 35   'E' 0x45 = 30   'C' 0x43 = 35   'P' 0x50 = 43
 //   Any other type: stream is drained silently; fields_valid stays 0.
 //
-// NOTE — field byte offsets:
-//   The offsets used below (e.g. order_ref at msg_buf[1..8]) match the
-//   task specification for itch_parser_v2 and assume a compact body layout
-//   that omits the stock_locate (2 B), tracking_number (2 B), and timestamp
-//   (6 B) preamble fields present in a raw ITCH 5.0 message.  The v1
-//   itch_field_extract.sv uses the full ITCH 5.0 offsets (order_ref at
-//   bytes 11–18).  If the upstream delivers unstripped ITCH bodies the
-//   downstream order_book must compensate, or offsets must be adjusted.
+// Field byte offsets match the NASDAQ ITCH 5.0 specification (v5.0, Sept 2019).
+// Body byte 0 = message type; bytes 1-2 = stock_locate; 3-4 = tracking_number;
+// 5-10 = timestamp; payload fields begin at byte 11.
+//
+// True ITCH 5.0 offsets used here:
+//   order_ref               : bytes [11..18]  (all modifying types)
+//   new_order_ref (U)       : bytes [19..26]
+//   shares (A/F/P)          : bytes [20..23]
+//   shares (X/E/C)          : bytes [19..22]
+//   shares (U)              : bytes [27..30]
+//   side (A/F/P)            : byte  [19]      ('B'=0x42 → bid=1)
+//   stock (A/F/P)           : bytes [24..31]
+//   price (A/F/C/P)         : bytes [32..35]
+//   price (U)               : bytes [31..34]
 
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
@@ -181,76 +187,77 @@ module itch_parser_v2 (
                 S_EMIT: begin
                     state <= S_IDLE;
 
-                    // msg_type always captured; sym_id always placeholder
+                    // msg_type always captured
                     msg_type <= msg_buf[0];
                     sym_id   <= 9'h0;
 
-                    // order_ref: all supported types; bytes 1–8 (big-endian)
-                    order_ref <= {msg_buf[1], msg_buf[2], msg_buf[3], msg_buf[4],
-                                  msg_buf[5], msg_buf[6], msg_buf[7], msg_buf[8]};
+                    // order_ref: bytes [11..18] for all modifying types
+                    order_ref <= {msg_buf[11], msg_buf[12], msg_buf[13], msg_buf[14],
+                                  msg_buf[15], msg_buf[16], msg_buf[17], msg_buf[18]};
 
-                    // new_order_ref: Order Replace only ('U' = 0x55), bytes 27–34
+                    // new_order_ref: Order Replace ('U') only — bytes [19..26]
                     if (msg_buf[0] == 8'h55) begin
-                        new_order_ref <= {msg_buf[27], msg_buf[28], msg_buf[29], msg_buf[30],
-                                          msg_buf[31], msg_buf[32], msg_buf[33], msg_buf[34]};
+                        new_order_ref <= {msg_buf[19], msg_buf[20], msg_buf[21], msg_buf[22],
+                                          msg_buf[23], msg_buf[24], msg_buf[25], msg_buf[26]};
                     end else begin
                         new_order_ref <= 64'h0;
                     end
 
-                    // price: bytes vary by message type
-                    if (msg_buf[0] == 8'h41 ||    // 'A'
-                        msg_buf[0] == 8'h46 ||    // 'F'
-                        msg_buf[0] == 8'h55) begin // 'U'
-                        price <= {msg_buf[21], msg_buf[22], msg_buf[23], msg_buf[24]};
-                    end else if (msg_buf[0] == 8'h50) begin // 'P'
-                        price <= {msg_buf[29], msg_buf[30], msg_buf[31], msg_buf[32]};
+                    // price
+                    if (msg_buf[0] == 8'h41 ||     // 'A'
+                        msg_buf[0] == 8'h46 ||     // 'F'
+                        msg_buf[0] == 8'h43 ||     // 'C'
+                        msg_buf[0] == 8'h50) begin  // 'P'
+                        price <= {msg_buf[32], msg_buf[33], msg_buf[34], msg_buf[35]};
+                    end else if (msg_buf[0] == 8'h55) begin // 'U'
+                        price <= {msg_buf[31], msg_buf[32], msg_buf[33], msg_buf[34]};
                     end else begin
                         price <= 32'h0;
                     end
 
-                    // shares: bytes vary by message type
-                    if (msg_buf[0] == 8'h41 ||    // 'A'
-                        msg_buf[0] == 8'h46 ||    // 'F'
-                        msg_buf[0] == 8'h58 ||    // 'X'
-                        msg_buf[0] == 8'h45 ||    // 'E'
-                        msg_buf[0] == 8'h43 ||    // 'C'
-                        msg_buf[0] == 8'h50) begin // 'P'
-                        shares <= {msg_buf[9], msg_buf[10], msg_buf[11], msg_buf[12]};
+                    // shares
+                    if (msg_buf[0] == 8'h41 ||     // 'A'
+                        msg_buf[0] == 8'h46 ||     // 'F'
+                        msg_buf[0] == 8'h50) begin  // 'P'
+                        shares <= {msg_buf[20], msg_buf[21], msg_buf[22], msg_buf[23]};
+                    end else if (msg_buf[0] == 8'h58 ||    // 'X'
+                                 msg_buf[0] == 8'h45 ||    // 'E'
+                                 msg_buf[0] == 8'h43) begin // 'C'
+                        shares <= {msg_buf[19], msg_buf[20], msg_buf[21], msg_buf[22]};
                     end else if (msg_buf[0] == 8'h55) begin // 'U'
-                        shares <= {msg_buf[17], msg_buf[18], msg_buf[19], msg_buf[20]};
+                        shares <= {msg_buf[27], msg_buf[28], msg_buf[29], msg_buf[30]};
                     end else begin
                         shares <= 32'h0;
                     end
 
-                    // side: Buy = 'B' = 0x42 → 1; Sell → 0; Add Orders only
-                    if (msg_buf[0] == 8'h41 ||    // 'A'
-                        msg_buf[0] == 8'h46) begin // 'F'
-                        side <= (msg_buf[13] == 8'h42) ? 1'b1 : 1'b0;
+                    // side: Buy='B'(0x42)→1 for Add Orders and Trade
+                    if (msg_buf[0] == 8'h41 ||     // 'A'
+                        msg_buf[0] == 8'h46 ||     // 'F'
+                        msg_buf[0] == 8'h50) begin  // 'P'
+                        side <= (msg_buf[19] == 8'h42) ? 1'b1 : 1'b0;
                     end else begin
                         side <= 1'b0;
                     end
 
-                    // stock: 8-byte ASCII ticker; byte offset varies by type
-                    if (msg_buf[0] == 8'h41 ||    // 'A': bytes 14–21
-                        msg_buf[0] == 8'h46) begin // 'F': bytes 14–21
-                        stock <= {msg_buf[14], msg_buf[15], msg_buf[16], msg_buf[17],
-                                  msg_buf[18], msg_buf[19], msg_buf[20], msg_buf[21]};
-                    end else if (msg_buf[0] == 8'h50) begin // 'P': bytes 13–20
-                        stock <= {msg_buf[13], msg_buf[14], msg_buf[15], msg_buf[16],
-                                  msg_buf[17], msg_buf[18], msg_buf[19], msg_buf[20]};
+                    // stock: 8-byte ASCII ticker at bytes [24..31] for A/F/P
+                    if (msg_buf[0] == 8'h41 ||     // 'A'
+                        msg_buf[0] == 8'h46 ||     // 'F'
+                        msg_buf[0] == 8'h50) begin  // 'P'
+                        stock <= {msg_buf[24], msg_buf[25], msg_buf[26], msg_buf[27],
+                                  msg_buf[28], msg_buf[29], msg_buf[30], msg_buf[31]};
                     end else begin
                         stock <= 64'h0;
                     end
 
-                    // fields_valid: pulse high for supported types only
-                    if (msg_buf[0] == 8'h41 ||    // 'A' Add Order
-                        msg_buf[0] == 8'h46 ||    // 'F' Add Order w/ MPID
-                        msg_buf[0] == 8'h58 ||    // 'X' Order Cancel
-                        msg_buf[0] == 8'h44 ||    // 'D' Order Delete
-                        msg_buf[0] == 8'h55 ||    // 'U' Order Replace
-                        msg_buf[0] == 8'h45 ||    // 'E' Order Executed
-                        msg_buf[0] == 8'h43 ||    // 'C' Order Executed w/ Price
-                        msg_buf[0] == 8'h50) begin // 'P' Trade (non-cross)
+                    // fields_valid: pulse for all supported types
+                    if (msg_buf[0] == 8'h41 ||     // 'A'
+                        msg_buf[0] == 8'h46 ||     // 'F'
+                        msg_buf[0] == 8'h58 ||     // 'X'
+                        msg_buf[0] == 8'h44 ||     // 'D'
+                        msg_buf[0] == 8'h55 ||     // 'U'
+                        msg_buf[0] == 8'h45 ||     // 'E'
+                        msg_buf[0] == 8'h43 ||     // 'C'
+                        msg_buf[0] == 8'h50) begin  // 'P'
                         fields_valid <= 1'b1;
                     end else begin
                         fields_valid <= 1'b0;

@@ -12,6 +12,7 @@ import uvm_pkg::*;
 import lliu_pkg::*;
 import axi4_stream_agent_pkg::*;
 import axi4_lite_agent_pkg::*;
+import order_book_agent_pkg::*;
 import lliu_env_pkg::*;
 import lliu_seq_pkg::*;
 import lliu_test_pkg::*;
@@ -224,6 +225,59 @@ module tb_top;
     assign axil_if.rdata   = 32'h0;
     assign axil_if.rresp   = 2'b00;
     assign axil_if.rvalid  = 1'b0;
+
+`elsif ORDER_BOOK_DUT
+    // === DUT: order_book ==========================================
+    order_book_if ob_if (.clk(clk), .rst(rst));
+
+    order_book dut_ob (
+        .clk            (clk),
+        .rst            (rst),
+        .msg_type       (ob_if.msg_type),
+        .order_ref      (ob_if.order_ref),
+        .new_order_ref  (ob_if.new_order_ref),
+        .price          (ob_if.price),
+        .shares         (ob_if.shares),
+        .side           (ob_if.side),
+        .sym_id         (ob_if.sym_id),
+        .fields_valid   (ob_if.fields_valid),
+        .bbo_query_sym  (ob_if.bbo_query_sym),
+        .bbo_bid_price  (ob_if.bbo_bid_price),
+        .bbo_ask_price  (ob_if.bbo_ask_price),
+        .bbo_bid_size   (ob_if.bbo_bid_size),
+        .bbo_ask_size   (ob_if.bbo_ask_size),
+        .bbo_valid      (ob_if.bbo_valid),
+        .bbo_sym_id     (ob_if.bbo_sym_id),
+        .collision_count(ob_if.collision_count),
+        .collision_flag (ob_if.collision_flag),
+        .book_ready     (ob_if.book_ready)
+    );
+
+    // Idle the AXI4-S / AXI4-Lite agents (unused for this DUT)
+    assign axis_if.tready  = 1'b1;
+    assign axil_if.awready = 1'b0;
+    assign axil_if.wready  = 1'b0;
+    assign axil_if.bresp   = 2'b00;
+    assign axil_if.bvalid  = 1'b0;
+    assign axil_if.arready = 1'b0;
+    assign axil_if.rdata   = 32'h0;
+    assign axil_if.rresp   = 2'b00;
+    assign axil_if.rvalid  = 1'b0;
+
+    // Register order_book virtual interface
+    initial begin
+        ob_if.msg_type      = 8'h0;
+        ob_if.order_ref     = 64'h0;
+        ob_if.new_order_ref = 64'h0;
+        ob_if.price         = 32'h0;
+        ob_if.shares        = 32'h0;
+        ob_if.side          = 1'b0;
+        ob_if.sym_id        = 9'h0;
+        ob_if.fields_valid  = 1'b0;
+        ob_if.bbo_query_sym = 9'h0;
+        uvm_config_db #(virtual order_book_if)::set(
+            null, "uvm_test_top*", "ob_vif", ob_if);
+    end
 
 `else
     // === DUT: lliu_top (default — v1 pipeline) ====================

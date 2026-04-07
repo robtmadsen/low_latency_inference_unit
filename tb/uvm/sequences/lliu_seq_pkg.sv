@@ -5,6 +5,7 @@ package lliu_seq_pkg;
     import lliu_pkg::*;
     import axi4_stream_agent_pkg::*;
     import axi4_lite_agent_pkg::*;
+    import order_book_agent_pkg::*;
 
     `include "sequences/weight_load_seq.sv"
     `include "sequences/axil_rw_seq.sv"
@@ -20,5 +21,8 @@ package lliu_seq_pkg;
     `include "sequences/moldupp64_seq.sv"
     `include "sequences/cam_load_seq.sv"
     `include "sequences/kc705_init_seq.sv"
+
+    // order_book sequences
+    `include "sequences/order_book_stress_seq.sv"
 
 endpackage

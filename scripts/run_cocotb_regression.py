@@ -53,6 +53,12 @@ TEST_MODULES = [
     ("lliu_top",           "test_wgtmem_outbuf"),
     ("lliu_top",           "test_integration_sweep"),
     ("lliu_top",           "test_replay"),   # needs data/tvagg_sample.bin
+    # Phase 1 v2.0 — order book, PTP, histogram
+    ("order_book",         "test_order_book"),
+    ("order_book",         "test_order_book_collision"),
+    ("ptp_core",           "test_ptp"),
+    ("timestamp_tap",      "test_timestamp_tap"),
+    ("latency_histogram",  "test_histogram"),
 ]
 
 

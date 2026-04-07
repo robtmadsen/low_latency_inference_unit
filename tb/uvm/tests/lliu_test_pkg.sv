@@ -5,6 +5,7 @@ package lliu_test_pkg;
     import lliu_pkg::*;
     import axi4_stream_agent_pkg::*;
     import axi4_lite_agent_pkg::*;
+    import order_book_agent_pkg::*;
     import lliu_env_pkg::*;
     import lliu_seq_pkg::*;
 
@@ -24,5 +25,8 @@ package lliu_test_pkg;
     // KC705 system-level tests
     `include "tests/lliu_kc705_test.sv"
     `include "tests/lliu_kc705_perf_test.sv"
+
+    // order_book tests
+    `include "tests/lliu_order_book_test.sv"
 
 endpackage
