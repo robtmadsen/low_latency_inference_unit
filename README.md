@@ -203,8 +203,11 @@ data/
 │   │   ├── COCOTB_ARCH.md    # cocotb testbench architecture
 │   │   └── UVM_ARCH.md       # UVM testbench architecture
 │   └── kintex-7/
-│       ├── Kintex-7_MAS.md       # v1 Kintex-7 micro-arch spec
-│       └── 2p0_kintex-7_MAS.md  # v2.0 full system spec (planning)
+│       ├── Kintex-7_MAS.md              # v1 Kintex-7 micro-arch spec
+│       ├── 2p0_kintex-7_MAS.md         # v2.0 full system spec
+│       ├── 2p0_kintex-7_RTL_ARCH.md    # v2.0 RTL module hierarchy
+│       ├── 2p0_kintex-7_COCOTB_ARCH.md # v2.0 cocotb testbench architecture
+│       └── 2p0_kintex-7_UVM_ARCH.md    # v2.0 UVM testbench architecture
 ├── plan/                     # Per-target implementation plans
 │   └── kintex-7/
 │       ├── RTL_PLAN_kintex-7.md

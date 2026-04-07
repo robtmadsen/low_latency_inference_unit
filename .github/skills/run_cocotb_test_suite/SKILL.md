@@ -193,7 +193,46 @@ for the end-to-end spec check.
 
 ---
 
-### 3.4 Legacy / Not Recommended
+### 3.4 Phase 1 v2.0 — Order Book, PTP, Histograms
+
+#### `TOPLEVEL=order_book`
+
+| File | MODULE | Test functions |
+|---|---|---|
+| `tests/test_order_book.py` | `test_order_book` | `test_add_order_basic`, `test_delete_order`, `test_replace_order`, `test_cancel_order`, `test_execute_order`, `test_bbo_best_bid_wins`, `test_bbo_best_ask_wins`, `test_stress_10k_adds_5k_deletes_2k_replaces` |
+| `tests/test_order_book_collision.py` | `test_order_book_collision` | `test_hash_collision_detected` *(expect_fail — see note)*, `test_collision_bbo_unaffected`, `test_collision_then_clean_add` |
+
+RTL compiled: `lliu_pkg.sv`, `order_book.sv`. Extra Verilator flag: `-Wno-MULTIDRIVEN`.
+
+> **Note on `test_hash_collision_detected`:** steps 4–5 are marked `expect_fail=True` because the current RTL does not raise `collision_flag` for Add operations — only for modify ops (D/X/U/E/C). The test documents intended future behavior.
+
+#### `TOPLEVEL=ptp_core`
+
+| File | MODULE | Test functions |
+|---|---|---|
+| `tests/test_ptp.py` | `test_ptp` | `test_counter_monotonic`, `test_sync_pulse_period`, `test_epoch_latches_at_sync`, `test_counter_after_reset` |
+
+RTL compiled: `lliu_pkg.sv`, `ptp_core.sv`. Clock: 3.2 ns (312.5 MHz).
+
+#### `TOPLEVEL=timestamp_tap`
+
+| File | MODULE | Test functions |
+|---|---|---|
+| `tests/test_timestamp_tap.py` | `test_timestamp_tap` | `test_timestamp_tap_sub_counter_reset` |
+
+RTL compiled: `lliu_pkg.sv`, `timestamp_tap.sv`. Clock: 3.2 ns.
+
+#### `TOPLEVEL=latency_histogram`
+
+| File | MODULE | Test functions |
+|---|---|---|
+| `tests/test_histogram.py` | `test_histogram` | `test_single_measurement_bin0`, `test_bin_selection`, `test_overflow_bin`, `test_multiple_increments`, `test_clear`, `test_sub_counter_wrap` |
+
+RTL compiled: `lliu_pkg.sv`, `latency_histogram.sv`. Clock: 3.2 ns.
+
+---
+
+### 3.5 Legacy / Not Recommended
 
 | File | MODULE | Notes |
 |---|---|---|
@@ -284,12 +323,20 @@ rtl/bfloat16_mul.sv      — combinational BF16 multiplier (TOPLEVEL=bfloat16_mu
 rtl/fp32_acc.sv          — pipelined FP32 accumulator (TOPLEVEL=fp32_acc)
 rtl/dot_product_engine.sv— 4-element dot product (TOPLEVEL=dot_product_engine)
 rtl/itch_field_extract.sv— byte-lane field extraction
-rtl/itch_parser.sv       — AXI4-Stream ITCH 5.0 parser (TOPLEVEL=itch_parser)
+rtl/itch_parser.sv       — AXI4-Stream ITCH 5.0 parser v1 — Add Order only (TOPLEVEL=itch_parser)
+rtl/itch_parser_v2.sv    — AXI4-Stream ITCH 5.0 parser v2 — 8 message types (TOPLEVEL=itch_parser_v2)
 rtl/feature_extractor.sv — price_delta / side / order_flow / norm_price (TOPLEVEL=feature_extractor)
 rtl/axi4_lite_slave.sv   — register map: CTRL, STATUS, WGT_ADDR, WGT_DATA, RESULT (TOPLEVEL=axi4_lite_slave)
 rtl/weight_mem.sv        — 4-entry BF16 weight RAM (integrated only — no standalone TOPLEVEL)
 rtl/output_buffer.sv     — result latch / result_ready flag (integrated only)
 rtl/lliu_top.sv          — top-level integration (TOPLEVEL=lliu_top, uses all *.sv)
+
+# Phase 1 v2.0
+rtl/order_book.sv        — BRAM-backed L3 order book, CRC-17 hash, 7-state FSM (TOPLEVEL=order_book)
+rtl/ptp_core.sv          — 64-bit free-running counter, 1-bit sync pulse (TOPLEVEL=ptp_core)
+rtl/timestamp_tap.sv     — per-event 74-bit capture {epoch_latch, sub_cnt} (TOPLEVEL=timestamp_tap)
+rtl/latency_histogram.sv — 32-bin distributed-RAM histogram (TOPLEVEL=latency_histogram)
+rtl/symbol_filter.sv     — 512-entry LUT-CAM watchlist (TOPLEVEL=symbol_filter)
 ```
 
 `weight_mem` and `output_buffer` have **no standalone make target** — they are
