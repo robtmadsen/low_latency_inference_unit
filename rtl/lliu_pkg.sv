@@ -83,11 +83,49 @@ package lliu_pkg;
   parameter logic [7:0] AXIL_REG_COLLISION_COUNT = 8'h48;
   parameter logic [7:0] AXIL_REG_HIST_OVERFLOW   = 8'h4C;
 
+  // Phase 2 parameters
+  parameter int NUM_CORES           = 8;
+  parameter int FEAT_VEC_LEN_V2     = 32;   // features per core in v2
+  parameter int HIDDEN_LAYER        = 32;   // weights per core
+  parameter int DOT_PRODUCT_LATENCY_V2 = FEAT_VEC_LEN_V2 + 5;
+
+  // Risk check parameters (configurable via AXI4-Lite at runtime)
+  parameter int RISK_PRICE_BAND_BPS_DEFAULT = 200;  // ±200 bps
+  parameter int RISK_MAX_QTY_DEFAULT        = 10000;
+  parameter int RISK_KILL_THRESH_DEFAULT    = 1000;  // hash collisions before kill
+
+  // OUCH 5.0 Enter Order packet length (bytes): fixed 48-byte body
+  parameter int OUCH_ENTER_ORDER_LEN = 48;
+
+  // Phase 2 AXI4-Lite registers
+  parameter logic [11:0] AXIL_REG_BAND_BPS      = 12'h400; // price band in basis points
+  parameter logic [11:0] AXIL_REG_MAX_QTY        = 12'h404; // fat-finger max quantity
+  parameter logic [11:0] AXIL_REG_SCORE_THRESH   = 12'h408; // strategy fire threshold (float32)
+  parameter logic [11:0] AXIL_REG_RISK_CTRL      = 12'h40C; // [0] kill switch (W1S/W1C), [1] auto-clear enable
+  parameter logic [11:0] AXIL_REG_RISK_STATUS    = 12'h410; // [0] kill asserted, [1] blocked_latched
+  parameter logic [11:0] AXIL_REG_POSITION       = 12'h414; // net position accumulator (read-only)
+  // Per-core histogram base: core k bins at 0x500 + k*0x80 + bin*4
+  parameter logic [11:0] AXIL_REG_HIST_BASE_V2   = 12'h500;
+
+  // OUCH side encoding
+  parameter logic [7:0] OUCH_SIDE_BUY  = 8'h42; // 'B'
+  parameter logic [7:0] OUCH_SIDE_SELL = 8'h53; // 'S'
+
+  // Timestamp width: 64-bit {32-bit epoch, 32-bit sub_cnt}
+  parameter int TIMESTAMP_WIDTH = 64;
+
   // Typedef for bfloat16 packed representation
   typedef logic [BF16_WIDTH-1:0] bfloat16_t;
 
   // Typedef for float32 packed representation
   typedef logic [FP32_WIDTH-1:0] float32_t;
+
+  // Packed inference result from one core
+  typedef struct packed {
+    float32_t  score;
+    logic [2:0] core_id;
+    logic       valid;
+  } core_result_t;
 
 /* verilator lint_on UNUSEDPARAM */
 

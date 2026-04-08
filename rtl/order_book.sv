@@ -45,6 +45,12 @@ module order_book (
     // BBO update notification (1-cycle pulse)
     output logic        bbo_valid,
     output logic [8:0]  bbo_sym_id,
+    // L2 book levels (registered, 1-cycle latency, follows bbo_query_sym)
+    // Levels 0-3 per side in insertion order (not price-sorted in Phase 1)
+    output logic [31:0] l2_bid_price [0:3],
+    output logic [23:0] l2_bid_size  [0:3],
+    output logic [31:0] l2_ask_price [0:3],
+    output logic [23:0] l2_ask_size  [0:3],
     // Telemetry
     output logic [31:0] collision_count,
     output logic        collision_flag,
@@ -79,6 +85,13 @@ endfunction
 //         [6]=side, [5:0]=reserved
 (* ram_style = "block" *) logic [127:0] ref_mem [0:(1<<OB_REF_TABLE_BITS)-1];
 /* verilator lint_on UNOPTFLAT */
+
+// l2_cache: shadow of book_mem levels 0-3 per side per symbol.
+// No ram_style → Vivado infers LUTRAM (distributed RAM).
+// 500 × 2 sides × 4 levels × 56 bits = 224 Kbits ≈ 3.5 K LUTs.
+// Mirrors every book_mem write where target_level < 4, enabling 8 simultaneous
+// reads per cycle from the L2 query block without multi-port BRAM conflicts.
+logic [55:0] l2_cache [0:OB_NUM_SYMBOLS-1][0:1][0:3];
 
 // BBO registers — kept as flip-flops for single-cycle registered read
 logic [31:0] bbo_bid_price_r [0:OB_NUM_SYMBOLS-1];
@@ -137,6 +150,20 @@ always_ff @(posedge clk) begin
     bbo_ask_price <= bbo_ask_price_r[bbo_query_sym];
     bbo_bid_size  <= bbo_bid_size_r[bbo_query_sym];
     bbo_ask_size  <= bbo_ask_size_r[bbo_query_sym];
+end
+
+// ---------------------------------------------------------------------------
+// L2 book level registered query output (top 4 levels per side, insertion order)
+// Reads from l2_cache (LUTRAM) rather than book_mem (BRAM) to avoid requiring
+// 8 simultaneous read ports on a 2-port 7-series BRAM.
+// ---------------------------------------------------------------------------
+always_ff @(posedge clk) begin
+    for (int k = 0; k < 4; k++) begin
+        l2_bid_price[k] <= l2_cache[bbo_query_sym][1][k][55:24];
+        l2_bid_size[k]  <= l2_cache[bbo_query_sym][1][k][23:0];
+        l2_ask_price[k] <= l2_cache[bbo_query_sym][0][k][55:24];
+        l2_ask_size[k]  <= l2_cache[bbo_query_sym][0][k][23:0];
+    end
 end
 
 // ---------------------------------------------------------------------------
@@ -297,10 +324,14 @@ always_ff @(posedge clk) begin
                         // Write ref entry
                         ref_mem[op_hash] <= {1'b1, op_order_ref,
                                              op_price, op_shares, op_side, 6'h0};
-                        // Write book level
-                        if (target_found)
+                        // Write book level (+ mirror top 4 levels to l2_cache)
+                        if (target_found) begin
                             book_mem[op_sym_id][op_side][target_level] <=
                                 {op_price, op_shares};
+                            if (target_level < 4)
+                                l2_cache[op_sym_id][op_side][target_level[1:0]] <=
+                                    {op_price, op_shares};
+                        end
 
                         // BBO update (Phase 1 simplified — better price wins)
                         if (op_side == 1'b1) begin // bid
@@ -332,10 +363,14 @@ always_ff @(posedge clk) begin
                                                  op_ref_price, new_sh,
                                                  op_ref_side, 6'h0};
 
-                            // Update book level
-                            if (target_found)
+                            // Update book level (+ mirror l2_cache)
+                            if (target_found) begin
                                 book_mem[op_sym_id][op_ref_side][target_level] <=
                                     {op_ref_price, new_sh};
+                                if (target_level < 4)
+                                    l2_cache[op_sym_id][op_ref_side][target_level[1:0]] <=
+                                        {op_ref_price, new_sh};
+                            end
 
                             // BBO update: if share count hit 0 at BBO price → reset
                             if (new_sh == 24'h0) begin
@@ -362,9 +397,12 @@ always_ff @(posedge clk) begin
                         // Invalidate ref entry
                         ref_mem[op_hash] <= 128'h0;
 
-                        // Zero book level
-                        if (target_found)
+                        // Zero book level (+ mirror l2_cache)
+                        if (target_found) begin
                             book_mem[op_sym_id][op_ref_side][target_level] <= 56'h0;
+                            if (target_level < 4)
+                                l2_cache[op_sym_id][op_ref_side][target_level[1:0]] <= 56'h0;
+                        end
 
                         // BBO update: clear BBO if this was at BBO price
                         if (op_ref_side == 1'b1) begin
@@ -388,9 +426,12 @@ always_ff @(posedge clk) begin
                         // Delete old ref entry
                         ref_mem[op_hash] <= 128'h0;
 
-                        // Zero old book level
-                        if (target_found)
+                        // Zero old book level (+ mirror l2_cache)
+                        if (target_found) begin
                             book_mem[op_sym_id][op_ref_side][target_level] <= 56'h0;
+                            if (target_level < 4)
+                                l2_cache[op_sym_id][op_ref_side][target_level[1:0]] <= 56'h0;
+                        end
 
                         // Write new ref entry at new_order_ref hash
                         ref_mem[op_new_hash] <= {1'b1, op_new_order_ref,
@@ -398,9 +439,13 @@ always_ff @(posedge clk) begin
                                                  op_side, 6'h0};
 
                         // Reuse target_level for new entry (just zeroed → first empty)
-                        if (target_found)
+                        if (target_found) begin
                             book_mem[op_sym_id][op_side][target_level] <=
                                 {op_price, op_shares};
+                            if (target_level < 4)
+                                l2_cache[op_sym_id][op_side][target_level[1:0]] <=
+                                    {op_price, op_shares};
+                        end
 
                         // BBO: clear old if it was at BBO price
                         if (op_ref_side == 1'b1) begin
@@ -442,16 +487,23 @@ always_ff @(posedge clk) begin
                             if (new_sh == 24'h0) begin
                                 // Fully executed — invalidate
                                 ref_mem[op_hash] <= 128'h0;
-                                if (target_found)
+                                if (target_found) begin
                                     book_mem[op_sym_id][op_ref_side][target_level] <= 56'h0;
+                                    if (target_level < 4)
+                                        l2_cache[op_sym_id][op_ref_side][target_level[1:0]] <= 56'h0;
+                                end
                             end else begin
                                 // Partial execution — update shares
                                 ref_mem[op_hash] <= {1'b1, op_order_ref,
                                                      op_ref_price, new_sh,
                                                      op_ref_side, 6'h0};
-                                if (target_found)
+                                if (target_found) begin
                                     book_mem[op_sym_id][op_ref_side][target_level] <=
                                         {op_ref_price, new_sh};
+                                    if (target_level < 4)
+                                        l2_cache[op_sym_id][op_ref_side][target_level[1:0]] <=
+                                            {op_ref_price, new_sh};
+                                end
                             end
 
                             // BBO: if fully exec'd and was at BBO price → reset
