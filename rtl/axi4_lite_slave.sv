@@ -1,20 +1,26 @@
 // axi4_lite_slave.sv — AXI4-Lite control-plane interface
 //
 // Register map (see lliu_pkg::AXIL_REG_* for address constants):
-//   0x00  CTRL          — [0] start, [1] soft_reset          (write-only, self-clearing)
-//   0x04  STATUS        — [0] result_ready, [1] busy          (read-only)
-//   0x08  WGT_ADDR      — weight write address                (write)
-//   0x0C  WGT_DATA      — weight write data (bfloat16)        (write, triggers wr_en)
-//   0x10  RESULT        — inference result (float32)          (read-only)
-//   0x14  CAM_INDEX     — symbol-filter CAM entry index [7:0] (write)
-//   0x18  CAM_DATA_LO   — CAM key lower 32 bits               (write)
-//   0x1C  CAM_DATA_HI   — CAM key upper 32 bits               (write)
-//   0x20  CAM_CTRL      — [0] wr_valid (self-clearing), [1] en_bit (write)
-//   0x24  DROPPED_FRAMES— eth_axis_rx_wrap dropped frame cnt  (read-only)
-//   0x28  DROPPED_DGRAMS— moldupp64_strip dropped dgram cnt   (read-only)
-//   0x2C  SEQ_LO        — expected_seq_num[31:0]              (read-only)
-//   0x30  SEQ_HI        — expected_seq_num[63:32]             (read-only)
-//   0x34  GTX_LOCK      — [0] GTX PLL locked (tied 1 in sim) (read-only)
+//   0x00  CTRL           — [0] start, [1] soft_reset           (write-only, self-clearing)
+//   0x04  STATUS         — [0] result_ready, [1] busy           (read-only)
+//   0x08  WGT_ADDR       — weight write address                 (write)
+//   0x0C  WGT_DATA       — weight write data (bfloat16)         (write, triggers wr_en)
+//   0x10  RESULT         — inference result (float32)           (read-only)
+//   0x14  CAM_INDEX      — symbol-filter CAM entry index [7:0]  (write)
+//   0x18  CAM_DATA_LO    — CAM key lower 32 bits                (write)
+//   0x1C  CAM_DATA_HI    — CAM key upper 32 bits                (write)
+//   0x20  CAM_CTRL       — [0] wr_valid (self-clearing), [1] en_bit (write)
+//   0x24  DROPPED_FRAMES — eth_axis_rx_wrap dropped frame cnt   (read-only)
+//   0x28  DROPPED_DGRAMS — moldupp64_strip dropped dgram cnt    (read-only)
+//   0x2C  SEQ_LO         — expected_seq_num[31:0]               (read-only)
+//   0x30  SEQ_HI         — expected_seq_num[63:32]              (read-only)
+//   0x34  GTX_LOCK       — [0] GTX PLL locked (tied 1 in sim)  (read-only)
+//   0x38  CAM_INDEX_HI   — symbol-filter CAM entry index [9:8]  (write)
+//   0x3C  HIST_ADDR      — latency histogram bin address [4:0]  (write)
+//   0x40  HIST_DATA      — latency histogram bin count          (read-only)
+//   0x44  HIST_CLEAR     — clear all histogram bins             (write, self-clearing)
+//   0x48  COLLISION_COUNT— order_book hash-collision counter    (read-only)
+//   0x4C  HIST_OVERFLOW  — latency histogram overflow bin count (read-only)
 //
 // Single outstanding transaction. No pipelining.
 
@@ -79,7 +85,7 @@ module axi4_lite_slave #(
     input  float32_t                result_data,
 
     // ---- KC705: symbol-filter CAM write port ----
-    output logic [7:0]  cam_wr_index,
+    output logic [9:0]  cam_wr_index,
     output logic [63:0] cam_wr_data,
     output logic        cam_wr_valid,
     output logic        cam_wr_en_bit,
@@ -88,7 +94,16 @@ module axi4_lite_slave #(
     input  logic [31:0] dropped_frames,
     input  logic [31:0] dropped_datagrams,
     input  logic [63:0] expected_seq_num,
-    input  logic        gtx_lock
+    input  logic        gtx_lock,
+
+    // ---- v2: latency histogram interface ----
+    output logic [4:0]  axil_bin_addr,
+    input  logic [31:0] axil_bin_data,
+    output logic        axil_clear,
+    input  logic [31:0] overflow_bin,
+
+    // ---- v2: order_book collision counter ----
+    input  logic [31:0] collision_count
 );
 
     // ---- Register addresses ----
@@ -104,17 +119,26 @@ module axi4_lite_slave #(
     localparam logic [ADDR_WIDTH-1:0] REG_DROPPED_FRAMES = 8'h24;
     localparam logic [ADDR_WIDTH-1:0] REG_DROPPED_DGRAMS = 8'h28;
     localparam logic [ADDR_WIDTH-1:0] REG_SEQ_LO        = 8'h2C;
-    localparam logic [ADDR_WIDTH-1:0] REG_SEQ_HI        = 8'h30;
-    localparam logic [ADDR_WIDTH-1:0] REG_GTX_LOCK      = 8'h34;
+    localparam logic [ADDR_WIDTH-1:0] REG_SEQ_HI           = 8'h30;
+    localparam logic [ADDR_WIDTH-1:0] REG_GTX_LOCK          = 8'h34;
+    localparam logic [ADDR_WIDTH-1:0] REG_CAM_INDEX_HI      = 8'h38;
+    localparam logic [ADDR_WIDTH-1:0] REG_HIST_ADDR         = 8'h3C;
+    localparam logic [ADDR_WIDTH-1:0] REG_HIST_DATA         = 8'h40;
+    localparam logic [ADDR_WIDTH-1:0] REG_HIST_CLEAR        = 8'h44;
+    localparam logic [ADDR_WIDTH-1:0] REG_COLLISION_COUNT   = 8'h48;
+    localparam logic [ADDR_WIDTH-1:0] REG_HIST_OVERFLOW     = 8'h4C;
 
     // ---- Internal registers ----
     logic [$clog2(FEATURE_VEC_LEN)-1:0] wgt_addr_reg;
 
     // KC705 CAM staging registers
-    logic [7:0]  cam_index_reg;
+    logic [9:0]  cam_index_reg;    // 10-bit for 512-entry filter
     logic [31:0] cam_data_lo_reg;
     logic [31:0] cam_data_hi_reg;
     logic        cam_en_bit_reg;
+
+    // v2 histogram registers
+    logic [4:0]  bin_addr_reg;
 
     // ---- Write channel state machine ----
     // Accept AW and W simultaneously, then respond with B
@@ -146,12 +170,15 @@ module axi4_lite_slave #(
             cam_data_lo_reg <= '0;
             cam_data_hi_reg <= '0;
             cam_en_bit_reg  <= 1'b0;
+            bin_addr_reg    <= '0;
+            axil_clear      <= 1'b0;
         end else begin
             // Self-clearing control pulses
             ctrl_start      <= 1'b0;
             ctrl_soft_reset <= 1'b0;
             wgt_wr_en       <= 1'b0;
             cam_wr_valid    <= 1'b0;
+            axil_clear      <= 1'b0;
 
             // B channel handshake
             if (s_axil_bvalid && s_axil_bready) begin
@@ -194,7 +221,7 @@ module axi4_lite_slave #(
                         wgt_wr_en <= 1'b1;
                     end
                     REG_CAM_INDEX: begin
-                        cam_index_reg <= (w_captured ? wr_data_latched[7:0] : s_axil_wdata[7:0]);
+                        cam_index_reg[7:0] <= (w_captured ? wr_data_latched[7:0] : s_axil_wdata[7:0]);
                     end
                     REG_CAM_DATA_LO: begin
                         cam_data_lo_reg <= (w_captured ? wr_data_latched : s_axil_wdata);
@@ -206,6 +233,15 @@ module axi4_lite_slave #(
                         if (w_captured ? wr_data_latched[0] : s_axil_wdata[0])
                             cam_wr_valid <= 1'b1;  // self-clearing next cycle
                         cam_en_bit_reg <= (w_captured ? wr_data_latched[1] : s_axil_wdata[1]);
+                    end
+                    REG_CAM_INDEX_HI: begin
+                        cam_index_reg[9:8] <= (w_captured ? wr_data_latched[1:0] : s_axil_wdata[1:0]);
+                    end
+                    REG_HIST_ADDR: begin
+                        bin_addr_reg <= (w_captured ? wr_data_latched[4:0] : s_axil_wdata[4:0]);
+                    end
+                    REG_HIST_CLEAR: begin
+                        axil_clear <= 1'b1;  // self-clearing next cycle
                     end
                     default: ;  // Ignore writes to read-only or unmapped regs
                 endcase
@@ -221,6 +257,9 @@ module axi4_lite_slave #(
     assign cam_wr_index  = cam_index_reg;
     assign cam_wr_data   = {cam_data_hi_reg, cam_data_lo_reg};
     assign cam_wr_en_bit = cam_en_bit_reg;
+
+    // Histogram bin address
+    assign axil_bin_addr = bin_addr_reg;
 
     // ---- Read channel state machine ----
     logic ar_captured;
@@ -260,6 +299,9 @@ module axi4_lite_slave #(
                     REG_SEQ_LO:         s_axil_rdata <= expected_seq_num[31:0];
                     REG_SEQ_HI:         s_axil_rdata <= expected_seq_num[63:32];
                     REG_GTX_LOCK:       s_axil_rdata <= {31'd0, gtx_lock};
+                    REG_HIST_DATA:      s_axil_rdata <= axil_bin_data;
+                    REG_COLLISION_COUNT:s_axil_rdata <= collision_count;
+                    REG_HIST_OVERFLOW:  s_axil_rdata <= overflow_bin;
                     default:            s_axil_rdata <= 32'hDEAD_BEEF;
                 endcase
             end
