@@ -84,14 +84,22 @@ jobs:
             rtl/bfloat16_mul.sv \
             rtl/fp32_acc.sv \
             rtl/dot_product_engine.sv \
-            rtl/itch_parser.sv \
-            rtl/itch_field_extract.sv \
-            rtl/feature_extractor.sv \
             rtl/weight_mem.sv \
-            rtl/axi4_lite_slave.sv \
             rtl/output_buffer.sv \
-            rtl/moldupp64_strip.sv \
+            rtl/lliu_core.sv \
+            rtl/itch_field_extract.sv \
+            rtl/itch_parser_v2.sv \
+            rtl/order_book.sv \
             rtl/symbol_filter.sv \
+            rtl/feature_extractor_v2.sv \
+            rtl/strategy_arbiter.sv \
+            rtl/risk_check.sv \
+            rtl/ouch_engine.sv \
+            rtl/ptp_core.sv \
+            rtl/timestamp_tap.sv \
+            rtl/latency_histogram.sv \
+            rtl/lliu_top_v2.sv \
+            rtl/moldupp64_strip.sv \
             rtl/eth_axis_rx_wrap.sv \
             rtl/kc705_top.sv \
             lib/verilog-ethernet/rtl/eth_axis_rx.v \
