@@ -1,12 +1,12 @@
-// kc705_top.sv — KC705 board-level top-level integrator for LLIU
+// kc705_top.sv — KC705 board-level integrator for LLIU v2.0
 //
 // Pipeline summary:
-//   [clk_156] mac_rx → eth_axis_rx_wrap → moldupp64_strip
+//   [clk_156] mac_rx → eth_axis_rx_wrap → udp_complete_64 → moldupp64_strip
 //                → axis_async_fifo CDC (clk_156 write → clk_300 read)
-//   [clk_300] itch_parser → symbol_filter → [1-cyc delay] → feature_extractor
-//             → [sequencer] → dot_product_engine ← weight_mem
-//             → output_buffer → dp_result / dp_result_valid
-//   [clk_300] axi4_lite_slave: control, watchlist CAM writes, monitoring readout
+//   [clk_300] lliu_top_v2: itch_parser_v2 → order_book → symbol_filter →
+//             feature_extractor_v2 → 8×lliu_core → strategy_arbiter →
+//             risk_check → ouch_engine → m_axis OUCH 5.0 output
+//   [clk_300] AXI4-Lite control inline in lliu_top_v2 (12-bit byte address)
 //
 // KINTEX7_SIM_GTX_BYPASS (must be defined for Verilator lint/simulation):
 //   - clk_156_in, clk_300_in replace IBUFDS/MMCM/GTX outputs.
@@ -22,7 +22,7 @@
 //   axis_async_fifo) with the standard Xilinx IBUFDS/IBUFDS_GTE2/MMCM_ADV
 //   primitives. These modules are not in rtl/ and not compiled by Verilator.
 //
-// Register map: see lliu_pkg::AXIL_REG_* constants.
+// AXI4-Lite address map: see lliu_top_v2.sv header and 2p0_kintex-7_MAS.md §4.10.
 
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
@@ -30,8 +30,7 @@ import lliu_pkg::*;
 
 /* verilator lint_off MULTITOP */
 module kc705_top #(
-    parameter int VEC_LEN   = FEATURE_VEC_LEN,
-    parameter int AXIL_ADDR = 8,
+    parameter int AXIL_ADDR = 12,
     parameter int AXIL_DATA = 32
 )(
     // ── Board oscillator (200 MHz LVDS) ──────────────────────────────
@@ -70,9 +69,19 @@ module kc705_top #(
     output logic                   axil_rvalid,
     input  logic                   axil_rready,
 
-    // ── Inference result ──────────────────────────────────────────────
-    output logic [31:0]            dp_result,
-    output logic                   dp_result_valid
+    // ── OUCH 5.0 output (to 10GbE TX MAC) ────────────────────────────
+    output logic [63:0]            m_axis_tdata,
+    output logic [7:0]             m_axis_tkeep,
+    output logic                   m_axis_tvalid,
+    output logic                   m_axis_tlast,
+    input  logic                   m_axis_tready,
+
+    // ── Monitoring outputs ────────────────────────────────────────────
+    output logic [31:0]            collision_count_out,
+    output logic                   tx_overflow_out,
+    output logic [31:0]            dropped_frames_out,
+    output logic [31:0]            dropped_datagrams_out,
+    output logic [63:0]            expected_seq_num_out
 
 `ifdef KINTEX7_SIM_GTX_BYPASS
     ,
@@ -547,84 +556,11 @@ module kc705_top #(
     end
 
     // ==================================================================
-    // clk_300 domain: ITCH parse → symbol filter → inference pipeline
+    // clk_300 domain: lliu_top_v2 — v2.0 ITCH→inference→OUCH pipeline
     // ==================================================================
 
-    // -- Parser outputs --
-    logic        parser_fields_valid;
-    logic [31:0] parser_price;
-    logic [63:0] parser_order_ref;
-    logic        parser_side;
-    logic [63:0] parser_stock;
-    /* verilator lint_off UNUSED */
-    logic        parser_msg_valid;
-    logic [7:0]  parser_message_type;
-    /* verilator lint_on UNUSED */
-
-    // -- 1-cycle delay registers (align parser fields with watchlist_hit) --
-    // symbol_filter registers its output, so watchlist_hit arrives 1 cycle
-    // after stock_valid / fields_valid.  Delay all fields by one cycle so
-    // feature_extractor sees consistent inputs.
-    logic        fields_valid_d1;
-    logic [31:0] price_d1;
-    logic [63:0] order_ref_d1;
-    logic        side_d1;
-
-    // -- Symbol filter output --
-    logic        watchlist_hit;
-
-    // -- Feature extractor outputs --
-    bfloat16_t   feat_vec [VEC_LEN];
-    logic        feat_valid;
-
-    // -- Weight memory interface --
-    logic [$clog2(VEC_LEN)-1:0] wgt_wr_addr;
-    bfloat16_t                  wgt_wr_data;
-    logic                       wgt_wr_en;
-    logic [$clog2(VEC_LEN)-1:0] wgt_rd_addr;
-    bfloat16_t                  wgt_rd_data;
-
-    // -- Dot-product engine --
-    logic      dp_start;
-    logic      dp_feature_valid_i;
-    bfloat16_t dp_feature_in;
-    bfloat16_t dp_weight_in;
-    float32_t  dp_result_i;
-    logic      dp_result_valid_i;
-
-    // -- Output buffer --
-    float32_t  out_result;
-    logic      out_ready;
-
-    // -- AXI4-Lite control --
-    logic        ctrl_start;
-    logic        ctrl_soft_reset;
-    logic [7:0]  cam_wr_index_i;
-    logic [63:0] cam_wr_data_i;
-    logic        cam_wr_valid_i;
-    logic        cam_wr_en_bit_i;
-
-    // Combined application reset: board reset sync'd to clk_300 OR soft reset
-    logic sys_rst;
-    assign sys_rst = rst_300 | ctrl_soft_reset;
-
-    // Sequencer state (needed in pipeline_hold expression below)
-    typedef enum logic [1:0] {
-        SEQ_IDLE    = 2'b00,
-        SEQ_PRELOAD = 2'b01,
-        SEQ_FEED    = 2'b10
-    } seq_state_t;
-    seq_state_t seq_state;
-
-    // pipeline_hold blocks the parser from accumulating a new message while:
-    //   a) fields_valid_d1 is high (watchlist decision in flight), or
-    //   b) feat_valid is high (feature_extractor just fired), or
-    //   c) the sequencer is running (seq_state != SEQ_IDLE).
-    // This closes the 1-cycle gap introduced by symbol_filter's output register.
-    logic pipeline_hold;
-    assign pipeline_hold = fields_valid_d1 || feat_valid || (seq_state != SEQ_IDLE);
-
-    // ── Byte-reversal: CDC FIFO (little-endian) → itch_parser (big-endian) ──
+    // Byte-reversal: axis_async_fifo output (little-endian, byte 0→tdata[7:0])
+    // → itch_parser_v2 inside lliu_top_v2 expects big-endian (byte 0→tdata[63:56]).
     assign itch_300_tdata_swapped = {
         itch_300_tdata[ 7: 0], itch_300_tdata[15: 8],
         itch_300_tdata[23:16], itch_300_tdata[31:24],
@@ -632,193 +568,50 @@ module kc705_top #(
         itch_300_tdata[55:48], itch_300_tdata[63:56]
     };
 
-    // ── ITCH Parser ──────────────────────────────────────────────────
-    itch_parser u_parser (
-        .clk           (clk_300),
-        .rst           (sys_rst),
-        .s_axis_tdata  (itch_300_tdata_swapped),
-        .s_axis_tvalid (itch_300_tvalid),
-        .s_axis_tready (itch_300_tready),
-        .s_axis_tlast  (itch_300_tlast),
-        .pipeline_hold (pipeline_hold),
-        .msg_valid     (parser_msg_valid),
-        .message_type  (parser_message_type),
-        .order_ref     (parser_order_ref),
-        .side          (parser_side),
-        .price         (parser_price),
-        .stock         (parser_stock),
-        .fields_valid  (parser_fields_valid)
-    );
-
-    // ── 1-cycle delay: align parser fields with symbol_filter output ──
-    always_ff @(posedge clk_300) begin
-        if (sys_rst) begin
-            fields_valid_d1 <= 1'b0;
-            price_d1        <= '0;
-            order_ref_d1    <= '0;
-            side_d1         <= 1'b0;
-        end else begin
-            fields_valid_d1 <= parser_fields_valid;
-            price_d1        <= parser_price;
-            order_ref_d1    <= parser_order_ref;
-            side_d1         <= parser_side;
-        end
-    end
-
-    // ── Symbol filter (64-entry LUT-CAM) ─────────────────────────────
-    symbol_filter u_sym_filter (
-        .clk           (clk_300),
-        .rst           (sys_rst),
-        .stock         (parser_stock),
-        .stock_valid   (parser_fields_valid),
-        .watchlist_hit (watchlist_hit),
-        .cam_wr_index  (cam_wr_index_i),
-        .cam_wr_data   (cam_wr_data_i),
-        .cam_wr_valid  (cam_wr_valid_i),
-        .cam_wr_en_bit (cam_wr_en_bit_i)
-    );
-
-    // ── Feature extractor (only for watchlist hits) ───────────────────
-    feature_extractor #(
-        .VEC_LEN (VEC_LEN)
-    ) u_feat_extract (
+    lliu_top_v2 u_lliu (
         .clk            (clk_300),
-        .rst            (sys_rst),
-        .price          (price_d1),
-        .order_ref      (order_ref_d1),
-        .side           (side_d1),
-        .fields_valid   (fields_valid_d1 & watchlist_hit),
-        .features       (feat_vec),
-        .features_valid (feat_valid)
+        .rst            (rst_300),
+
+        // ITCH ingress (byte-swapped to big-endian)
+        .s_axis_tdata   (itch_300_tdata_swapped),
+        .s_axis_tvalid  (itch_300_tvalid),
+        .s_axis_tready  (itch_300_tready),
+        .s_axis_tlast   (itch_300_tlast),
+
+        // OUCH 5.0 egress
+        .m_axis_tdata   (m_axis_tdata),
+        .m_axis_tkeep   (m_axis_tkeep),
+        .m_axis_tvalid  (m_axis_tvalid),
+        .m_axis_tlast   (m_axis_tlast),
+        .m_axis_tready  (m_axis_tready),
+
+        // AXI4-Lite control (12-bit byte addresses)
+        .s_axil_awaddr  (axil_awaddr),
+        .s_axil_awvalid (axil_awvalid),
+        .s_axil_awready (axil_awready),
+        .s_axil_wdata   (axil_wdata),
+        .s_axil_wstrb   (axil_wstrb),
+        .s_axil_wvalid  (axil_wvalid),
+        .s_axil_wready  (axil_wready),
+        .s_axil_bresp   (axil_bresp),
+        .s_axil_bvalid  (axil_bvalid),
+        .s_axil_bready  (axil_bready),
+        .s_axil_araddr  (axil_araddr),
+        .s_axil_arvalid (axil_arvalid),
+        .s_axil_arready (axil_arready),
+        .s_axil_rdata   (axil_rdata),
+        .s_axil_rresp   (axil_rresp),
+        .s_axil_rvalid  (axil_rvalid),
+        .s_axil_rready  (axil_rready),
+
+        .collision_count_out (collision_count_out),
+        .tx_overflow_out     (tx_overflow_out)
     );
 
-    // ── Inference sequencer ───────────────────────────────────────────
-    logic [$clog2(VEC_LEN+1)-1:0] seq_idx;
-
-    always_ff @(posedge clk_300) begin
-        if (sys_rst) begin
-            seq_state          <= SEQ_IDLE;
-            seq_idx            <= '0;
-            dp_start           <= 1'b0;
-            dp_feature_valid_i <= 1'b0;
-            dp_feature_in      <= '0;
-        end else begin
-            dp_start           <= 1'b0;
-            dp_feature_valid_i <= 1'b0;
-
-            case (seq_state)
-                SEQ_IDLE: begin
-                    if (feat_valid) begin
-                        dp_start  <= 1'b1;
-                        seq_idx   <= '0;
-                        seq_state <= SEQ_PRELOAD;
-                    end
-                end
-                SEQ_PRELOAD: seq_state <= SEQ_FEED;
-                SEQ_FEED: begin
-                    dp_feature_in      <= feat_vec[seq_idx[$clog2(VEC_LEN)-1:0]];
-                    dp_feature_valid_i <= 1'b1;
-                    if (seq_idx == VEC_LEN[$clog2(VEC_LEN+1)-1:0] - 1)
-                        seq_state <= SEQ_IDLE;
-                    else
-                        seq_idx <= seq_idx + 1;
-                end
-                /* verilator coverage_off */
-                default: seq_state <= SEQ_IDLE;
-                /* verilator coverage_on */
-            endcase
-        end
-    end
-
-    assign wgt_rd_addr = seq_idx[$clog2(VEC_LEN)-1:0];
-    assign dp_weight_in = wgt_rd_data;
-
-    // ── Weight memory ─────────────────────────────────────────────────
-    weight_mem #(.DEPTH(VEC_LEN)) u_weight_mem (
-        .clk     (clk_300),
-        .rst     (sys_rst),
-        .wr_addr (wgt_wr_addr),
-        .wr_data (wgt_wr_data),
-        .wr_en   (wgt_wr_en),
-        .rd_addr (wgt_rd_addr),
-        .rd_data (wgt_rd_data)
-    );
-
-    // ── Dot-product engine ────────────────────────────────────────────
-    dot_product_engine #(.VEC_LEN(VEC_LEN)) u_dp (
-        .clk           (clk_300),
-        .rst           (sys_rst),
-        .feature_in    (dp_feature_in),
-        .feature_valid (dp_feature_valid_i),
-        .weight_in     (dp_weight_in),
-        .start         (dp_start),
-        .result        (dp_result_i),
-        .result_valid  (dp_result_valid_i)
-    );
-
-    // ── Output buffer ─────────────────────────────────────────────────
-    output_buffer u_out_buf (
-        .clk          (clk_300),
-        .rst          (sys_rst),
-        .result_in    (dp_result_i),
-        .result_valid (dp_result_valid_i),
-        .result_out   (out_result),
-        .result_ready (out_ready)
-    );
-
-    assign dp_result       = out_result;
-    assign dp_result_valid = dp_result_valid_i;
-
-    // ctrl_start from AXI register is unused in KC705: inference fires
-    // automatically when a watchlist-matching Add Order arrives.
-    /* verilator lint_off UNUSED */
-    logic _unused_ctrl_start;
-    assign _unused_ctrl_start = ctrl_start;
-    /* verilator lint_on UNUSED */
-
-    // ── AXI4-Lite slave (clk_300 domain) ─────────────────────────────
-    logic status_busy;
-    assign status_busy = (seq_state != SEQ_IDLE);
-
-    axi4_lite_slave #(
-        .ADDR_WIDTH (AXIL_ADDR),
-        .DATA_WIDTH (AXIL_DATA)
-    ) u_axil (
-        .clk                 (clk_300),
-        .rst                 (rst_300),
-        .s_axil_awaddr       (axil_awaddr),
-        .s_axil_awvalid      (axil_awvalid),
-        .s_axil_awready      (axil_awready),
-        .s_axil_wdata        (axil_wdata),
-        .s_axil_wstrb        (axil_wstrb),
-        .s_axil_wvalid       (axil_wvalid),
-        .s_axil_wready       (axil_wready),
-        .s_axil_bresp        (axil_bresp),
-        .s_axil_bvalid       (axil_bvalid),
-        .s_axil_bready       (axil_bready),
-        .s_axil_araddr       (axil_araddr),
-        .s_axil_arvalid      (axil_arvalid),
-        .s_axil_arready      (axil_arready),
-        .s_axil_rdata        (axil_rdata),
-        .s_axil_rresp        (axil_rresp),
-        .s_axil_rvalid       (axil_rvalid),
-        .s_axil_rready       (axil_rready),
-        .wgt_wr_addr         (wgt_wr_addr),
-        .wgt_wr_data         (wgt_wr_data),
-        .wgt_wr_en           (wgt_wr_en),
-        .ctrl_start          (ctrl_start),
-        .ctrl_soft_reset     (ctrl_soft_reset),
-        .status_result_ready (out_ready),
-        .status_busy         (status_busy),
-        .result_data         (out_result),
-        .cam_wr_index        (cam_wr_index_i),
-        .cam_wr_data         (cam_wr_data_i),
-        .cam_wr_valid        (cam_wr_valid_i),
-        .cam_wr_en_bit       (cam_wr_en_bit_i),
-        .dropped_frames      (dropped_frames_300),
-        .dropped_datagrams   (dropped_datagrams_300),
-        .expected_seq_num    (expected_seq_num_300),
-        .gtx_lock            (1'b1)   // tied 1 in simulation; GTX PLL lock in hw
-    );
+    // Route clk_156 monitoring counters (CDC-resampled into clk_300) to outputs.
+    assign dropped_frames_out    = dropped_frames_300;
+    assign dropped_datagrams_out = dropped_datagrams_300;
+    assign expected_seq_num_out  = expected_seq_num_300;
 
 endmodule
+
