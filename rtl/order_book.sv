@@ -114,6 +114,11 @@ typedef enum logic [2:0] {
 ob_state_t state;
 
 // ---------------------------------------------------------------------------
+// Linear-probe parameters
+// ---------------------------------------------------------------------------
+localparam int OB_MAX_PROBE = 4;  // up to 4 extra slots probed on collision
+
+// ---------------------------------------------------------------------------
 // Operation registers (latched in S_IDLE on fields_valid)
 // ---------------------------------------------------------------------------
 logic [7:0]  op_msg_type;
@@ -127,6 +132,10 @@ logic [8:0]  op_sym_id;
 logic [16:0] op_hash;
 logic [16:0] op_new_hash;        // CRC of new_order_ref (for Replace)
 /* verilator lint_on UNUSEDSIGNAL */
+logic [2:0]  probe_cnt;          // 0..OB_MAX_PROBE linear-probe step counter
+// Resolved slot address (base hash + probe_cnt, truncated to table width)
+// Used to write to the correct probed slot rather than always the base hash.
+logic [OB_REF_TABLE_BITS-1:0] op_resolved_addr;
 
 /* verilator lint_off UNUSEDSIGNAL */
 logic [127:0] ref_rd_data;       // BRAM read pipeline register; [5:0] are reserved
@@ -202,6 +211,8 @@ always_ff @(posedge clk) begin
         op_sym_id       <= 9'h0;
         op_hash         <= 17'h0;
         op_new_hash     <= 17'h0;
+        probe_cnt       <= 3'd0;
+        op_resolved_addr<= '0;
         ref_rd_data     <= 128'h0;
         ref_rd_addr     <= '0;
         ref_wr_en       <= 1'b0;
@@ -239,12 +250,14 @@ always_ff @(posedge clk) begin
                     op_sym_id        <= sym_id;
                     op_hash          <= crc17(order_ref);
                     op_new_hash      <= crc17(new_order_ref);
+                    probe_cnt        <= 3'd0;
 
                     // Route based on message type
                     case (msg_type)
                         8'h41, // 'A' Add Order
                         8'h46: // 'F' Add Order (MPID)
-                            state <= S_SCAN_BOOK;
+                            // Use S_READ_REF1 to probe for an empty slot (linear probing)
+                            state <= S_READ_REF1;
 
                         8'h58, // 'X' Order Cancel
                         8'h44, // 'D' Order Delete
@@ -260,10 +273,10 @@ always_ff @(posedge clk) begin
             end
 
             // ------------------------------------------------------------------
-            // 2-cycle BRAM read pipeline
+            // 2-cycle BRAM read pipeline (linear probe: address = hash + probe_cnt)
             // ------------------------------------------------------------------
             S_READ_REF1: begin
-                ref_rd_addr <= op_hash[OB_REF_TABLE_BITS-1:0];
+                ref_rd_addr <= OB_REF_TABLE_BITS'(op_hash + {14'h0, probe_cnt});
                 state       <= S_READ_REF2;
             end
 
@@ -274,20 +287,58 @@ always_ff @(posedge clk) begin
 
             // ------------------------------------------------------------------
             S_PROCESS: begin
-                op_ref_side   <= ref_rd_data[6];
-                op_ref_price  <= ref_rd_data[62:31];
-                op_ref_shares <= ref_rd_data[30:7];
+                // For Add ops: probe for an empty slot (valid=0) or the same order_ref
+                // (duplicate add, which should overwrite).
+                // For modify ops: probe for the matching order_ref.
+                begin
+                    automatic logic is_add;
+                    is_add = (op_msg_type == 8'h41) || (op_msg_type == 8'h46);
 
-                // Collision: entry valid but order_ref tag mismatch
-                if (ref_rd_data[127] && (ref_rd_data[126:63] != op_order_ref)) begin
-                    collision_flag  <= 1'b1;
-                    collision_count <= collision_count + 32'h1;
-                    state           <= S_DONE;
-                // Not found (for modify ops): drop silently
-                end else if (!ref_rd_data[127]) begin
-                    state <= S_DONE;
-                end else begin
-                    state <= S_SCAN_BOOK;
+                    if (is_add) begin
+                        // Add: accept this slot if empty, or if order_ref already here
+                        if (!ref_rd_data[127] ||
+                            (ref_rd_data[127] && ref_rd_data[126:63] == op_order_ref)) begin
+                            // Found: record resolved address and proceed to book scan
+                            op_resolved_addr <= ref_rd_addr;
+                            state            <= S_SCAN_BOOK;
+                        end else begin
+                            // Slot occupied by a different order — probe next slot
+                            if (probe_cnt == 3'(OB_MAX_PROBE)) begin
+                                // Table full within probe range — drop silently
+                                collision_flag  <= 1'b1;
+                                collision_count <= collision_count + 32'h1;
+                                state           <= S_DONE;
+                            end else begin
+                                probe_cnt <= probe_cnt + 3'd1;
+                                state     <= S_READ_REF1;
+                            end
+                        end
+                    end else begin
+                        // Modify: latch ref entry fields from the probed slot
+                        op_ref_side   <= ref_rd_data[6];
+                        op_ref_price  <= ref_rd_data[62:31];
+                        op_ref_shares <= ref_rd_data[30:7];
+
+                        if (!ref_rd_data[127]) begin
+                            // Slot empty — order not in table, drop silently
+                            state <= S_DONE;
+                        end else if (ref_rd_data[126:63] == op_order_ref) begin
+                            // Exact match — record slot and proceed
+                            op_resolved_addr <= ref_rd_addr;
+                            state            <= S_SCAN_BOOK;
+                        end else begin
+                            // Collision: valid entry for a different order_ref
+                            collision_flag  <= 1'b1;
+                            collision_count <= collision_count + 32'h1;
+                            if (probe_cnt == 3'(OB_MAX_PROBE)) begin
+                                // Exceeded probe depth — drop operation
+                                state <= S_DONE;
+                            end else begin
+                                probe_cnt <= probe_cnt + 3'd1;
+                                state     <= S_READ_REF1;
+                            end
+                        end
+                    end
                 end
             end
 
@@ -340,9 +391,9 @@ always_ff @(posedge clk) begin
 
                     // --- Add Order ('A' or 'F') ---
                     8'h41, 8'h46: begin
-                        // Write ref entry via registered write port
+                        // Write ref entry to the resolved (probed) slot
                         ref_wr_en   <= 1'b1;
-                        ref_wr_addr <= op_hash[OB_REF_TABLE_BITS-1:0];
+                        ref_wr_addr <= op_resolved_addr;
                         ref_wr_data <= {1'b1, op_order_ref,
                                         op_price, op_shares, op_side, 6'h0};
                         // Write book level (+ mirror top 4 levels to l2_cache)
@@ -379,9 +430,9 @@ always_ff @(posedge clk) begin
                             new_sh = (op_ref_shares > op_shares) ?
                                      (op_ref_shares - op_shares) : 24'h0;
 
-                            // Write ref entry via registered write port
+                            // Write ref entry to the resolved (probed) slot
                             ref_wr_en   <= 1'b1;
-                            ref_wr_addr <= op_hash[OB_REF_TABLE_BITS-1:0];
+                            ref_wr_addr <= op_resolved_addr;
                             ref_wr_data <= {1'b1, op_order_ref,
                                             op_ref_price, new_sh,
                                             op_ref_side, 6'h0};
@@ -417,9 +468,9 @@ always_ff @(posedge clk) begin
 
                     // --- Order Delete ('D') ---
                     8'h44: begin
-                        // Invalidate ref entry via registered write port
+                        // Invalidate the resolved (probed) slot
                         ref_wr_en   <= 1'b1;
-                        ref_wr_addr <= op_hash[OB_REF_TABLE_BITS-1:0];
+                        ref_wr_addr <= op_resolved_addr;
                         ref_wr_data <= 128'h0;
 
                         // Zero book level (+ mirror l2_cache)
@@ -509,9 +560,9 @@ always_ff @(posedge clk) begin
                             new_sh = (op_ref_shares > op_shares) ?
                                      (op_ref_shares - op_shares) : 24'h0;
 
-                            // Write ref entry via registered write port (always fires)
+                            // Write ref entry to the resolved (probed) slot
                             ref_wr_en   <= 1'b1;
-                            ref_wr_addr <= op_hash[OB_REF_TABLE_BITS-1:0];
+                            ref_wr_addr <= op_resolved_addr;
 
                             if (new_sh == 24'h0) begin
                                 // Fully executed — invalidate
@@ -566,10 +617,11 @@ always_ff @(posedge clk) begin
 
             // ------------------------------------------------------------------
             // S_UPDATE2: Replace only — invalidate old order-ref hash slot
+            // (uses op_resolved_addr which holds the probed slot for old order_ref)
             // ------------------------------------------------------------------
             S_UPDATE2: begin
                 ref_wr_en   <= 1'b1;
-                ref_wr_addr <= op_hash[OB_REF_TABLE_BITS-1:0];
+                ref_wr_addr <= op_resolved_addr;
                 ref_wr_data <= 128'h0;
                 state       <= S_DONE;
             end
