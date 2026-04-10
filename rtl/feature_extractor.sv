@@ -145,8 +145,8 @@ module feature_extractor #(
                 sgn2_r2  <= flow_val_r[31];
                 mag2_r2  <= flow_val_r[31]  ? (~flow_val_r  + 32'd1) : flow_val_r;
 
-                // Feature 3: normalized price (always non-negative)
-                zero3_r2 <= 1'b0;
+                // Feature 3: normalized price (non-negative; zero when price == 0)
+                zero3_r2 <= (price_norm_r == 32'h0);
                 sgn3_r2  <= 1'b0;
                 mag3_r2  <= price_norm_r;
             end

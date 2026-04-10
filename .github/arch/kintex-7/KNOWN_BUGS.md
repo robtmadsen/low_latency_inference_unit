@@ -10,9 +10,9 @@
 | Field | Detail |
 |-------|--------|
 | **Severity** | Critical — all dot-product results are incorrect |
-| **Status** | Open |
+| **Status** | **Resolved** — `fix/rtl-known-bugs` (Option B: sequential accumulation) |
 | **Detected by** | cocotb `tests/test_dot_product_engine.py` (all 3 tests fail) |
-| **Files to modify** | `rtl/fp32_acc.sv` and/or `rtl/dot_product_engine.sv` |
+| **Files modified** | `rtl/dot_product_engine.sv` |
 
 ### Root Cause
 
@@ -56,9 +56,9 @@ AssertionError: Dot product mismatch: got -1.0, expected -0.75
 | Field | Detail |
 |-------|--------|
 | **Severity** | High — zero-price normalization produces wrong feature value |
-| **Status** | Open |
+| **Status** | **Resolved** — `fix/rtl-known-bugs` |
 | **Detected by** | cocotb `tests/test_feat_edge.py::test_zero_price_input` |
-| **Files to modify** | `rtl/feature_extractor.sv` (or `rtl/feature_extractor_v2.sv`, whichever is the active RTL source) |
+| **Files modified** | `rtl/feature_extractor.sv` |
 
 ### Root Cause
 
@@ -98,9 +98,9 @@ source. If both `feature_extractor.sv` and `feature_extractor_v2.sv` contain a c
 | Field | Detail |
 |-------|--------|
 | **Severity** | High — incorrect BBO after large-population delete bursts |
-| **Status** | Open |
+| **Status** | **Resolved** — `fix/rtl-known-bugs` (linear probing, depth 4) |
 | **Detected by** | cocotb `tests/test_order_book.py::test_stress_10k_adds_5k_deletes_2k_replaces` |
-| **Files to modify** | `rtl/order_book.sv` (collision resolution); possibly `tb/cocotb/models/golden_model.py` / `OrderBookModel` in `test_order_book.py` |
+| **Files modified** | `rtl/order_book.sv` |
 
 ### Failing Test Output
 
@@ -150,6 +150,6 @@ stale ask price visible in the BBO output.
 
 | ID | Severity | Status | Files | Detected By |
 |----|----------|--------|-------|-------------|
-| BUG-001 | Critical | Open | `rtl/fp32_acc.sv`, `rtl/dot_product_engine.sv` | `test_dot_product_engine.py` |
-| BUG-002 | High | Open | `rtl/feature_extractor.sv` / `feature_extractor_v2.sv` | `test_feat_edge.py::test_zero_price_input` |
-| BUG-003 | High | Open | `rtl/order_book.sv`, `tb/cocotb/models/golden_model.py` | `test_order_book.py::test_stress_10k_adds_5k_deletes_2k_replaces` |
+| BUG-001 | Critical | **Resolved** | `rtl/dot_product_engine.sv` | `test_dot_product_engine.py` |
+| BUG-002 | High | **Resolved** | `rtl/feature_extractor.sv` | `test_feat_edge.py::test_zero_price_input` |
+| BUG-003 | High | **Resolved** | `rtl/order_book.sv` | `test_order_book.py::test_stress_10k_adds_5k_deletes_2k_replaces` |
