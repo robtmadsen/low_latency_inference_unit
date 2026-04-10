@@ -71,7 +71,7 @@ package lliu_pkg;
   parameter int ITCH_MAX_MSG_LEN        = 43;
   parameter int OB_NUM_SYMBOLS    = 500;
   parameter int OB_LEVELS         = 16;
-  parameter int OB_REF_TABLE_BITS = 17;
+  parameter int OB_REF_TABLE_BITS = 15;   // 32K entries — fits in ~228 RAMB18E1
   parameter int PTP_SYNC_PERIOD  = 1024;
   parameter int PTP_SUBCNT_WIDTH = 10;
   parameter int SYM_FILTER_ENTRIES = 512;

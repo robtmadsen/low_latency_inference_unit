@@ -31,8 +31,6 @@
 //   HIDDEN  — weight memory depth    (default HIDDEN_LAYER     = 32)
 //   Must satisfy VEC_LEN == HIDDEN for a valid dot product.
 
-`default_nettype none
-
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
 /* verilator lint_on IMPORTSTAR */
@@ -237,5 +235,3 @@ module lliu_core #(
     );
 
 endmodule
-
-`default_nettype wire

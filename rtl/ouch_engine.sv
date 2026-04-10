@@ -27,8 +27,6 @@
 //   Asserts after 64 consecutive stalled cycles (m_axis_tready=0 during SEND).
 //   Self-clears after 256 consecutive free cycles (m_axis_tready=1).
 
-`default_nettype none
-
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
 /* verilator lint_on IMPORTSTAR */
@@ -273,5 +271,3 @@ module ouch_engine (
     end
 
 endmodule
-
-`default_nettype wire

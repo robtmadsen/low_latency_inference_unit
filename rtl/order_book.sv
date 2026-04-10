@@ -2,7 +2,7 @@
 //
 // Resources (xc7k160tffg676-2 estimates):
 //   book_mem : 500×2×16 × 56b ≈ 28 BRAM18 (inference)
-//   ref_mem  : 128K × 128b ≈ 128 BRAM18   (inference)
+//   ref_mem  : 32K × 128b ≈ 228 BRAM18   (inference)
 //   bbo_*_r  : 500 × 4 × 32b + 2 × 24b = FF arrays
 //
 // Phase 1 BBO simplification:
@@ -15,8 +15,6 @@
 // FSM 7-state:
 //   S_IDLE → S_SCAN_BOOK (Add/Add-MPID) or S_READ_REF1 (modify ops) or stay (Trade/unknown)
 //   S_READ_REF1 → S_READ_REF2 → S_PROCESS → S_SCAN_BOOK → S_UPDATE → S_DONE → S_IDLE
-
-`default_nettype none
 
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
@@ -80,7 +78,7 @@ endfunction
 /* verilator lint_off UNOPTFLAT */
 (* ram_style = "block" *) logic [55:0] book_mem [0:OB_NUM_SYMBOLS-1][0:1][0:OB_LEVELS-1];
 
-// ref_mem: 2^17 = 131072 entries, 128 bits wide
+// ref_mem: 2^OB_REF_TABLE_BITS = 32768 entries, 128 bits wide
 // Layout: [127]=valid, [126:63]=order_ref(64b), [62:31]=price(32b), [30:7]=shares(24b),
 //         [6]=side, [5:0]=reserved
 (* ram_style = "block" *) logic [127:0] ref_mem [0:(1<<OB_REF_TABLE_BITS)-1];
@@ -109,7 +107,8 @@ typedef enum logic [2:0] {
     S_PROCESS   = 3'd3,
     S_SCAN_BOOK = 3'd4,
     S_UPDATE    = 3'd5,
-    S_DONE      = 3'd6
+    S_DONE      = 3'd6,
+    S_UPDATE2   = 3'd7  // Replace only: second write to invalidate old hash slot
 } ob_state_t;
 
 ob_state_t state;
@@ -124,13 +123,20 @@ logic [31:0] op_price;
 logic [23:0] op_shares;          // truncated to 24 bits
 logic        op_side;
 logic [8:0]  op_sym_id;
+/* verilator lint_off UNUSEDSIGNAL */
 logic [16:0] op_hash;
 logic [16:0] op_new_hash;        // CRC of new_order_ref (for Replace)
+/* verilator lint_on UNUSEDSIGNAL */
 
 /* verilator lint_off UNUSEDSIGNAL */
 logic [127:0] ref_rd_data;       // BRAM read pipeline register; [5:0] are reserved
 /* verilator lint_on UNUSEDSIGNAL */
-logic [16:0]  ref_rd_addr;       // registered address for BRAM read
+logic [OB_REF_TABLE_BITS-1:0] ref_rd_addr;       // registered address for BRAM read
+
+// Single registered write port — Vivado BRAM inference requirement
+logic                         ref_wr_en;
+logic [OB_REF_TABLE_BITS-1:0] ref_wr_addr;
+logic [127:0]                 ref_wr_data;
 
 // Scan-phase state
 logic [3:0]   target_level;
@@ -167,6 +173,15 @@ always_ff @(posedge clk) begin
 end
 
 // ---------------------------------------------------------------------------
+// ref_mem single-port write
+// All FSM write sites drive ref_wr_en/addr/data; this block is the sole writer.
+// ---------------------------------------------------------------------------
+always_ff @(posedge clk) begin
+    if (ref_wr_en)
+        ref_mem[ref_wr_addr] <= ref_wr_data;
+end
+
+// ---------------------------------------------------------------------------
 // Main FSM
 // ---------------------------------------------------------------------------
 integer bbo_init_i;
@@ -188,7 +203,10 @@ always_ff @(posedge clk) begin
         op_hash         <= 17'h0;
         op_new_hash     <= 17'h0;
         ref_rd_data     <= 128'h0;
-        ref_rd_addr     <= 17'h0;
+        ref_rd_addr     <= '0;
+        ref_wr_en       <= 1'b0;
+        ref_wr_addr     <= '0;
+        ref_wr_data     <= 128'h0;
         target_level    <= 4'h0;
         target_found    <= 1'b0;
         op_ref_price    <= 32'h0;
@@ -204,6 +222,7 @@ always_ff @(posedge clk) begin
         // Default pulse clears
         bbo_valid      <= 1'b0;
         collision_flag <= 1'b0;
+        ref_wr_en      <= 1'b0;
 
         case (state)
 
@@ -244,7 +263,7 @@ always_ff @(posedge clk) begin
             // 2-cycle BRAM read pipeline
             // ------------------------------------------------------------------
             S_READ_REF1: begin
-                ref_rd_addr <= op_hash;
+                ref_rd_addr <= op_hash[OB_REF_TABLE_BITS-1:0];
                 state       <= S_READ_REF2;
             end
 
@@ -321,9 +340,11 @@ always_ff @(posedge clk) begin
 
                     // --- Add Order ('A' or 'F') ---
                     8'h41, 8'h46: begin
-                        // Write ref entry
-                        ref_mem[op_hash] <= {1'b1, op_order_ref,
-                                             op_price, op_shares, op_side, 6'h0};
+                        // Write ref entry via registered write port
+                        ref_wr_en   <= 1'b1;
+                        ref_wr_addr <= op_hash[OB_REF_TABLE_BITS-1:0];
+                        ref_wr_data <= {1'b1, op_order_ref,
+                                        op_price, op_shares, op_side, 6'h0};
                         // Write book level (+ mirror top 4 levels to l2_cache)
                         if (target_found) begin
                             book_mem[op_sym_id][op_side][target_level] <=
@@ -358,10 +379,12 @@ always_ff @(posedge clk) begin
                             new_sh = (op_ref_shares > op_shares) ?
                                      (op_ref_shares - op_shares) : 24'h0;
 
-                            // Read-modify-write ref entry
-                            ref_mem[op_hash] <= {1'b1, op_order_ref,
-                                                 op_ref_price, new_sh,
-                                                 op_ref_side, 6'h0};
+                            // Write ref entry via registered write port
+                            ref_wr_en   <= 1'b1;
+                            ref_wr_addr <= op_hash[OB_REF_TABLE_BITS-1:0];
+                            ref_wr_data <= {1'b1, op_order_ref,
+                                            op_ref_price, new_sh,
+                                            op_ref_side, 6'h0};
 
                             // Update book level (+ mirror l2_cache)
                             if (target_found) begin
@@ -394,8 +417,10 @@ always_ff @(posedge clk) begin
 
                     // --- Order Delete ('D') ---
                     8'h44: begin
-                        // Invalidate ref entry
-                        ref_mem[op_hash] <= 128'h0;
+                        // Invalidate ref entry via registered write port
+                        ref_wr_en   <= 1'b1;
+                        ref_wr_addr <= op_hash[OB_REF_TABLE_BITS-1:0];
+                        ref_wr_data <= 128'h0;
 
                         // Zero book level (+ mirror l2_cache)
                         if (target_found) begin
@@ -423,8 +448,7 @@ always_ff @(posedge clk) begin
 
                     // --- Order Replace ('U') — delete old, insert new ---
                     8'h55: begin
-                        // Delete old ref entry
-                        ref_mem[op_hash] <= 128'h0;
+                        // Delete old ref entry deferred to S_UPDATE2 (single write port)
 
                         // Zero old book level (+ mirror l2_cache)
                         if (target_found) begin
@@ -433,10 +457,11 @@ always_ff @(posedge clk) begin
                                 l2_cache[op_sym_id][op_ref_side][target_level[1:0]] <= 56'h0;
                         end
 
-                        // Write new ref entry at new_order_ref hash
-                        ref_mem[op_new_hash] <= {1'b1, op_new_order_ref,
-                                                 op_price, op_shares,
-                                                 op_side, 6'h0};
+                        // Write new ref entry via registered write port
+                        ref_wr_en   <= 1'b1;
+                        ref_wr_addr <= op_new_hash[OB_REF_TABLE_BITS-1:0];
+                        ref_wr_data <= {1'b1, op_new_order_ref,
+                                        op_price, op_shares, op_side, 6'h0};
 
                         // Reuse target_level for new entry (just zeroed → first empty)
                         if (target_found) begin
@@ -484,9 +509,13 @@ always_ff @(posedge clk) begin
                             new_sh = (op_ref_shares > op_shares) ?
                                      (op_ref_shares - op_shares) : 24'h0;
 
+                            // Write ref entry via registered write port (always fires)
+                            ref_wr_en   <= 1'b1;
+                            ref_wr_addr <= op_hash[OB_REF_TABLE_BITS-1:0];
+
                             if (new_sh == 24'h0) begin
                                 // Fully executed — invalidate
-                                ref_mem[op_hash] <= 128'h0;
+                                ref_wr_data <= 128'h0;
                                 if (target_found) begin
                                     book_mem[op_sym_id][op_ref_side][target_level] <= 56'h0;
                                     if (target_level < 4)
@@ -494,9 +523,9 @@ always_ff @(posedge clk) begin
                                 end
                             end else begin
                                 // Partial execution — update shares
-                                ref_mem[op_hash] <= {1'b1, op_order_ref,
-                                                     op_ref_price, new_sh,
-                                                     op_ref_side, 6'h0};
+                                ref_wr_data <= {1'b1, op_order_ref,
+                                                op_ref_price, new_sh,
+                                                op_ref_side, 6'h0};
                                 if (target_found) begin
                                     book_mem[op_sym_id][op_ref_side][target_level] <=
                                         {op_ref_price, new_sh};
@@ -531,7 +560,18 @@ always_ff @(posedge clk) begin
                     end
                 endcase
 
-                state <= S_DONE;
+                // Replace needs a second write cycle to clear the old hash slot
+                state <= (op_msg_type == 8'h55) ? S_UPDATE2 : S_DONE;
+            end
+
+            // ------------------------------------------------------------------
+            // S_UPDATE2: Replace only — invalidate old order-ref hash slot
+            // ------------------------------------------------------------------
+            S_UPDATE2: begin
+                ref_wr_en   <= 1'b1;
+                ref_wr_addr <= op_hash[OB_REF_TABLE_BITS-1:0];
+                ref_wr_data <= 128'h0;
+                state       <= S_DONE;
             end
 
             // ------------------------------------------------------------------
@@ -546,5 +586,3 @@ always_ff @(posedge clk) begin
 end
 
 endmodule
-
-`default_nettype wire

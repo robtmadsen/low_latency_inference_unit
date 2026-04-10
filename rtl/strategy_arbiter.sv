@@ -13,8 +13,6 @@
 //
 // Single output register: best_* signals are stable 1 cycle after core_valids.
 
-`default_nettype none
-
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
 /* verilator lint_on IMPORTSTAR */
@@ -195,5 +193,3 @@ module strategy_arbiter (
     end
 
 endmodule
-
-`default_nettype wire
