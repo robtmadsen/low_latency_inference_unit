@@ -27,8 +27,6 @@
 //   0xE04        TMPL_DATA_LO [31:0]
 //   0xE08        TMPL_DATA_HI [31:0] + fires BRAM write
 
-`default_nettype none
-
 // verilator lint_off IMPORTSTAR
 import lliu_pkg::*;
 // verilator lint_on IMPORTSTAR
@@ -642,5 +640,3 @@ module lliu_top_v2 #(
     end
 
 endmodule
-
-`default_nettype wire

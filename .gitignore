@@ -40,3 +40,18 @@ JDs/
 
 # SSH key files
 *.pem
+
+# Vivado binary outputs — large, not diffable; use Git LFS or store externally
+syn/*.dcp
+syn/*.bit
+
+# Yosys intermediate artifacts
+syn/lliu.json
+syn/lliu_synth.v
+
+# Vivado temp/scratch directories
+syn/.Xil/
+syn/.srcs/
+
+# Vivado run logs (large/noisy; keep human-readable reports instead)
+syn/reports/vivado*.log

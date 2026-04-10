@@ -32,8 +32,6 @@
 //   Stage 3 (s3): bfloat16 conversion for features [0..15]
 //   Stage 4 (out): bfloat16 conversion for features [16..31]; assert features_valid
 
-`default_nettype none
-
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
 /* verilator lint_on IMPORTSTAR */
@@ -444,6 +442,4 @@ module feature_extractor_v2 #(
     end
 
 endmodule
-
-`default_nettype wire
 

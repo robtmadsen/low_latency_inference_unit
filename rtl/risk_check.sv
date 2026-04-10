@@ -30,8 +30,6 @@
 //   2'b10 = fat-finger violation
 //   2'b11 = position-limit violation
 
-`default_nettype none
-
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
 /* verilator lint_on IMPORTSTAR */
@@ -213,5 +211,3 @@ module risk_check (
     end
 
 endmodule
-
-`default_nettype wire
