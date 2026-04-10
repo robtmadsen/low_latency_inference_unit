@@ -189,11 +189,14 @@ async def test_back_to_back_reads(dut):
     dut.result_data.value = 0x42C80000
     await RisingEdge(dut.clk)
 
-    # Read STATUS, RESULT, STATUS, unmapped in rapid succession
+    # Read STATUS, RESULT, STATUS, unmapped in rapid succession.
+    # 0x30 is now a mapped monitoring register in the kintex-7 register map
+    # (CAM write / sequence-gap counters extend from 0x14 through 0x34).
+    # Use 0xFF — above the last defined register (0x4C) — as the unmapped probe.
     s1 = await axil.read(REG_STATUS)
     r1 = await axil.read(REG_RESULT)
     s2 = await axil.read(REG_STATUS)
-    u1 = await axil.read(0x30)
+    u1 = await axil.read(0xFF)
 
     assert s1 == s2, f"STATUS reads should be consistent: {s1:#x} vs {s2:#x}"
     assert r1 == 0x42C80000, f"RESULT mismatch: {r1:#x}"

@@ -39,6 +39,7 @@ async def test_bf16_mul_zero_both(dut):
     dut.b.value = 0x0000
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
     result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"0x0 should be 0, got {result}"
     dut._log.info("PASS: 0x0=0")
@@ -50,6 +51,7 @@ async def test_bf16_mul_zero_a(dut):
     await reset_dut(dut)
     dut.a.value = 0x0000
     dut.b.value = float_to_bfloat16(3.14)
+    await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     result = bits_to_fp32(int(dut.result.value))
@@ -65,6 +67,7 @@ async def test_bf16_mul_zero_b(dut):
     dut.b.value = 0x0000
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
     result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"2.5x0 should be 0, got {result}"
     dut._log.info("PASS: nonzerox0=0")
@@ -76,6 +79,7 @@ async def test_bf16_mul_neg_neg(dut):
     await reset_dut(dut)
     dut.a.value = float_to_bfloat16(-2.0)
     dut.b.value = float_to_bfloat16(-3.0)
+    await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     result = bits_to_fp32(int(dut.result.value))
@@ -93,6 +97,7 @@ async def test_bf16_mul_neg_pos(dut):
     dut.b.value = float_to_bfloat16(4.0)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
     result = bits_to_fp32(int(dut.result.value))
     assert result < 0, f"-5x4 should be negative, got {result}"
     dut._log.info("PASS: negxpos=neg")
@@ -104,6 +109,7 @@ async def test_bf16_mul_pos_neg(dut):
     await reset_dut(dut)
     dut.a.value = float_to_bfloat16(7.0)
     dut.b.value = float_to_bfloat16(-0.5)
+    await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     result = bits_to_fp32(int(dut.result.value))
@@ -186,12 +192,14 @@ async def test_bf16_mul_norm_shift_decision(dut):
     dut.b.value = float_to_bfloat16(1.0)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
     r1 = bits_to_fp32(int(dut.result.value))
     assert abs(r1 - 1.0) < 0.01
 
     # 1.5 x 1.5 = 2.25: needs shift
     dut.a.value = float_to_bfloat16(1.5)
     dut.b.value = float_to_bfloat16(1.5)
+    await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     r2 = bits_to_fp32(int(dut.result.value))

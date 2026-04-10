@@ -40,14 +40,30 @@ async def acc_reset(dut, cycles=3):
 
 
 async def acc_add(dut, value_float):
+    """Drive one accumulate cycle and flush the 5-stage pipeline.
+
+    acc_en is held high for exactly one clock edge (Stage A0 latches the
+    addend and reads acc_fb from acc_reg or partial_sum_r).  Five flush
+    cycles follow so Stage C can commit its result to acc_reg before the
+    next acc_add call reads acc_fb.  Matches the Model-B (Verilator+cocotb)
+    timing convention: await RisingEdge resumes pre-NBA of the current
+    edge = post-NBA of the previous edge.
+    """
+    PIPELINE_STAGES = 5  # A0, A1, B1, B2, C
     dut.addend.value = fp32_to_bits(value_float)
     dut.acc_en.value = 1
-    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)   # Stage A0 captures addend + acc_fb
     dut.acc_en.value = 0
+    for _ in range(PIPELINE_STAGES):  # wait for Stage C to commit to acc_reg
+        await RisingEdge(dut.clk)
 
 
 async def acc_read(dut):
-    await RisingEdge(dut.clk)
+    """Return acc_out after acc_add has already flushed the pipeline.
+
+    No additional clock edge is needed: acc_add's 5-cycle flush leaves
+    the simulation cursor at post-NBA of the Stage-C commit edge.
+    """
     return bits_to_fp32(int(dut.acc_out.value))
 
 
