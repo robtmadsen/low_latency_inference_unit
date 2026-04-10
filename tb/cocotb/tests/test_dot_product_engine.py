@@ -45,13 +45,15 @@ async def run_inference(dut, features, weights):
 
     dut.feature_valid.value = 0
 
-    # Wait for result_valid
-    for _ in range(10):
+    # Wait for result_valid.
+    # FSM latency after last feature_valid: VEC_LEN*7 (MAC) + 1 (S_DONE) = 29 cycles
+    # for VEC_LEN=4. Use 60 cycles as a safe timeout.
+    for _ in range(60):
         await RisingEdge(dut.clk)
         if dut.result_valid.value == 1:
             return bits_to_fp32(int(dut.result.value))
 
-    raise AssertionError("result_valid never asserted")
+    raise AssertionError("result_valid never asserted within 60 cycles")
 
 
 @cocotb.test()
