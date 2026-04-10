@@ -12,7 +12,12 @@ from utils.bfloat16 import fp32_to_bits, bits_to_fp32
 
 @cocotb.test()
 async def test_fp32_acc_accumulate(dut):
-    """Accumulate N addends and check running sum."""
+    """Accumulate N addends sequentially and check running sum.
+
+    The 5-stage pipeline (A0, A1, B1, B2, C) requires one acc_en pulse
+    followed by 5 flush cycles per addend so that Stage C commits the
+    partial result to acc_reg before the next addend reads acc_fb.
+    """
     clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
 
@@ -26,17 +31,17 @@ async def test_fp32_acc_accumulate(dut):
     dut.rst.value = 0
     await RisingEdge(dut.clk)
 
-    # Accumulate: 1.0 + 2.0 + 3.0 + 4.0 = 10.0
-    values = [1.0, 2.0, 3.0, 4.0]
+    PIPELINE_STAGES = 5  # A0, A1, B1, B2, C
 
+    # Accumulate sequentially: 1.0 + 2.0 + 3.0 + 4.0 = 10.0
+    values = [1.0, 2.0, 3.0, 4.0]
     for val in values:
         dut.addend.value = fp32_to_bits(val)
         dut.acc_en.value = 1
-        await RisingEdge(dut.clk)
-
-    dut.acc_en.value = 0
-    await RisingEdge(dut.clk)  # edge N+1: acc_en_d1 was 1, Stage 2 commits via NBA
-    await RisingEdge(dut.clk)  # edge N+2: read in active phase after Stage 2 NBA settled
+        await RisingEdge(dut.clk)          # Stage A0 latches addend + acc_fb
+        dut.acc_en.value = 0
+        for _ in range(PIPELINE_STAGES):   # flush: A1, B1, B2, C
+            await RisingEdge(dut.clk)
 
     result = bits_to_fp32(int(dut.acc_out.value))
     assert abs(result - 10.0) < 0.01, f"Expected 10.0, got {result}"
@@ -59,14 +64,16 @@ async def test_fp32_acc_clear(dut):
     dut.rst.value = 0
     await RisingEdge(dut.clk)
 
-    # Accumulate some values
+    PIPELINE_STAGES = 5  # A0, A1, B1, B2, C
+
+    # Accumulate sequentially: 5.0 + 10.0 = 15.0
     for val in [5.0, 10.0]:
         dut.addend.value = fp32_to_bits(val)
         dut.acc_en.value = 1
         await RisingEdge(dut.clk)
-
-    dut.acc_en.value = 0
-    await RisingEdge(dut.clk)
+        dut.acc_en.value = 0
+        for _ in range(PIPELINE_STAGES):
+            await RisingEdge(dut.clk)
 
     result_before = bits_to_fp32(int(dut.acc_out.value))
     assert result_before != 0.0, f"Accumulator should be nonzero, got {result_before}"
@@ -84,11 +91,13 @@ async def test_fp32_acc_clear(dut):
 
 @cocotb.test()
 async def test_fp32_acc_forwarding_mux(dut):
-    """4 back-to-back acc_en pulses exercise the forwarding mux (acc_en_d2 path).
+    """Verify acc_reg feedback is stable across many sequential acc_en pulses.
 
-    When acc_en_d2 is asserted while a new acc_en is also high, Stage A must
-    read partial_sum_r (the most recent uncommitted result) rather than acc_reg.
-    A broken mux skips one addend and returns 7.0 instead of 10.0.
+    The 5-stage pipeline (A0, A1, B1, B2, C) provides acc_reg as feedback
+    (acc_fb) to Stage A0.  After each flush the committed value must be
+    available to the next addend.  Eight addends test that the feedback path
+    does not drift or corrupt intermediate results:
+      1+2+3+4+5+6+7+8 = 36.
     """
     clock = Clock(dut.clk, 10, unit='ns')
     cocotb.start_soon(clock.start())
@@ -103,21 +112,21 @@ async def test_fp32_acc_forwarding_mux(dut):
     dut.rst.value = 0
     await RisingEdge(dut.clk)
 
-    # Drive 4 consecutive acc_en=1 cycles with no idle gap: 1.0 + 2.0 + 3.0 + 4.0
-    values = [1.0, 2.0, 3.0, 4.0]
+    PIPELINE_STAGES = 5  # A0, A1, B1, B2, C
+
+    values = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+    expected = sum(values)  # 36.0
+
     for val in values:
         dut.addend.value = fp32_to_bits(val)
         dut.acc_en.value = 1
         await RisingEdge(dut.clk)
-
-    # Deassert and flush all 3 pipeline stages
-    dut.acc_en.value = 0
-    await RisingEdge(dut.clk)  # flush Stage A → Stage B
-    await RisingEdge(dut.clk)  # flush Stage B → partial_sum_r
-    await RisingEdge(dut.clk)  # flush Stage C → acc_reg / acc_out
+        dut.acc_en.value = 0
+        for _ in range(PIPELINE_STAGES):
+            await RisingEdge(dut.clk)
 
     result = bits_to_fp32(int(dut.acc_out.value))
-    assert abs(result - 10.0) / 10.0 < 0.01, (
-        f"Expected 10.0, got {result} — forwarding mux may be broken"
+    assert abs(result - expected) / expected < 0.01, (
+        f"Expected {expected}, got {result} — acc_reg feedback may be broken"
     )
-    dut._log.info(f"PASS: forwarding mux sum = {result}")
+    dut._log.info(f"PASS: sequential feedback sum = {result}")

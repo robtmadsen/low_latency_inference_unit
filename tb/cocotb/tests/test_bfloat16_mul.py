@@ -50,8 +50,9 @@ async def test_bfloat16_mul_basic(dut):
 
         dut.a.value = a_bf16
         dut.b.value = b_bf16
-        await RisingEdge(dut.clk)  # edge N: latch a,b into FF
-        await RisingEdge(dut.clk)  # edge N+1: read (active phase = post-NBA of edge N)
+        await RisingEdge(dut.clk)  # edge N: Stage1 FF latches a,b
+        await RisingEdge(dut.clk)  # edge N+1: Stage2 FF latches Stage1 result
+        await RisingEdge(dut.clk)  # edge N+2: read (active phase = post-NBA of edge N+1)
 
         result_bits = int(dut.result.value)
         result_float = bits_to_fp32(result_bits)
@@ -78,12 +79,14 @@ async def test_bfloat16_mul_special_cases(dut):
     dut.b.value = float_to_bfloat16(5.0)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
     result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"0.0 * 5.0 should be 0.0, got {result}"
 
     # Nonzero × zero
     dut.a.value = float_to_bfloat16(5.0)
     dut.b.value = float_to_bfloat16(0.0)
+    await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     result = bits_to_fp32(int(dut.result.value))
@@ -94,12 +97,14 @@ async def test_bfloat16_mul_special_cases(dut):
     dut.b.value = float_to_bfloat16(0.0)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
     result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"0.0 * 0.0 should be 0.0, got {result}"
 
     # Large values
     dut.a.value = float_to_bfloat16(256.0)
     dut.b.value = float_to_bfloat16(256.0)
+    await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     result = bits_to_fp32(int(dut.result.value))
@@ -109,6 +114,7 @@ async def test_bfloat16_mul_special_cases(dut):
     # Negative × positive
     dut.a.value = float_to_bfloat16(-4.0)
     dut.b.value = float_to_bfloat16(2.0)
+    await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     result = bits_to_fp32(int(dut.result.value))
