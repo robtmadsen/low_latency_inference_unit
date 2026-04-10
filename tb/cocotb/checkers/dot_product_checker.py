@@ -1,24 +1,29 @@
 """Dot-product engine compliance checker — concurrent cocotb coroutine.
 
 Monitors the dot-product engine and checks:
-  1. result_valid must assert within (VEC_LEN + pipeline_depth) cycles of start
+  1. result_valid must assert within MAX_COMPUTE_CYCLES of start
   2. No result_valid without a preceding start
-  3. FSM state must be valid (0, 1, or 2)
+  3. FSM state must be a valid encoded state value
+
+FSM (post BUG-001 fix, PR #49): IDLE→COLLECT(VEC_LEN)→MAC(VEC_LEN×7)→DONE
+Total latency for VEC_LEN=4: 4+28+1 = 33 cycles; timeout set to 50 for margin.
 """
 
 import cocotb
 from cocotb.triggers import RisingEdge
 
 
-# Dot-product FSM states (from dot_product_engine.sv)
-S_IDLE    = 0
-S_COMPUTE = 1
-S_DONE    = 2
-S_DRAIN   = 3
-VALID_STATES = {S_IDLE, S_COMPUTE, S_DONE, S_DRAIN}
+# Dot-product FSM states (from dot_product_engine.sv, post BUG-001 fix PR #49)
+S_IDLE    = 0  # 3'b000
+S_COLLECT = 1  # 3'b001
+S_MAC     = 2  # 3'b010
+S_DRAIN   = 3  # 3'b011 (unused in normal flow)
+S_DONE    = 4  # 3'b100
+VALID_STATES = {S_IDLE, S_COLLECT, S_MAC, S_DRAIN, S_DONE}
 
-# VEC_LEN + pipeline overhead — generous bound
-MAX_COMPUTE_CYCLES = 32
+# Latency budget: VEC_LEN(4) COLLECT + VEC_LEN*7(28) MAC + 1 DONE = 33 cycles.
+# Allow 50 cycles to accommodate variation and pipeline settling.
+MAX_COMPUTE_CYCLES = 50
 
 
 class DotProductChecker:

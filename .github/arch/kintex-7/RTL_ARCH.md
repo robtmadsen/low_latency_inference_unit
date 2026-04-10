@@ -1,6 +1,6 @@
 # RTL Architecture — LLIU v2.0 (Kintex-7)
 
-> **Status:** Phase 1 complete (PRs #40 + #41 on `main`, April 2026)
+> **Status:** Phase 1 complete (PRs #40–#41); RTL bugs BUG-001/002/003 fixed (PR #49, April 2026)
 > **Target device:** `xc7k160tffg676-2` @ 312.5 MHz `sys_clk`
 > **Simulator:** Verilator 5.046
 > **Spec reference:** [2p0_kintex-7_MAS.md](2p0_kintex-7_MAS.md)
@@ -137,7 +137,7 @@ Expanded from 64 entries (v1) to 512 entries (v2). Distributed-RAM / FF-based CA
 
 ### 2.4 `order_book.sv`
 
-BRAM-backed L3 order book for 500 NASDAQ symbols. 7-state FSM.
+BRAM-backed L3 order book for 500 NASDAQ symbols. 8-state FSM.
 
 **Storage layout**
 
@@ -147,7 +147,15 @@ BRAM-backed L3 order book for 500 NASDAQ symbols. 7-state FSM.
 | `ref_mem` | 131,072 entries × 128 bits | `{valid, order_ref[63:0], price[31:0], shares[23:0], side}` | ~128 |
 
 **Hash function:** CRC-17/CAN (polynomial `0x1002D`) fold of 64-bit `order_ref` → 17-bit bucket index.
-Tag comparison on every modify-type lookup; mismatch increments `collision_count`, silently drops the message.
+
+**Hash collision resolution (BUG-003 fix, PR #49):** Linear probing with `OB_MAX_PROBE = 4`.
+Both Add ('A'/'F') and Modify ops probe slots `(op_hash + probe_cnt) % 2^15` for `probe_cnt` ∈ 0–4.
+Add ops accept the first empty slot or a slot already holding the same `order_ref` (duplicate overwrite).
+Modify ops accept the first slot whose stored `order_ref` matches `op_order_ref`.
+Each failed probe increments `collision_count` and pulses `collision_flag`. If the probe depth is
+exhausted (`probe_cnt == OB_MAX_PROBE`) without resolving the slot, the operation is silently dropped.
+The resolved slot address is latched in `op_resolved_addr`; all `ref_mem` writes use this address
+rather than the raw hash.
 
 **Phase 1 BBO simplification** (full rescan deferred to Phase 2):
 - Add / Add-MPID: update BBO if new order is strictly better (bid: higher price; ask: lower price)
@@ -158,12 +166,13 @@ Tag comparison on every modify-type lookup; mismatch increments `collision_count
 
 | State | Description |
 |-------|-------------|
-| `S_IDLE` | Wait for `fields_valid` pulse |
-| `S_SCAN_BOOK` | Iterate price levels, find insertion point (Add/Add-MPID) |
-| `S_READ_REF1` | Submit hash address to `ref_mem` (modify ops) |
-| `S_READ_REF2` | Wait for BRAM read output (1-cycle BRAM latency) |
-| `S_PROCESS` | Compare tag; detect collision or extract price/side/shares |
-| `S_UPDATE` | Write updated entry to `book_mem`; update BBO registers |
+| `S_IDLE` | Wait for `fields_valid` pulse; routes Add ('A'/'F') and all Modify ops to `S_READ_REF1`; latches `probe_cnt ← 0` |
+| `S_READ_REF1` | Issue probed address `(op_hash + probe_cnt) % 2^15` to `ref_mem` (both Add and Modify ops) |
+| `S_READ_REF2` | Wait one cycle for BRAM read output |
+| `S_PROCESS` | Evaluate probed slot: on match latch `op_resolved_addr` and go to `S_SCAN_BOOK`; on mismatch retry at next probe or drop at `OB_MAX_PROBE` |
+| `S_SCAN_BOOK` | Walk `book_mem` price levels for the resolved symbol/side; find insertion point (Add) or matching price level (Modify) |
+| `S_UPDATE` | Write updated entry to `book_mem` and `ref_mem` using `op_resolved_addr`; update BBO registers |
+| `S_UPDATE2` | Replace ('U') only: invalidate the old `order_ref` hash slot after writing the new entry |
 | `S_DONE` | Assert `bbo_valid` for 1 cycle; return to `S_IDLE` |
 
 **BBO query interface** (registered, 1-cycle FF latency):
@@ -251,13 +260,48 @@ unsigned subtraction). Latency ≥ 32 bins → `overflow_bin`.
 
 ---
 
-## 3. Retained v1 Modules (unchanged in Phase 1)
+### 2.8 `dot_product_engine.sv` (BUG-001 fix, PR #49)
+
+Sequential MAC unit for VEC_LEN=4 bfloat16 dot products. Completely rewritten in PR #49
+to eliminate a RAW hazard in `fp32_acc` that caused only the last product to accumulate.
+
+**FSM states**
+
+| State | Description |
+|-------|-------------|
+| `S_IDLE` | Wait for `start` pulse; assert `acc_clear` |
+| `S_COLLECT` | Accept VEC_LEN `feature_valid` cycles; buffer `feature_in` / `weight_in` into `feat_buf[k]` / `wt_buf[k]` |
+| `S_MAC` | Process each buffered element through a fixed 7-cycle slot: mul inputs driven at slot 0, `acc_en` pulsed at slot 2 (mul result valid), `acc_reg` settled by slot 6 |
+| `S_DRAIN` | Unused in normal flow (kept for completeness) |
+| `S_DONE` | Assert `result_valid` for 1 cycle; `result` = `acc_out`; return to `S_IDLE` |
+
+**Latency (VEC_LEN = 4):** `start` → `result_valid` = VEC_LEN + VEC_LEN×7 + 1 = **33 cycles**
+(4 COLLECT + 28 MAC + 1 DONE). Old FSM was ~10 cycles but accumulated only the
+last product due to the fp32_acc RAW hazard.
+
+**Key signals added by PR #49**
+
+| Signal | Width | Description |
+|--------|-------|-------------|
+| `feat_buf` | VEC_LEN × 16 | Buffered feature elements |
+| `wt_buf` | VEC_LEN × 16 | Buffered weight elements |
+| `collect_cnt` | 3 | COLLECT phase element counter |
+| `mac_elem` | 3 | Current MAC element index |
+| `slot_cnt` | 3 | 7-cycle slot counter within S_MAC |
+| `drain_cnt` | 3 | S_DRAIN counter (unused in normal path) |
+
+**RTL file:** `rtl/dot_product_engine.sv`
+**Dependencies:** `lliu_pkg.sv`, `bfloat16_mul`, `fp32_acc`
+
+---
+
+## 3. Retained v1 Modules (unchanged in Phase 1, except where noted)
 
 | Module | File | Role |
 |--------|------|------|
 | `lliu_top` | `rtl/lliu_top.sv` | System top-level (v1 integration point) |
 | `feature_extractor` | `rtl/feature_extractor.sv` | 4-feature extractor (Phase 2 replaces with v2) |
-| `dot_product_engine` | `rtl/dot_product_engine.sv` | 4-element BF16 dot product |
+| `dot_product_engine` | `rtl/dot_product_engine.sv` | 4-element BF16 dot product (FSM rewritten in PR #49; see §2.8) |
 | `bfloat16_mul` | `rtl/bfloat16_mul.sv` | BF16 multiplier, DSP48E1, 2-cycle |
 | `fp32_acc` | `rtl/fp32_acc.sv` | 5-stage FP32 accumulator |
 | `weight_mem` | `rtl/weight_mem.sv` | 4-entry BF16 weight RAM |
