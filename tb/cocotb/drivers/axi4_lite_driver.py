@@ -81,14 +81,24 @@ class AXI4LiteDriver:
         self.arvalid.value = 1
         self.rready.value = 1
 
-        # Wait for AR handshake
+        # Wait for AR handshake.
+        # NOTE: The RTL sets arready and rvalid simultaneously in the same
+        # registered clock cycle.  Do NOT move to a second loop after seeing
+        # arready — rvalid may already be asserted in that same cycle and will
+        # be cleared by rready one cycle later.
         while True:
             await RisingEdge(self.clk)
             if self.arready.value == 1:
                 self.arvalid.value = 0
+                # rvalid is set in the same cycle as arready; capture now.
+                if self.rvalid.value == 1:
+                    result = int(self.rdata.value)
+                    self.rready.value = 0
+                    return result
+                # Unusual case: arready without immediate rvalid; wait one more cycle.
                 break
 
-        # Wait for R response
+        # Wait for R response (fallback for implementations that split AR and R)
         while True:
             await RisingEdge(self.clk)
             if self.rvalid.value == 1:
