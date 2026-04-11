@@ -98,6 +98,8 @@ jobs:
             rtl/ptp_core.sv \
             rtl/timestamp_tap.sv \
             rtl/latency_histogram.sv \
+            rtl/snapshot_mux.sv \
+            rtl/pcie_dma_engine.sv \
             rtl/lliu_top_v2.sv \
             rtl/moldupp64_strip.sv \
             rtl/eth_axis_rx_wrap.sv \

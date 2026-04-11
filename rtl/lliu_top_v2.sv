@@ -75,7 +75,14 @@ module lliu_top_v2 #(
     input  logic        s_axil_rready,
 
     output logic [31:0] collision_count_out,
-    output logic        tx_overflow_out
+    output logic        tx_overflow_out,
+
+    // ── Snapshot interface (to pcie_dma_engine in kc705_top) ─────────────
+    input  logic        snap_req,    // one-cycle pulse: start snapshot
+    output logic [63:0] snap_data,   // 64-bit beat
+    output logic        snap_valid,  // beat valid (combinational)
+    input  logic        snap_ready,  // consumer ready
+    output logic        snap_done    // one-cycle pulse after last beat
 );
 
     // ================================================================
@@ -166,9 +173,9 @@ module lliu_top_v2 #(
     logic [31:0] l2_ask_price [0:3];
     logic [23:0] l2_ask_size  [0:3];
     logic [31:0] collision_count;
-    /* verilator lint_off UNUSEDSIGNAL */
     logic        bbo_valid_w;
     logic [8:0]  bbo_sym_id_w;
+    /* verilator lint_off UNUSEDSIGNAL */
     logic        collision_flag_w;
     logic        book_ready_w;
     /* verilator lint_on UNUSEDSIGNAL */
@@ -472,6 +479,25 @@ module lliu_top_v2 #(
         .t_end         (ts_risk_pass),   .t_end_valid   (ts_risk_pass_valid),
         .axil_bin_addr (axil_bin_addr),  .axil_bin_data (axil_bin_data),
         .axil_clear    (axil_clear),     .overflow_bin  (overflow_bin)
+    );
+
+    // ================================================================
+    // Snapshot mux — BBO shadow buffer streamed to pcie_dma_engine
+    // ================================================================
+    snapshot_mux u_snap (
+        .clk           (clk),
+        .rst           (rst),
+        .bbo_valid     (bbo_valid_w),
+        .bbo_sym_id    (bbo_sym_id_w),
+        .bbo_bid_price (bbo_bid_price),
+        .bbo_ask_price (bbo_ask_price),
+        .bbo_bid_size  (bbo_bid_size),
+        .bbo_ask_size  (bbo_ask_size),
+        .snap_req      (snap_req),
+        .snap_data     (snap_data),
+        .snap_valid    (snap_valid),
+        .snap_ready    (snap_ready),
+        .snap_done     (snap_done)
     );
 
     // ================================================================

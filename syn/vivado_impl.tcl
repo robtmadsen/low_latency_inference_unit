@@ -40,6 +40,7 @@ read_verilog -sv {
   rtl/ptp_core.sv
   rtl/timestamp_tap.sv
   rtl/latency_histogram.sv
+  rtl/snapshot_mux.sv
   rtl/lliu_top_v2.sv
 }
 
