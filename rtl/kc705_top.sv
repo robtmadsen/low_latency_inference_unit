@@ -69,6 +69,15 @@ module kc705_top #(
     output logic                   axil_rvalid,
     input  logic                   axil_rready,
 
+    // ── PCIe Gen2 x4 — BBO snapshot DMA to host ───────────────────────
+    input  logic        pcie_clk_p,
+    input  logic        pcie_clk_n,
+    input  logic        pcie_rst_n,
+    input  logic [3:0]  pcie_rxp,
+    input  logic [3:0]  pcie_rxn,
+    output logic [3:0]  pcie_txp,
+    output logic [3:0]  pcie_txn,
+
     // ── OUCH 5.0 output (to 10GbE TX MAC) ────────────────────────────
     output logic [63:0]            m_axis_tdata,
     output logic [7:0]             m_axis_tkeep,
@@ -605,7 +614,46 @@ module kc705_top #(
         .s_axil_rready  (axil_rready),
 
         .collision_count_out (collision_count_out),
-        .tx_overflow_out     (tx_overflow_out)
+        .tx_overflow_out     (tx_overflow_out),
+
+        // BBO snapshot interface → pcie_dma_engine
+        .snap_req            (snap_req_w),
+        .snap_data           (snap_data_w),
+        .snap_valid          (snap_valid_w),
+        .snap_ready          (snap_ready_w),
+        .snap_done           (snap_done_w)
+    );
+
+    // ==================================================================
+    // PCIe DMA engine — periodic BBO snapshot to host
+    // ==================================================================
+    logic        snap_req_w;
+    logic [63:0] snap_data_w;
+    logic        snap_valid_w;
+    logic        snap_ready_w;
+    logic        snap_done_w;
+    /* verilator lint_off UNUSEDSIGNAL */
+    logic        dma_active_w;
+    logic        dma_err_w;
+    /* verilator lint_on UNUSEDSIGNAL */
+
+    pcie_dma_engine u_pcie_dma (
+        .sys_clk    (clk_300),
+        .sys_rst    (rst_300),
+        .pcie_clk_p (pcie_clk_p),
+        .pcie_clk_n (pcie_clk_n),
+        .pcie_rst_n (pcie_rst_n),
+        .pcie_rxp   (pcie_rxp),
+        .pcie_rxn   (pcie_rxn),
+        .pcie_txp   (pcie_txp),
+        .pcie_txn   (pcie_txn),
+        .snap_req   (snap_req_w),
+        .snap_data  (snap_data_w),
+        .snap_valid (snap_valid_w),
+        .snap_ready (snap_ready_w),
+        .snap_done  (snap_done_w),
+        .dma_active (dma_active_w),
+        .dma_err    (dma_err_w)
     );
 
     // Route clk_156 monitoring counters (CDC-resampled into clk_300) to outputs.
