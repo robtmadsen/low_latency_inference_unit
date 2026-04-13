@@ -14,6 +14,10 @@ MoldUDP64 header layout (20 bytes):
   bytes 20+  : ITCH payload (msg_count × [2-byte msg_len + msg_bytes])
 """
 
+from __future__ import annotations
+
+from typing import List, Tuple
+
 from cocotb.triggers import RisingEdge
 
 
@@ -44,7 +48,7 @@ def build_datagram(
     return hdr + payload
 
 
-def pack_beats(dgram: bytes) -> list[tuple[int, int, int]]:
+def pack_beats(dgram: bytes) -> List[Tuple[int, int, int]]:
     """Slice a datagram into AXI4-Stream (tdata, tkeep, tlast) beat tuples.
 
     The packing uses little-endian byte order within each 64-bit word.
@@ -64,7 +68,7 @@ def pack_beats(dgram: bytes) -> list[tuple[int, int, int]]:
     return beats
 
 
-def expected_output_beats(payload: bytes) -> list[tuple[int, int, int]]:
+def expected_output_beats(payload: bytes) -> List[Tuple[int, int, int]]:
     """Return the expected output beats for a given ITCH payload.
 
     The moldupp64_strip DUT strips the 20-byte header and passes through
@@ -115,7 +119,7 @@ async def send_datagram(dut, dgram: bytes, idle_cycles: int = 0):
     dut.s_tlast.value  = 0
 
 
-async def receive_stream(dut, timeout_cycles: int = 200) -> list[tuple[int, int, int]]:
+async def receive_stream(dut, timeout_cycles: int = 200) -> List[Tuple[int, int, int]]:
     """Collect (tdata, tkeep, tlast) beats from the DUT output.
 
     Drives m_tready=1 and collects until tlast or timeout.
@@ -135,7 +139,7 @@ async def receive_stream(dut, timeout_cycles: int = 200) -> list[tuple[int, int,
     return beats
 
 
-def beats_to_bytes(beats: list[tuple[int, int, int]]) -> bytes:
+def beats_to_bytes(beats: List[Tuple[int, int, int]]) -> bytes:
     """Reassemble beats into a flat byte string using tkeep to determine valid lanes."""
     result = bytearray()
     for tdata, tkeep, _tlast in beats:
