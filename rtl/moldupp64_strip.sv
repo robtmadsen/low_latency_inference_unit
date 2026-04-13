@@ -91,9 +91,13 @@ module moldupp64_strip (
     // and the registered expected-sequence update.
     logic [63:0] header_seq_num_b2;
     logic [15:0] header_msg_count_b2;
+    logic        header_in_order_b2;
+    logic        header_drop_b2;
 
     assign header_seq_num_b2   = {seq_num_r[63:16], tdata_byte(s_tdata, 0), tdata_byte(s_tdata, 1)};
     assign header_msg_count_b2 = {tdata_byte(s_tdata, 2), tdata_byte(s_tdata, 3)};
+    assign header_in_order_b2  = (header_seq_num_b2 === expected_seq_num);
+    assign header_drop_b2      = (header_seq_num_b2 !== expected_seq_num);
 
     // ---------------------------------------------------------------
     // Combinational next-state / output logic
@@ -168,7 +172,7 @@ module moldupp64_strip (
                     seq_num_next   = header_seq_num_b2;
                     msg_count_next = header_msg_count_b2;
 
-                    if (header_seq_num_b2 == expected_seq_num) begin
+                    if (header_in_order_b2) begin
                         // In-order datagram: pulse seq_valid and stage ITCH bytes 0–3
                         seq_valid           = 1'b1;  // notify CDC regs (in-order only)
                         stage_hi_next       = s_tdata[63:32];
@@ -288,17 +292,14 @@ module moldupp64_strip (
             // is in-order.  This fires on the same clock edge that seq_valid pulses
             // so expected_seq_num is updated exactly one cycle later, satisfying
             // SVA property p_seq_advance.
-            if (state == S_HEADER_B2 && s_tvalid &&
-                    header_seq_num_b2 == expected_seq_num) begin
-                expected_seq_num <= header_seq_num_b2 + {48'b0, header_msg_count_b2};
+            if (state == S_HEADER_B2 && s_tvalid && header_in_order_b2) begin
+                expected_seq_num <= seq_num_next + {48'b0, msg_count_next};
             end
 
-            // Increment drop counter:
-            //   • Normal path: end of S_DROP state (long OOO datagram)
-            //   • Short path:  B2 last beat of an OOO datagram (s_tlast at beat 2)
-            if ((state == S_DROP && s_tvalid && s_tlast) ||
-                (state == S_HEADER_B2 && s_tvalid && s_tlast &&
-                 header_seq_num_b2 != expected_seq_num)) begin
+            // Increment drop counter once per out-of-order datagram when the
+            // header decision is made (beat 2). This is independent of frame
+            // length and avoids short-vs-long path asymmetry.
+            if (state == S_HEADER_B2 && s_tvalid && header_drop_b2) begin
                 if (dropped_datagrams != 32'hFFFF_FFFF)
                     dropped_datagrams <= dropped_datagrams + 32'd1;
             end

@@ -80,6 +80,8 @@ module symbol_filter (
 
     logic match_comb;
     assign match_comb = |match_vec;
+    logic lookup_valid_q;
+    logic lookup_match_q;
 
     // cam_entry_match: combinational match result exposed for SVA binding.
     // The (* keep = "true" *) attribute prevents synthesis optimisation from
@@ -94,10 +96,17 @@ module symbol_filter (
     // Output register: 1-cycle latency from stock_valid
     // ---------------------------------------------------------------
     always_ff @(posedge clk) begin
-        if (rst)
+        if (rst) begin
+            lookup_valid_q <= 1'b0;
+            lookup_match_q <= 1'b0;
             watchlist_hit <= 1'b0;
-        else
-            watchlist_hit <= stock_valid & match_comb;
+        end else begin
+            // Output previous lookup result to guarantee 1-cycle latency and
+            // pre-write isolation when stock_valid and cam_wr_valid coincide.
+            watchlist_hit <= lookup_valid_q & lookup_match_q;
+            lookup_valid_q <= stock_valid;
+            lookup_match_q <= match_comb;
+        end
     end
 
 endmodule
