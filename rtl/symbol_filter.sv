@@ -34,7 +34,7 @@ module symbol_filter (
     input  logic [63:0] stock,
     input  logic        stock_valid,
 
-    // Registered match output: 1 cycle after stock_valid
+    // Match output: combinational from the registered lookup stage
     output logic        watchlist_hit,
 
     // AXI4-Lite write interface (from axi4_lite_slave CAM register bank)
@@ -93,17 +93,17 @@ module symbol_filter (
     assign cam_entry_match = match_comb;
 
     // ---------------------------------------------------------------
-    // Output register: 1-cycle latency from stock_valid
+    // Single lookup stage: capture stock_valid + match in one cycle.
+    // Drive watchlist_hit combinationally from these flops so it is
+    // visible on the very next rising edge sample.
     // ---------------------------------------------------------------
+    assign watchlist_hit = lookup_valid_q & lookup_match_q;
+
     always_ff @(posedge clk) begin
         if (rst) begin
             lookup_valid_q <= 1'b0;
             lookup_match_q <= 1'b0;
-            watchlist_hit <= 1'b0;
         end else begin
-            // Output previous lookup result to guarantee 1-cycle latency and
-            // pre-write isolation when stock_valid and cam_wr_valid coincide.
-            watchlist_hit <= lookup_valid_q & lookup_match_q;
             lookup_valid_q <= stock_valid;
             lookup_match_q <= match_comb;
         end

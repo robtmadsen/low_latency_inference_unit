@@ -288,12 +288,11 @@ module moldupp64_strip (
             stage_hi_keep  <= stage_hi_keep_next;
             stage_hi_valid <= stage_hi_valid_next;
 
-            // Advance expected_seq_num when the header is parsed and the datagram
-            // is in-order.  This fires on the same clock edge that seq_valid pulses
-            // so expected_seq_num is updated exactly one cycle later, satisfying
-            // SVA property p_seq_advance.
+            // Advance expected_seq_num when beat 2 is accepted in-order.
+            // Use the decoded beat-2 header fields directly so advancement
+            // does not depend on intermediate next-state temporaries.
             if (state == S_HEADER_B2 && s_tvalid && header_in_order_b2) begin
-                expected_seq_num <= seq_num_next + {48'b0, msg_count_next};
+                expected_seq_num <= header_seq_num_b2 + {48'b0, header_msg_count_b2};
             end
 
             // Increment drop counter once per out-of-order datagram when the
