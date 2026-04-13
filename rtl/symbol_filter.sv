@@ -81,6 +81,15 @@ module symbol_filter (
     logic match_comb;
     assign match_comb = |match_vec;
 
+    // cam_entry_match: combinational match result exposed for SVA binding.
+    // The (* keep = "true" *) attribute prevents synthesis optimisation from
+    // removing this wire.  The bind statement in tb_top.sv should connect
+    // .cam_entry_match(cam_entry_match) instead of the current 1'b0 stub.
+    /* verilator lint_off UNUSEDSIGNAL */
+    (* keep = "true" *) logic cam_entry_match;
+    /* verilator lint_on UNUSEDSIGNAL */
+    assign cam_entry_match = match_comb;
+
     // ---------------------------------------------------------------
     // Output register: 1-cycle latency from stock_valid
     // ---------------------------------------------------------------

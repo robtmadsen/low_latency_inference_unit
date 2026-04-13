@@ -65,10 +65,11 @@ module eth_axis_rx_wrap (
     logic drop_next;      // latch fifo_almost_full at frame boundary
     logic drop_current;   // drop the entire current frame
 
-    // mac_rx_tready: when dropping, always accept; when forwarding, follow
-    // eth_axis_rx.s_axis_tready for proper flow control.
-    logic eth_rx_s_tready;
-    assign mac_rx_tready = drop_current ? 1'b1 : eth_rx_s_tready;
+    // mac_rx_tready is permanently 1.  The MAC must never be stalled; the
+    // drop-on-full policy discards whole frames instead of applying backpressure.
+    // Previously this was gated on eth_rx_s_tready, which can be 0 for one
+    // cycle immediately after reset exits, violating the SVA D1 invariant.
+    assign mac_rx_tready = 1'b1;
 
     // ---------------------------------------------------------------
     // Frame-boundary detection
@@ -119,6 +120,7 @@ module eth_axis_rx_wrap (
     logic eth_rx_busy;
     logic eth_rx_error;
     logic eth_rx_payload_tuser;
+    logic eth_rx_s_tready;  // eth_axis_rx backpressure — not used for MAC; MAC is always-ready
     /* verilator lint_on UNUSED */
 
     eth_axis_rx #(

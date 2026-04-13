@@ -66,11 +66,12 @@ module moldupp64_strip (
     // State machine
     // ---------------------------------------------------------------
     typedef enum logic [2:0] {
-        S_HEADER_B0 = 3'd0,  // consume beat 0 (session bytes 7:0)
-        S_HEADER_B1 = 3'd1,  // consume beat 1 (session[9:8] + seq_num[5:0])
-        S_HEADER_B2 = 3'd2,  // consume beat 2 (seq_num[7:6] + msg_count + ITCH[3:0])
-        S_PAYLOAD   = 3'd3,  // forward payload beats
-        S_DROP      = 3'd4   // consume & discard remainder of datagram
+        S_HEADER_B0    = 3'd0,  // consume beat 0 (session bytes 7:0)
+        S_HEADER_B1    = 3'd1,  // consume beat 1 (session[9:8] + seq_num[5:0])
+        S_HEADER_B2    = 3'd2,  // consume beat 2 (seq_num[7:6] + msg_count + ITCH[3:0])
+        S_PAYLOAD      = 3'd3,  // forward payload beats
+        S_DROP         = 3'd4,  // consume & discard remainder of datagram
+        S_FLUSH_SHORT  = 3'd5   // short datagram: output staged 4 ITCH bytes and return
     } state_t;
 
     state_t state, state_next;
@@ -84,6 +85,15 @@ module moldupp64_strip (
     logic [31:0] stage_hi,     stage_hi_next;   // upper 32 bits of output beat
     logic [3:0]  stage_hi_keep,stage_hi_keep_next;
     logic        stage_hi_valid, stage_hi_valid_next;
+
+    // Decode the final two sequence-number bytes and the msg_count field
+    // directly from beat 2 so the same values drive both state decisions
+    // and the registered expected-sequence update.
+    logic [63:0] header_seq_num_b2;
+    logic [15:0] header_msg_count_b2;
+
+    assign header_seq_num_b2   = {seq_num_r[63:16], tdata_byte(s_tdata, 0), tdata_byte(s_tdata, 1)};
+    assign header_msg_count_b2 = {tdata_byte(s_tdata, 2), tdata_byte(s_tdata, 3)};
 
     // ---------------------------------------------------------------
     // Combinational next-state / output logic
@@ -155,24 +165,32 @@ module moldupp64_strip (
                 s_tready = 1'b1;
                 if (s_tvalid) begin
                     // Complete seq_num assembly
-                    seq_num_next[15:8] = tdata_byte(s_tdata, 0);
-                    seq_num_next[7:0]  = tdata_byte(s_tdata, 1);
-                    // msg_count (big-endian uint16)
-                    msg_count_next[15:8] = tdata_byte(s_tdata, 2);
-                    msg_count_next[7:0]  = tdata_byte(s_tdata, 3);
+                    seq_num_next   = header_seq_num_b2;
+                    msg_count_next = header_msg_count_b2;
 
-                    seq_valid = 1'b1;  // notify CDC registers
-
-                    if (seq_num_next == expected_seq_num) begin
-                        // In-order datagram: stage ITCH bytes 0–3 from beat 2
+                    if (header_seq_num_b2 == expected_seq_num) begin
+                        // In-order datagram: pulse seq_valid and stage ITCH bytes 0–3
+                        seq_valid           = 1'b1;  // notify CDC regs (in-order only)
                         stage_hi_next       = s_tdata[63:32];
                         stage_hi_keep_next  = s_tkeep[7:4];
                         stage_hi_valid_next = 1'b1;
-                        state_next          = S_PAYLOAD;
+                        if (s_tlast) begin
+                            // Short datagram: all ITCH bytes are in beat 2's upper half.
+                            // Flush them in one output beat without entering S_PAYLOAD.
+                            state_next = S_FLUSH_SHORT;
+                        end else begin
+                            state_next = S_PAYLOAD;
+                        end
                     end else begin
-                        // Out-of-order: drop the remainder
+                        // Out-of-order: drop the remainder (seq_valid stays 0)
                         stage_hi_valid_next = 1'b0;
-                        state_next          = S_DROP;
+                        if (s_tlast) begin
+                            // Short OOO datagram: last beat already consumed here.
+                            // The drop counter is incremented in the sequential block.
+                            state_next = S_HEADER_B0;
+                        end else begin
+                            state_next = S_DROP;
+                        end
                     end
                 end
             end
@@ -220,6 +238,21 @@ module moldupp64_strip (
                 end
             end
 
+            // ----------------------------------------------------------
+            // FLUSH_SHORT: output the 4 ITCH bytes staged from beat 2
+            // when the datagram ended at beat 2 (short datagram path).
+            // ----------------------------------------------------------
+            S_FLUSH_SHORT: begin
+                m_tdata  = {32'b0, stage_hi};        // ITCH bytes 0–3 in tdata[31:0]
+                m_tkeep  = {4'b0,  stage_hi_keep};   // 4 valid bytes
+                m_tvalid = 1'b1;
+                m_tlast  = 1'b1;
+                if (m_tready) begin
+                    stage_hi_valid_next = 1'b0;
+                    state_next          = S_HEADER_B0;
+                end
+            end
+
             /* verilator coverage_off */
             default: state_next = S_HEADER_B0;
             /* verilator coverage_on */
@@ -227,16 +260,22 @@ module moldupp64_strip (
     end
 
     // ---------------------------------------------------------------
-    // Sequential state and field registers
+    // Single sequential block — all registered state in one always_ff.
+    // Keeping seq-tracking (expected_seq_num, dropped_datagrams) in the
+    // same block as the state/field registers avoids simulation-ordering
+    // issues where separate always_ff blocks see each other's NBAs and
+    // evaluate conditions against a post-transition state value.
     // ---------------------------------------------------------------
     always_ff @(posedge clk) begin
         if (rst) begin
-            state           <= S_HEADER_B0;
-            seq_num_r       <= '0;
-            msg_count_r     <= '0;
-            stage_hi        <= '0;
-            stage_hi_keep   <= '0;
-            stage_hi_valid  <= 1'b0;
+            state             <= S_HEADER_B0;
+            seq_num_r         <= '0;
+            msg_count_r       <= '0;
+            stage_hi          <= '0;
+            stage_hi_keep     <= '0;
+            stage_hi_valid    <= 1'b0;
+            expected_seq_num  <= 64'd1;   // MoldUDP64 sequence numbers start at 1
+            dropped_datagrams <= 32'd0;
         end else begin
             state          <= state_next;
             seq_num_r      <= seq_num_next;
@@ -244,23 +283,22 @@ module moldupp64_strip (
             stage_hi       <= stage_hi_next;
             stage_hi_keep  <= stage_hi_keep_next;
             stage_hi_valid <= stage_hi_valid_next;
-        end
-    end
 
-    // ---------------------------------------------------------------
-    // Sequence-number tracking and drop counter
-    // ---------------------------------------------------------------
-    always_ff @(posedge clk) begin
-        if (rst) begin
-            expected_seq_num  <= 64'd1;   // MoldUDP64 sequence numbers start at 1
-            dropped_datagrams <= 32'd0;
-        end else begin
-            // Advance expected_seq_num at the end of a valid PAYLOAD datagram
-            if (state == S_PAYLOAD && s_tvalid && s_tlast && m_tready) begin
-                expected_seq_num <= expected_seq_num + {48'b0, msg_count_r};
+            // Advance expected_seq_num when the header is parsed and the datagram
+            // is in-order.  This fires on the same clock edge that seq_valid pulses
+            // so expected_seq_num is updated exactly one cycle later, satisfying
+            // SVA property p_seq_advance.
+            if (state == S_HEADER_B2 && s_tvalid &&
+                    header_seq_num_b2 == expected_seq_num) begin
+                expected_seq_num <= header_seq_num_b2 + {48'b0, header_msg_count_b2};
             end
-            // Increment drop counter at the end of a DROP datagram
-            if (state == S_DROP && s_tvalid && s_tlast) begin
+
+            // Increment drop counter:
+            //   • Normal path: end of S_DROP state (long OOO datagram)
+            //   • Short path:  B2 last beat of an OOO datagram (s_tlast at beat 2)
+            if ((state == S_DROP && s_tvalid && s_tlast) ||
+                (state == S_HEADER_B2 && s_tvalid && s_tlast &&
+                 header_seq_num_b2 != expected_seq_num)) begin
                 if (dropped_datagrams != 32'hFFFF_FFFF)
                     dropped_datagrams <= dropped_datagrams + 32'd1;
             end
@@ -268,10 +306,13 @@ module moldupp64_strip (
     end
 
     // ---------------------------------------------------------------
-    // seq_num and msg_count output: stable after seq_valid pulse
+    // seq_num and msg_count outputs
+    //   msg_count: combinational during the B2 beat so the SVA's $past(msg_count)
+    //   sees the freshly assembled value in the same cycle seq_valid fires.
+    //   After the clock edge it reverts to the stable registered value.
     // ---------------------------------------------------------------
     assign seq_num   = seq_num_r;
-    assign msg_count = msg_count_r;
+    assign msg_count = (state == S_HEADER_B2 && s_tvalid) ? header_msg_count_b2 : msg_count_r;
 
     // ---------------------------------------------------------------
     // Helper function: extract byte N from a 64-bit word (big-endian)
