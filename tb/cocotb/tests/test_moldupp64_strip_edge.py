@@ -16,6 +16,10 @@ Notes on byte ordering (see test_moldupp64_strip.py header):
   Initial expected_seq_num after reset = 1 (per RTL default).
 """
 
+from __future__ import annotations
+
+from typing import List, Tuple
+
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge
@@ -67,7 +71,7 @@ def _make_add_order_body(stock: bytes = b"AAPL    ", price: int = 100_0000,
     return msg
 
 
-def _wrap_itch(msgs: list[bytes]) -> tuple[bytes, int]:
+def _wrap_itch(msgs: List[bytes]) -> Tuple[bytes, int]:
     """Wrap a list of ITCH bodies in MoldUDP64-style length prefixes.
 
     Returns (payload_bytes, msg_count).
