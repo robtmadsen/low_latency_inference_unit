@@ -19,22 +19,6 @@
 typedef byte unsigned byte_darr_t [];
 typedef bit [63:0]    qword_darr_t[];
 
-// ── One-shot AXI4-Stream sequence ─────────────────────────────────────────
-// Wraps a single axi4_stream_transaction so test tasks can drive frames
-// without inheriting from uvm_sequence.
-class axis_raw_seq extends uvm_sequence #(axi4_stream_transaction);
-    `uvm_object_utils(axis_raw_seq)
-    bit [63:0] beats[];
-    function new(string name = "axis_raw_seq"); super.new(name); endfunction
-    task body();
-        axi4_stream_transaction tx;
-        tx = axi4_stream_transaction::type_id::create("tx");
-        tx.tdata = new[beats.size()](beats);
-        start_item(tx);
-        finish_item(tx);
-    endtask
-endclass
-
 // ── Main test class ────────────────────────────────────────────────────────
 class lliu_kc705_test extends lliu_base_test;
     `uvm_component_utils(lliu_kc705_test)
@@ -88,7 +72,24 @@ class lliu_kc705_test extends lliu_base_test;
         msg[34] = price_f4[15:8];  msg[35] = price_f4[7:0];
     endtask
 
+    // ── Compute one's-complement 16-bit checksum over an even byte array ─
+    function automatic bit [15:0] ip_checksum(byte unsigned hdr[]);
+        bit [31:0] acc = 32'h0;
+        for (int i = 0; i < hdr.size(); i += 2) begin
+            acc += {hdr[i], hdr[i+1]};
+        end
+        // fold carry
+        while (acc[31:16]) acc = acc[15:0] + acc[31:16];
+        return ~acc[15:0];
+    endfunction
+
     // ── Build Ethernet/IPv4/UDP/MoldUDP64 frame ───────────────────────
+    //
+    // DUT configuration (kc705_top with KINTEX7_SIM_GTX_BYPASS):
+    //   local_mac = 48'h020000000001  (02:00:00:00:00:01)
+    //   local_ip  = 32'hE9360C00      (233.54.12.0)
+    // The frame dst_ip must match local_ip for udp_complete_64 to accept.
+    // IP checksum is computed over the 20-byte IPv4 header.
     function automatic qword_darr_t build_kc705_frame(
         longint unsigned seq_num,
         byte_darr_t      msg_bytes
@@ -100,33 +101,42 @@ class lliu_kc705_test extends lliu_base_test;
         int unsigned total_bytes     = 14 + ip_total_len;
         int unsigned padded          = (total_bytes + 7) / 8 * 8;
         byte unsigned frame_bytes[];
+        byte unsigned ip_hdr[20];
+        bit [15:0] cksum;
         qword_darr_t  beats;
         frame_bytes = new[padded];
         for (int i = 0; i < padded; i++) frame_bytes[i] = 8'h00;
         // Ethernet (14 B)
-        frame_bytes[0]=8'hFF; frame_bytes[1]=8'hFF; frame_bytes[2]=8'hFF;
-        frame_bytes[3]=8'hFF; frame_bytes[4]=8'hFF; frame_bytes[5]=8'hFF;
+        // dst MAC = 02:00:00:00:00:01 (matches local_mac in kc705_top)
+        frame_bytes[0]=8'h02; frame_bytes[1]=8'h00; frame_bytes[2]=8'h00;
+        frame_bytes[3]=8'h00; frame_bytes[4]=8'h00; frame_bytes[5]=8'h01;
+        // src MAC
         frame_bytes[6]=8'h00; frame_bytes[7]=8'h01; frame_bytes[8]=8'h02;
         frame_bytes[9]=8'h03; frame_bytes[10]=8'h04; frame_bytes[11]=8'h05;
+        // EtherType IPv4
         frame_bytes[12]=8'h08; frame_bytes[13]=8'h00;
-        // IPv4 (20 B, offset 14)
+        // IPv4 (20 B, offset 14) — checksum computed below
         frame_bytes[14]=8'h45; frame_bytes[15]=8'h00;
         frame_bytes[16]=ip_total_len[15:8]; frame_bytes[17]=ip_total_len[7:0];
-        frame_bytes[18]=8'h00; frame_bytes[19]=8'h01;
-        frame_bytes[20]=8'h00; frame_bytes[21]=8'h00;
-        frame_bytes[22]=8'h40; frame_bytes[23]=8'h11;
-        frame_bytes[24]=8'h00; frame_bytes[25]=8'h00;
-        frame_bytes[26]=8'hC0; frame_bytes[27]=8'hA8;
+        frame_bytes[18]=8'h00; frame_bytes[19]=8'h01;   // ID
+        frame_bytes[20]=8'h00; frame_bytes[21]=8'h00;   // flags+frag
+        frame_bytes[22]=8'h40; frame_bytes[23]=8'h11;   // TTL=64, proto=UDP
+        frame_bytes[24]=8'h00; frame_bytes[25]=8'h00;   // checksum placeholder
+        frame_bytes[26]=8'hC0; frame_bytes[27]=8'hA8;   // src IP 192.168.1.1
         frame_bytes[28]=8'h01; frame_bytes[29]=8'h01;
-        frame_bytes[30]=8'hEF; frame_bytes[31]=8'hFF;
-        frame_bytes[32]=8'h00; frame_bytes[33]=8'h01;
+        frame_bytes[30]=8'hE9; frame_bytes[31]=8'h36;   // dst IP 233.54.12.0
+        frame_bytes[32]=8'h0C; frame_bytes[33]=8'h00;   //   (= local_ip)
+        // Compute valid IP header checksum over bytes 14..33
+        for (int i = 0; i < 20; i++) ip_hdr[i] = frame_bytes[14+i];
+        cksum = ip_checksum(ip_hdr);
+        frame_bytes[24]=cksum[15:8]; frame_bytes[25]=cksum[7:0];
         // UDP (8 B, offset 34)
-        frame_bytes[34]=8'h55; frame_bytes[35]=8'hB5;
-        frame_bytes[36]=8'h55; frame_bytes[37]=8'hB5;
+        frame_bytes[34]=8'h55; frame_bytes[35]=8'hB5;   // src port
+        frame_bytes[36]=8'h55; frame_bytes[37]=8'hB5;   // dst port
         frame_bytes[38]=udp_total_len[15:8]; frame_bytes[39]=udp_total_len[7:0];
-        frame_bytes[40]=8'h00; frame_bytes[41]=8'h00;
+        frame_bytes[40]=8'h00; frame_bytes[41]=8'h00;   // UDP checksum (0=disabled)
         // MoldUDP64 header (20 B, offset 42)
-        frame_bytes[42]=8'h54; frame_bytes[43]=8'h45;
+        frame_bytes[42]=8'h54; frame_bytes[43]=8'h45;   // session "TESTSE"
         frame_bytes[44]=8'h53; frame_bytes[45]=8'h54;
         frame_bytes[46]=8'h53; frame_bytes[47]=8'h45;
         frame_bytes[48]=8'h53; frame_bytes[49]=8'h53;
@@ -135,7 +145,7 @@ class lliu_kc705_test extends lliu_base_test;
         frame_bytes[54]=seq_num[47:40]; frame_bytes[55]=seq_num[39:32];
         frame_bytes[56]=seq_num[31:24]; frame_bytes[57]=seq_num[23:16];
         frame_bytes[58]=seq_num[15:8];  frame_bytes[59]=seq_num[7:0];
-        frame_bytes[60]=8'h00; frame_bytes[61]=8'h01;
+        frame_bytes[60]=8'h00; frame_bytes[61]=8'h01;   // msg_count = 1
         // Message length prefix + body (offset 62)
         frame_bytes[62]=msg_len[15:8]; frame_bytes[63]=msg_len[7:0];
         for (int i = 0; i < msg_len; i++) frame_bytes[64+i] = msg_bytes[i];
@@ -157,7 +167,7 @@ class lliu_kc705_test extends lliu_base_test;
         s.start(m_env.m_axis_agent.m_sequencer);
     endtask
 
-    // ── Spin until dp_result_valid or timeout ─────────────────────────
+    // ── Spin until m_axis_tvalid (OUCH output) or timeout ─────────────────────────
     task wait_dp_result(
         output int unsigned result_val,
         input  int unsigned timeout_cycles = 300
@@ -165,9 +175,9 @@ class lliu_kc705_test extends lliu_base_test;
         result_val = 32'hDEAD_BEEF;
         for (int i = 0; i < timeout_cycles; i++) begin
             @(kc705_vif.monitor_cb);
-            if (kc705_vif.monitor_cb.dp_result_valid) begin
-                @(kc705_vif.monitor_cb);
-                result_val = kc705_vif.monitor_cb.dp_result;
+            if (kc705_vif.monitor_cb.m_axis_tvalid) begin
+                // OUCH packet first 8 bytes: tdata[63:0] big-endian; use low 32 bits as proxy
+                result_val = kc705_vif.monitor_cb.m_axis_tdata[31:0];
                 return;
             end
         end
@@ -205,8 +215,9 @@ class lliu_kc705_test extends lliu_base_test;
 
         phase.raise_objection(this, "lliu_kc705_test");
 
-        kc705_vif.driver_cb.cpu_reset <= 1'b0;
-        kc705_vif.driver_cb.s_tkeep   <= 8'hFF;
+        kc705_vif.driver_cb.cpu_reset    <= 1'b0;
+        kc705_vif.driver_cb.s_tkeep     <= 8'hFF;
+        kc705_vif.driver_cb.m_axis_tready <= 1'b1;  // accept OUCH output by default
 
         aapl_sym = '{8'h41,8'h41,8'h50,8'h4C,8'h20,8'h20,8'h20,8'h20};
         msft_sym = '{8'h4D,8'h53,8'h46,8'h54,8'h20,8'h20,8'h20,8'h20};
@@ -235,13 +246,13 @@ class lliu_kc705_test extends lliu_base_test;
             `uvm_info("TEST", $sformatf("Sc1 PASS: dp_result=0x%08h", result), UVM_LOW)
 
         // ── Sc2: unwatched INTC → no result ──────────────────────────
-        `uvm_info("TEST", "=== Sc2: unwatched INTC → no dp_result_valid ===", UVM_LOW)
+        `uvm_info("TEST", "=== Sc2: unwatched INTC → no m_axis_tvalid ===", UVM_LOW)
         make_add_order(msg_arr, 8'h42, 200, intc_sym, 500_000, 2);
         beats = build_kc705_frame(seq++, msg_arr);
         send_frame(beats);
         repeat (100) @(kc705_vif.monitor_cb);
-        if (kc705_vif.monitor_cb.dp_result_valid)
-            `uvm_error("TEST", "Sc2: unexpected dp_result_valid for unwatched INTC")
+        if (kc705_vif.monitor_cb.m_axis_tvalid)
+            `uvm_error("TEST", "Sc2: unexpected m_axis_tvalid for unwatched INTC")
         else
             `uvm_info("TEST", "Sc2 PASS: no result for unwatched symbol", UVM_LOW)
 
@@ -265,7 +276,7 @@ class lliu_kc705_test extends lliu_base_test;
                 begin
                     repeat (500) begin
                         @(kc705_vif.monitor_cb);
-                        if (kc705_vif.monitor_cb.dp_result_valid) hits++;
+                        if (kc705_vif.monitor_cb.m_axis_tvalid) hits++;;
                     end
                 end
             join
@@ -284,8 +295,8 @@ class lliu_kc705_test extends lliu_base_test;
             beats = build_kc705_frame(seq++, msg_arr);
             send_frame(beats);
             repeat (100) @(kc705_vif.monitor_cb);
-            if (kc705_vif.monitor_cb.dp_result_valid)
-                `uvm_error("TEST", "Sc4: dp_result_valid for dropped datagram")
+            if (kc705_vif.monitor_cb.m_axis_tvalid)
+                `uvm_error("TEST", "Sc4: m_axis_tvalid for dropped datagram")
             else
                 `uvm_info("TEST", "Sc4 PASS: no result after gap", UVM_LOW)
         end
@@ -374,7 +385,7 @@ class lliu_kc705_test extends lliu_base_test;
                 begin
                     repeat (2000) begin
                         @(kc705_vif.monitor_cb);
-                        if (kc705_vif.monitor_cb.dp_result_valid) n_results++;
+                        if (kc705_vif.monitor_cb.m_axis_tvalid) n_results++;
                     end
                 end
             join

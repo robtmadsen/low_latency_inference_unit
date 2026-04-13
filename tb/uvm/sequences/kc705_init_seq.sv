@@ -24,11 +24,21 @@
 class kc705_init_seq extends uvm_sequence #(axi4_lite_transaction);
     `uvm_object_utils(kc705_init_seq)
 
-    // ── AXI4-Lite addresses (per kc705_top / axi4_lite_slave register map) ──
-    // These match weight_load_seq and must stay consistent with the RTL.
-    localparam bit [31:0] REG_WGT_ADDR = 32'h08;
-    localparam bit [31:0] REG_WGT_DATA = 32'h0C;
-    localparam bit [31:0] CAM_WR_BASE  = 32'h80;   // bits[7:2]=index, bit[1]=en
+    // ── AXI4-Lite addresses (per lliu_top_v2 inline register map) ──
+    // Weight region: addr[11:10]=2'b10 = base 0x800
+    //   (used by weight_load_seq; defined there, not here)
+    //
+    // CAM watchlist registers (symbol_filter):
+    //   0x038 → cam_idx_hi_r[1:0]  (upper 2 bits of 10-bit index, write first)
+    //   0x014 → cam_idx_lo_r[7:0]  (lower 8 bits of 10-bit index)
+    //   0x01C → cam_dat_hi_r[31:0] (key[63:32])
+    //   0x018 → cam_dat_lo_r[31:0] (key[31:0])
+    //   0x020 → write bit[0]=1 to strobe cam_wr_valid; bit[1]=cam_wr_en_bit
+    localparam bit [31:0] REG_CAM_IDX_LO = 32'h014;
+    localparam bit [31:0] REG_CAM_DAT_LO = 32'h018;
+    localparam bit [31:0] REG_CAM_DAT_HI = 32'h01C;
+    localparam bit [31:0] REG_CAM_CTRL   = 32'h020;
+    localparam bit [31:0] REG_CAM_IDX_HI = 32'h038;
 
     // ── Configuration knobs (set before start()) ───────────────────
     // BF16 weights — one per feature vector element (4 × 1.0 by default)
@@ -103,38 +113,65 @@ class kc705_init_seq extends uvm_sequence #(axi4_lite_transaction);
 
         // ─────────────────────────────────────────────────────────
         // 4. Load symbol-filter watchlist via AXI4-Lite CAM writes
-        //    Register layout (cam_load_seq convention):
-        //      addr = CAM_WR_BASE | (index << 2) | 2'b10  (enabled)
-        //      write high 32 bits of key at addr+0
-        //      write low  32 bits of key at addr+4 (triggers DUT latch)
+        //    Register sequence per lliu_top_v2 inline register map:
+        //      1. Write REG_CAM_IDX_HI = index[9:8]  (upper 2 bits)
+        //      2. Write REG_CAM_IDX_LO = index[7:0]  (lower 8 bits)
+        //      3. Write REG_CAM_DAT_HI = key[63:32]
+        //      4. Write REG_CAM_DAT_LO = key[31:0]
+        //      5. Write REG_CAM_CTRL   = 32'h3  (bit0=wr_valid, bit1=en_bit)
         // ─────────────────────────────────────────────────────────
         if (watchlist.size() > 0) begin
             if (watchlist.size() > 64)
                 `uvm_fatal("KC705_INIT", "watchlist > 64 entries (max 64 per symbol_filter)")
 
             foreach (watchlist[i]) begin
-                bit [31:0] addr_base;
                 bit [63:0] key;
                 axi4_lite_transaction tx;
 
-                key       = watchlist[i];
-                addr_base = CAM_WR_BASE | (32'(i) << 2) | 32'h2;
+                key = watchlist[i];
 
-                // Write high 32 bits of key
-                tx = axi4_lite_transaction::type_id::create("cam_hi");
+                // 1. Upper index bits (only needed if index > 255; always write for correctness)
+                tx = axi4_lite_transaction::type_id::create("cam_idx_hi");
                 start_item(tx);
                 tx.is_write = 1'b1;
-                tx.addr     = addr_base;
+                tx.addr     = REG_CAM_IDX_HI;
+                tx.data     = 32'(i[9:8]);
+                tx.wstrb    = 4'hF;
+                finish_item(tx);
+
+                // 2. Lower index bits
+                tx = axi4_lite_transaction::type_id::create("cam_idx_lo");
+                start_item(tx);
+                tx.is_write = 1'b1;
+                tx.addr     = REG_CAM_IDX_LO;
+                tx.data     = 32'(i[7:0]);
+                tx.wstrb    = 4'hF;
+                finish_item(tx);
+
+                // 3. Key high 32 bits
+                tx = axi4_lite_transaction::type_id::create("cam_dat_hi");
+                start_item(tx);
+                tx.is_write = 1'b1;
+                tx.addr     = REG_CAM_DAT_HI;
                 tx.data     = key[63:32];
                 tx.wstrb    = 4'hF;
                 finish_item(tx);
 
-                // Write low 32 bits — triggers DUT CAM latch
-                tx = axi4_lite_transaction::type_id::create("cam_lo");
+                // 4. Key low 32 bits
+                tx = axi4_lite_transaction::type_id::create("cam_dat_lo");
                 start_item(tx);
                 tx.is_write = 1'b1;
-                tx.addr     = addr_base + 4;
+                tx.addr     = REG_CAM_DAT_LO;
                 tx.data     = key[31:0];
+                tx.wstrb    = 4'hF;
+                finish_item(tx);
+
+                // 5. Strobe write: bit[0]=cam_wr_valid=1, bit[1]=cam_wr_en_bit=1
+                tx = axi4_lite_transaction::type_id::create("cam_ctrl");
+                start_item(tx);
+                tx.is_write = 1'b1;
+                tx.addr     = REG_CAM_CTRL;
+                tx.data     = 32'h3;
                 tx.wstrb    = 4'hF;
                 finish_item(tx);
 

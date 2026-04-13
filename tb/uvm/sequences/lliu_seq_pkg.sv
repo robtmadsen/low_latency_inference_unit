@@ -9,6 +9,7 @@ package lliu_seq_pkg;
 
     `include "sequences/weight_load_seq.sv"
     `include "sequences/axil_rw_seq.sv"
+    `include "sequences/axis_raw_seq.sv"
     `include "sequences/itch_replay_seq.sv"
     `include "sequences/itch_random_seq.sv"
     `include "sequences/backpressure_seq.sv"
@@ -21,6 +22,8 @@ package lliu_seq_pkg;
     `include "sequences/moldupp64_seq.sv"
     `include "sequences/cam_load_seq.sv"
     `include "sequences/kc705_init_seq.sv"
+    `include "sequences/risk_fuzz_seq.sv"
+    `include "sequences/tx_backpressure_kill_seq.sv"
 
     // order_book sequences
     `include "sequences/order_book_stress_seq.sv"

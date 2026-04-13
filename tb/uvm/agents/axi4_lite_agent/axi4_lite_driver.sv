@@ -27,6 +27,7 @@ class axi4_lite_driver extends uvm_driver #(axi4_lite_transaction);
 
         // Wait for reset deassertion (poll on clock edges — Verilator-safe)
         do @(vif.driver_cb); while (vif.rst);
+        `uvm_info("AXIL_DRV", "Reset deasserted — entering driver loop", UVM_LOW)
         @(vif.driver_cb);  // one extra cycle for clocking-block output settling
 
         forever begin
@@ -52,11 +53,19 @@ class axi4_lite_driver extends uvm_driver #(axi4_lite_transaction);
     endtask
 
     // Drive AW + W simultaneously, wait for both handshakes, then collect B
+    //
+    // Note on output #0 clocking-block timing (same issue as drive_read):
+    // get_next_item() may resume on a stale posedge trigger. The first
+    // @(driver_cb) after driving awvalid/wvalid fires immediately with
+    // isTriggered()=false, so the CB outputs have NOT propagated to the wire
+    // yet and the DUT sees awvalid=0 at that posedge. Using repeat(2) ensures
+    // the signals are stable on the wire before the handshake check loop
+    // samples awready/wready.
     task drive_write(axi4_lite_transaction tx);
         bit aw_done, w_done;
 
         // Present AW and W channels simultaneously
-        vif.driver_cb.awaddr  <= tx.addr[7:0];
+        vif.driver_cb.awaddr  <= tx.addr;
         vif.driver_cb.awvalid <= 1'b1;
         vif.driver_cb.wdata   <= tx.data;
         vif.driver_cb.wstrb   <= tx.wstrb;
@@ -65,7 +74,22 @@ class axi4_lite_driver extends uvm_driver #(axi4_lite_transaction);
         aw_done = 0;
         w_done  = 0;
 
-        // Wait for both AW and W handshakes
+        // Wait two clock edges: 1st may be stale (isTriggered=false, outputs
+        // not yet on wire); 2nd is a fresh posedge where awvalid/wvalid are
+        // stable and the DUT has had a full cycle to capture them.
+        repeat(2) @(vif.driver_cb);
+
+        // Check if handshakes already completed on the settling cycles
+        if (!aw_done && vif.driver_cb.awready) begin
+            aw_done = 1;
+            vif.driver_cb.awvalid <= 1'b0;
+        end
+        if (!w_done && vif.driver_cb.wready) begin
+            w_done = 1;
+            vif.driver_cb.wvalid <= 1'b0;
+        end
+
+        // Wait for any remaining handshakes
         while (!aw_done || !w_done) begin
             @(vif.driver_cb);
             if (!aw_done && vif.driver_cb.awready) begin
@@ -80,6 +104,7 @@ class axi4_lite_driver extends uvm_driver #(axi4_lite_transaction);
 
         // Collect B response
         vif.driver_cb.bready <= 1'b1;
+        `uvm_info("AXIL_DRV", $sformatf("AW+W done — waiting for bvalid (addr=0x%0h)", tx.addr), UVM_LOW)
         do begin
             @(vif.driver_cb);
         end while (!vif.driver_cb.bvalid);
