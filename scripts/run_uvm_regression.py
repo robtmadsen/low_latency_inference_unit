@@ -27,6 +27,7 @@ import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
+from typing import List
 
 REPO_ROOT  = Path(__file__).resolve().parent.parent
 UVM_DIR    = REPO_ROOT / "tb" / "uvm"
@@ -54,6 +55,18 @@ ALL_TESTS = [
 EXTRA_TOPLEVEL_TESTS = [
     # Phase 1 v2.0 — order book stress (needs TOPLEVEL=order_book for DUT ifdef)
     ("order_book", ["lliu_order_book_test"]),
+    # Phase 2 v2.0 — block-level block tests (each needs its own TOPLEVEL)
+    ("moldupp64_strip",  ["lliu_moldupp64_test"]),
+    ("symbol_filter",    ["lliu_symfilter_test"]),
+    ("eth_axis_rx_wrap", ["lliu_dropfull_test"]),
+    # Phase 2 v2.0 — kc705_top system-level tests
+    ("kc705_top", [
+        "lliu_kc705_test",
+        "lliu_kc705_perf_test",
+        "lliu_risk_fuzz_test",
+        "lliu_ouch_compliance_test",
+        "lliu_tx_backpressure_test",
+    ]),
 ]
 
 
@@ -113,7 +126,7 @@ def run_test(test_name: str) -> dict:
 # Parse a log (run-time or from file)
 # ---------------------------------------------------------------------------
 
-def parse_log(test_name: str, output: str, exit_code: int | None = None) -> dict:
+def parse_log(test_name: str, output: str, exit_code=None) -> dict:
     """Extract verdict and counts from UVM log text."""
     passed  = bool(re.search(r"\*\* TEST PASSED \*\*", output))
     failed  = bool(re.search(r"\*\* TEST FAILED \*\*", output))
@@ -167,7 +180,22 @@ def parse_log(test_name: str, output: str, exit_code: int | None = None) -> dict
 # Build XML report
 # ---------------------------------------------------------------------------
 
-def build_report(results: list[dict], output_path: Path) -> None:
+def _indent_xml(elem: ET.Element, level: int = 0) -> None:
+    """Recursive pretty-printer compatible with Python 3.8 (ET.indent needs 3.9)."""
+    indent = "\n" + "  " * level
+    if len(elem):
+        elem.text = indent + "  "
+        elem.tail = indent
+        for child in elem:
+            _indent_xml(child, level + 1)
+        child.tail = indent
+    else:
+        elem.tail = indent
+    if level == 0:
+        elem.tail = "\n"
+
+
+def build_report(results: List[dict], output_path: Path) -> None:
     total   = len(results)
     passed  = sum(1 for r in results if r["passed"])
     failed  = total - passed
@@ -201,7 +229,11 @@ def build_report(results: list[dict], output_path: Path) -> None:
             failure.set("error_msg", r["failure_msg"] or f"TEST FAILED (exit {r['exit_code']})")
 
     tree = ET.ElementTree(doc)
-    ET.indent(tree, space="  ")
+    # ET.indent was added in Python 3.9; provide a compatible fallback for 3.8.
+    if hasattr(ET, "indent"):
+        ET.indent(tree, space="  ")
+    else:
+        _indent_xml(doc)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tree.write(str(output_path), encoding="unicode", xml_declaration=True)
 
@@ -222,7 +254,7 @@ def main() -> int:
     args = parser.parse_args()
 
     output_path = Path(args.output)
-    results: list[dict] = []
+    results: List[dict] = []
 
     print(f"\n{'='*64}")
     print(f"  UVM Regression  —  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")

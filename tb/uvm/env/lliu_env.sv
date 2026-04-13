@@ -1,6 +1,7 @@
 // lliu_env.sv — Top-level UVM environment for Low-Latency Inference Unit
 //
-// Contains: AXI4-Stream agent, AXI4-Lite agent, predictor, scoreboard, coverage
+// Contains: AXI4-Stream agent, AXI4-Lite agent, predictor, scoreboard,
+//           coverage, and OUCH 5.0 packet checker (active in kc705_sim_mode).
 
 class lliu_env extends uvm_env;
     `uvm_component_utils(lliu_env)
@@ -13,6 +14,9 @@ class lliu_env extends uvm_env;
     lliu_predictor     m_predictor;
     lliu_scoreboard    m_scoreboard;
 
+    // OUCH 5.0 structural checker (active when kc705_sim_mode=1)
+    ouch_checker       m_ouch_checker;
+
     // Coverage
     lliu_coverage      m_coverage;
 
@@ -22,11 +26,12 @@ class lliu_env extends uvm_env;
 
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
-        m_axis_agent = axi4_stream_agent::type_id::create("m_axis_agent", this);
-        m_axil_agent = axi4_lite_agent::type_id::create("m_axil_agent", this);
-        m_predictor  = lliu_predictor::type_id::create("m_predictor", this);
-        m_scoreboard = lliu_scoreboard::type_id::create("m_scoreboard", this);
-        m_coverage   = lliu_coverage::type_id::create("m_coverage", this);
+        m_axis_agent   = axi4_stream_agent::type_id::create("m_axis_agent", this);
+        m_axil_agent   = axi4_lite_agent::type_id::create("m_axil_agent", this);
+        m_predictor    = lliu_predictor::type_id::create("m_predictor", this);
+        m_scoreboard   = lliu_scoreboard::type_id::create("m_scoreboard", this);
+        m_ouch_checker = ouch_checker::type_id::create("m_ouch_checker", this);
+        m_coverage     = lliu_coverage::type_id::create("m_coverage", this);
     endfunction
 
     function void connect_phase(uvm_phase phase);
@@ -39,5 +44,7 @@ class lliu_env extends uvm_env;
         m_axil_agent.m_monitor.ap.connect(m_scoreboard.actual_fifo.analysis_export);
         // Stream monitor → coverage collector
         m_axis_agent.m_monitor.ap.connect(m_coverage.analysis_export);
+        // ouch_checker acquires kc705_vif directly from config DB in its
+        // build_phase; no analysis port connection needed.
     endfunction
 endclass
