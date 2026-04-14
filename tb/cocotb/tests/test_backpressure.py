@@ -95,14 +95,17 @@ async def wait_for_result(axil, timeout_cycles=200):
 
 
 async def wait_for_new_result(axil, timeout_cycles=300):
+    """Wait for result_ready to clear (new inference in-flight), then re-assert."""
+    # Phase 1: wait for result_ready to de-assert
     for _ in range(timeout_cycles):
         status = await axil.read(REG_STATUS)
-        if status & 0x2:
+        if not (status & 0x1):
             break
         await RisingEdge(axil.clk)
+    # Phase 2: wait for fresh result_ready
     for _ in range(timeout_cycles):
         status = await axil.read(REG_STATUS)
-        if (not (status & 0x2)) and (status & 0x1):
+        if status & 0x1:
             result_bits = await axil.read(REG_RESULT)
             return bits_to_float32(result_bits)
         await RisingEdge(axil.clk)
