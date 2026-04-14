@@ -75,9 +75,35 @@ tb/uvm/
 
 Use the `run_uvm_test_suite` skill to compile and run individual tests or the full suite. Do not construct raw `make` commands from memory — the skill contains the correct invocation recipe including `UVM_HOME` setup.
 
-> **All UVM compiles run in GitHub Codespaces.** The devcontainer pre-installs
-> Verilator 5.046 and sets `UVM_HOME=/opt/uvm-reference/src` automatically.
-> Never ask the user to compile locally — open or resume a Codespace instead.
+> **Execution target is EC2 (`lliu-par`)** unless the user explicitly says otherwise.
+
+## SSH/EC2 Execution Discipline (Strict Ladder)
+
+When running over SSH/EC2, break work into small, restartable steps. Do **not** run a large monolithic command that does sync + clean + compile + run + regression in one shell invocation.
+
+Required ladder:
+
+1. **Sync only**
+  - `git fetch`, `git checkout <branch>`, `git reset --hard origin/<branch>`
+  - Record and report HEAD SHA.
+2. **Compile only (single target)**
+  - One TOPLEVEL at a time.
+  - Clean just the relevant build directory before compile.
+  - Prefer deterministic settings (`MAKEFLAGS=-j1`) when instability is observed.
+3. **Run only (single test)**
+  - Run one test binary at a time.
+  - Capture true simulator exit code; never mask failures via pipelines.
+4. **Repeat per target**
+  - `moldupp64_strip` → `symbol_filter` → `eth_axis_rx_wrap`.
+5. **Regression sanity last**
+  - Run `run_uvm_regression.py --no-compile` only after targeted block tests are stable.
+
+Logging and failure handling rules:
+
+- Use separate log files per step (`*_compile.log`, `*_run.log`).
+- On failure, stop and report the **first actionable error line** plus log path.
+- If SSH drops (`exit 255`), resume from the last completed rung; do not restart everything by default.
+- Never report a run as pass/fail based only on wrapper command status if output is piped through `tee`; preserve simulator exit status explicitly.
 
 ## Design Principles
 
