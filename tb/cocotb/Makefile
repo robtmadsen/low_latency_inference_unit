@@ -25,6 +25,9 @@ else ifeq ($(TOPLEVEL),axi4_lite_slave)
     VERILOG_SOURCES += $(RTL_DIR)/axi4_lite_slave.sv
 else ifeq ($(TOPLEVEL),lliu_top)
     VERILOG_SOURCES += $(shell find $(RTL_DIR) -name '*.sv' ! -name 'lliu_pkg.sv')
+    # v2 modules (itch_parser_v2, axi4_lite_slave) added ports that lliu_top.sv
+    # does not connect; suppress PINMISSING to keep legacy tests buildable.
+    EXTRA_ARGS += -Wno-PINMISSING
 else ifeq ($(TOPLEVEL),moldupp64_strip)
     VERILOG_SOURCES += $(RTL_DIR)/moldupp64_strip.sv
 else ifeq ($(TOPLEVEL),symbol_filter)
