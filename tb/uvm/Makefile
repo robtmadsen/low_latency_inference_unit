@@ -100,7 +100,8 @@ PY_CFLAGS := -I$(PY_INC)
 PY_LDFLAGS:= -L$(PY_LIBDIR) -lpython$(PY_VER) -lpthread -ldl -lutil -lm
 
 # ---- Build directory ----
-BUILD_DIR := $(TB_DIR)/sim_build/$(SIM)
+SIM_BUILD_ROOT := $(TB_DIR)/sim_build/$(SIM)
+BUILD_DIR      := $(SIM_BUILD_ROOT)
 
 # ---- All SV sources in compile order ----
 ALL_SV    := $(RTL_PKG) $(RTL_SRC) $(LIB_VER_ETH) $(TB_IFS) $(TB_PKGS) $(TB_SVA) $(TB_PERF) $(TB_TOP)
@@ -182,6 +183,10 @@ COVERAGE   ?= 0
 # on generated dependency/PCH files in shared build dirs.
 VERILATOR_JOBS ?= 1
 
+# Isolate Verilator artifacts per TOPLEVEL to avoid cross-test races in shared
+# sim_build directories.
+VERILATOR_BUILD_DIR := $(SIM_BUILD_ROOT)/$(TOPLEVEL)
+
 VL_FLAGS   := --binary --timing --trace -sv \
               -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
               -Wno-UNUSEDSIGNAL -Wno-IMPORTSTAR -Wno-CONSTRAINTIGN \
@@ -220,7 +225,6 @@ VL_FLAGS   += +define+LLIU_TOP_DUT
 endif
 
 UVM_PKG    := $(UVM_HOME)/uvm_pkg.sv
-TOPLEVEL_STAMP := $(BUILD_DIR)/.toplevel
 
 # All SV sources in compile order: RTL, interfaces, packages, tb_top.
 VL_SV      := $(RTL_PKG) $(RTL_SRC) $(LIB_VER_ETH) $(TB_IFS) $(TB_PKGS) $(TB_SVA) $(TB_PERF) $(TB_TOP)
@@ -228,26 +232,30 @@ VL_SV      := $(RTL_PKG) $(RTL_SRC) $(LIB_VER_ETH) $(TB_IFS) $(TB_PKGS) $(TB_SVA
 .PHONY: compile run clean help
 
 compile: $(BUILD_DIR)
-	@# Prevent stale Verilator artifacts when switching TOPLEVEL in-place.
-	@if [ -f $(TOPLEVEL_STAMP) ] && [ "$$(cat $(TOPLEVEL_STAMP))" != "$(TOPLEVEL)" ]; then \
-	    echo "INFO: TOPLEVEL changed from $$(cat $(TOPLEVEL_STAMP)) to $(TOPLEVEL); cleaning $(BUILD_DIR)"; \
-	    rm -rf $(BUILD_DIR); \
-	    mkdir -p $(BUILD_DIR); \
-	fi
-	@printf '%s\n' "$(TOPLEVEL)" > $(TOPLEVEL_STAMP)
+	@# Always compile in a clean per-top-level directory to avoid stale
+	@# dependency/PCH artifacts from prior interrupted or parallel runs.
+	@rm -rf $(VERILATOR_BUILD_DIR)
+	@mkdir -p $(VERILATOR_BUILD_DIR)
 	@bash -o pipefail -c '$(VERILATOR) $(VL_FLAGS) \
 	    $(UVM_PKG) $(VL_SV) \
 	    --exe $(DPI_SRC) \
-	    --Mdir $(BUILD_DIR) \
-	    2>&1 | tee $(BUILD_DIR)/compile.log'
+	    --Mdir $(VERILATOR_BUILD_DIR) \
+	    2>&1 | tee $(VERILATOR_BUILD_DIR)/compile.log'
 
 run: compile
-	@bash -o pipefail -c '$(BUILD_DIR)/simv \
+	@bash -o pipefail -c '$(VERILATOR_BUILD_DIR)/simv \
 	    +UVM_TESTNAME=$(TEST) \
 	    +UVM_VERBOSITY=$(VERBOSITY) \
 	    +DATA_DIR=$(DATA_DIR) \
 	    +GOLDEN_MODEL=$(GM_PY) \
-	    2>&1 | tee $(BUILD_DIR)/$(TEST).log'
+	    2>&1 | tee $(VERILATOR_BUILD_DIR)/$(TEST).log; \
+	    sim_ec=$${PIPESTATUS[0]}; \
+	    if [ $$sim_ec -ne 0 ]; then \
+	        exit $$sim_ec; \
+	    fi; \
+	    if grep -Eq "\*\* TEST FAILED \*\*|UVM_FATAL|UVM_ERROR[[:space:]]*:[[:space:]]*[1-9]" $(VERILATOR_BUILD_DIR)/$(TEST).log; then \
+	        exit 1; \
+	    fi'
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -268,13 +276,13 @@ coverage-run: coverage-clean
 	$(MAKE) SIM=verilator UVM_HOME=$(UVM_HOME) COVERAGE=1 clean compile
 	@for t in $(UVM_TESTS); do \
 		echo "==== Running UVM test: $$t ===="; \
-		cd $(BUILD_DIR) && ./simv \
+		cd $(VERILATOR_BUILD_DIR) && ./simv \
 		    +UVM_TESTNAME=$$t \
 		    +UVM_VERBOSITY=$(VERBOSITY) \
 		    +DATA_DIR=$(DATA_DIR) \
 		    +GOLDEN_MODEL=$(GM_PY) \
 		    2>&1 | tee $$t.log || true; \
-		for loc in $(BUILD_DIR)/coverage.dat coverage.dat; do \
+		for loc in $(VERILATOR_BUILD_DIR)/coverage.dat coverage.dat; do \
 		    if [ -f "$$loc" ]; then \
 		        cp "$$loc" $(COV_DIR)/$$t.dat; \
 		        break; \

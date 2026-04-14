@@ -105,6 +105,13 @@ Logging and failure handling rules:
 - If SSH drops (`exit 255`), resume from the last completed rung; do not restart everything by default.
 - Never report a run as pass/fail based only on wrapper command status if output is piped through `tee`; preserve simulator exit status explicitly.
 
+### What To Do (Crash Prevention)
+
+- Use short, single-purpose SSH commands (sync, compile, run, log extraction) instead of one giant inline script.
+- Keep grep patterns simple; avoid very long quoted regex blocks embedded in SSH one-liners.
+- Use long timeouts for heavy steps (compile/run can take 15-20 minutes on EC2).
+- Treat `exit 255` as an SSH transport failure first, not a DUT functional result.
+
 ## Design Principles
 
 - Tests must be black-box with respect to RTL internals — drive inputs through UVM agents, observe outputs through monitors, compare against the golden model or spec-derived expected values.
