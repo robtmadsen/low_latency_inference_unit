@@ -92,18 +92,18 @@ module moldupp64_strip (
     logic [63:0] header_seq_num_b2;
     logic [15:0] header_msg_count_b2;
     logic        header_in_order_b2;
-    logic        header_drop_b2;
     logic        header_b0_valid;
     logic        header_b1_valid;
     logic        header_b2_valid;
+    logic        header_accept_b2;
 
     assign header_seq_num_b2   = {seq_num_r[63:16], tdata_byte(s_tdata, 0), tdata_byte(s_tdata, 1)};
     assign header_msg_count_b2 = {tdata_byte(s_tdata, 2), tdata_byte(s_tdata, 3)};
     assign header_in_order_b2  = (header_seq_num_b2 === expected_seq_num);
-    assign header_drop_b2      = (header_seq_num_b2 !== expected_seq_num);
     assign header_b0_valid     = (s_tkeep == 8'hFF);
     assign header_b1_valid     = (s_tkeep == 8'hFF);
     assign header_b2_valid     = (s_tkeep[3:0] == 4'hF);
+    assign header_accept_b2    = (state == S_HEADER_B2) && s_tvalid && header_b2_valid;
 
     // ---------------------------------------------------------------
     // Combinational next-state / output logic
@@ -321,16 +321,15 @@ module moldupp64_strip (
             // Advance expected_seq_num when beat 2 is accepted in-order.
             // Use the decoded beat-2 header fields directly so advancement
             // does not depend on intermediate next-state temporaries.
-            if (state == S_HEADER_B2 && s_tvalid && header_in_order_b2) begin
-                expected_seq_num <= header_seq_num_b2 + {48'b0, header_msg_count_b2};
-            end
-
-            // Increment drop counter once per out-of-order datagram when the
-            // header decision is made (beat 2). This is independent of frame
-            // length and avoids short-vs-long path asymmetry.
-            if (state == S_HEADER_B2 && s_tvalid && header_drop_b2) begin
-                if (dropped_datagrams != 32'hFFFF_FFFF)
-                    dropped_datagrams <= dropped_datagrams + 32'd1;
+            if (header_accept_b2) begin
+                if (header_in_order_b2) begin
+                    expected_seq_num <= header_seq_num_b2 + {48'b0, header_msg_count_b2};
+                end else begin
+                    // Increment drop counter once per out-of-order datagram
+                    // when the beat-2 header decision is made.
+                    if (dropped_datagrams != 32'hFFFF_FFFF)
+                        dropped_datagrams <= dropped_datagrams + 32'd1;
+                end
             end
         end
     end

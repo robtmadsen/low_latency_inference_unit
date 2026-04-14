@@ -14,7 +14,7 @@ Targets gaps in:
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge
+from cocotb.triggers import RisingEdge, ReadOnly
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -63,8 +63,13 @@ async def acc_read(dut):
 
     No additional clock edge is needed: acc_add's 5-cycle flush leaves
     the simulation cursor at post-NBA of the Stage-C commit edge.
+    ReadOnly() is required by cocotb 2.0 + Verilator to settle registered
+    FF outputs before reading them in the Python scheduler.
     """
-    return bits_to_fp32(int(dut.acc_out.value))
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
+    val = bits_to_fp32(int(dut.acc_out.value))
+    await RisingEdge(dut.clk)  # exit ReadOnly so callers can write immediately after
+    return val
 
 
 @cocotb.test()
