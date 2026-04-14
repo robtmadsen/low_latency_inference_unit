@@ -192,8 +192,12 @@ VL_FLAGS   := --binary --timing --trace -sv \
               +define+LLIU_ENABLE_DPI \
               -CFLAGS "$(PY_CFLAGS)" \
               -LDFLAGS "$(PY_LDFLAGS)" \
-              -j 0 \
+			  -j $(VERILATOR_JOBS) \
               -o simv
+
+# Keep Verilator-generated C++ build deterministic. Parallel sub-makes can race
+# on generated dependency/PCH files in shared build dirs.
+VERILATOR_JOBS ?= 1
 
 ifeq ($(COVERAGE),1)
 VL_FLAGS   += --coverage
@@ -216,6 +220,7 @@ VL_FLAGS   += +define+LLIU_TOP_DUT
 endif
 
 UVM_PKG    := $(UVM_HOME)/uvm_pkg.sv
+TOPLEVEL_STAMP := $(BUILD_DIR)/.toplevel
 
 # All SV sources in compile order: RTL, interfaces, packages, tb_top.
 VL_SV      := $(RTL_PKG) $(RTL_SRC) $(LIB_VER_ETH) $(TB_IFS) $(TB_PKGS) $(TB_SVA) $(TB_PERF) $(TB_TOP)
@@ -223,19 +228,26 @@ VL_SV      := $(RTL_PKG) $(RTL_SRC) $(LIB_VER_ETH) $(TB_IFS) $(TB_PKGS) $(TB_SVA
 .PHONY: compile run clean help
 
 compile: $(BUILD_DIR)
-	$(VERILATOR) $(VL_FLAGS) \
+	@# Prevent stale Verilator artifacts when switching TOPLEVEL in-place.
+	@if [ -f $(TOPLEVEL_STAMP) ] && [ "$$(cat $(TOPLEVEL_STAMP))" != "$(TOPLEVEL)" ]; then \
+	    echo "INFO: TOPLEVEL changed from $$(cat $(TOPLEVEL_STAMP)) to $(TOPLEVEL); cleaning $(BUILD_DIR)"; \
+	    rm -rf $(BUILD_DIR); \
+	    mkdir -p $(BUILD_DIR); \
+	fi
+	@printf '%s\n' "$(TOPLEVEL)" > $(TOPLEVEL_STAMP)
+	@bash -o pipefail -c '$(VERILATOR) $(VL_FLAGS) \
 	    $(UVM_PKG) $(VL_SV) \
 	    --exe $(DPI_SRC) \
 	    --Mdir $(BUILD_DIR) \
-	    2>&1 | tee $(BUILD_DIR)/compile.log
+	    2>&1 | tee $(BUILD_DIR)/compile.log'
 
 run: compile
-	$(BUILD_DIR)/simv \
+	@bash -o pipefail -c '$(BUILD_DIR)/simv \
 	    +UVM_TESTNAME=$(TEST) \
 	    +UVM_VERBOSITY=$(VERBOSITY) \
 	    +DATA_DIR=$(DATA_DIR) \
 	    +GOLDEN_MODEL=$(GM_PY) \
-	    2>&1 | tee $(BUILD_DIR)/$(TEST).log
+	    2>&1 | tee $(BUILD_DIR)/$(TEST).log'
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
