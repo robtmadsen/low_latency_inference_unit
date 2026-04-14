@@ -93,11 +93,17 @@ module moldupp64_strip (
     logic [15:0] header_msg_count_b2;
     logic        header_in_order_b2;
     logic        header_drop_b2;
+    logic        header_b0_valid;
+    logic        header_b1_valid;
+    logic        header_b2_valid;
 
     assign header_seq_num_b2   = {seq_num_r[63:16], tdata_byte(s_tdata, 0), tdata_byte(s_tdata, 1)};
     assign header_msg_count_b2 = {tdata_byte(s_tdata, 2), tdata_byte(s_tdata, 3)};
     assign header_in_order_b2  = (header_seq_num_b2 === expected_seq_num);
     assign header_drop_b2      = (header_seq_num_b2 !== expected_seq_num);
+    assign header_b0_valid     = (s_tkeep == 8'hFF);
+    assign header_b1_valid     = (s_tkeep == 8'hFF);
+    assign header_b2_valid     = (s_tkeep[3:0] == 4'hF);
 
     // ---------------------------------------------------------------
     // Combinational next-state / output logic
@@ -124,8 +130,15 @@ module moldupp64_strip (
             S_HEADER_B0: begin
                 s_tready = 1'b1;
                 if (s_tvalid) begin
-                    // Nothing to capture from beat 0; just advance
-                    state_next = S_HEADER_B1;
+                    if (s_tlast || !header_b0_valid) begin
+                        // Truncated/malformed datagram ended before full header.
+                        // Re-arm parser at the next datagram boundary.
+                        stage_hi_valid_next = 1'b0;
+                        state_next          = S_HEADER_B0;
+                    end else begin
+                        // Nothing to capture from beat 0; just advance
+                        state_next = S_HEADER_B1;
+                    end
                 end
             end
 
@@ -144,14 +157,20 @@ module moldupp64_strip (
             S_HEADER_B1: begin
                 s_tready = 1'b1;
                 if (s_tvalid) begin
-                    // Capture upper 6 bytes of seq_num (bytes 0–5 of the 8-byte field)
-                    seq_num_next[63:16] = {tdata_byte(s_tdata, 2),
-                                           tdata_byte(s_tdata, 3),
-                                           tdata_byte(s_tdata, 4),
-                                           tdata_byte(s_tdata, 5),
-                                           tdata_byte(s_tdata, 6),
-                                           tdata_byte(s_tdata, 7)};
-                    state_next = S_HEADER_B2;
+                    if (s_tlast || !header_b1_valid) begin
+                        // Truncated/malformed datagram before beat 2.
+                        stage_hi_valid_next = 1'b0;
+                        state_next          = S_HEADER_B0;
+                    end else begin
+                        // Capture upper 6 bytes of seq_num (bytes 0–5 of the 8-byte field)
+                        seq_num_next[63:16] = {tdata_byte(s_tdata, 2),
+                                               tdata_byte(s_tdata, 3),
+                                               tdata_byte(s_tdata, 4),
+                                               tdata_byte(s_tdata, 5),
+                                               tdata_byte(s_tdata, 6),
+                                               tdata_byte(s_tdata, 7)};
+                        state_next = S_HEADER_B2;
+                    end
                 end
             end
 
@@ -168,32 +187,43 @@ module moldupp64_strip (
             S_HEADER_B2: begin
                 s_tready = 1'b1;
                 if (s_tvalid) begin
-                    // Complete seq_num assembly
-                    seq_num_next   = header_seq_num_b2;
-                    msg_count_next = header_msg_count_b2;
-
-                    if (header_in_order_b2) begin
-                        // In-order datagram: pulse seq_valid and stage ITCH bytes 0–3
-                        seq_valid           = 1'b1;  // notify CDC regs (in-order only)
-                        stage_hi_next       = s_tdata[63:32];
-                        stage_hi_keep_next  = s_tkeep[7:4];
-                        stage_hi_valid_next = 1'b1;
-                        if (s_tlast) begin
-                            // Short datagram: all ITCH bytes are in beat 2's upper half.
-                            // Flush them in one output beat without entering S_PAYLOAD.
-                            state_next = S_FLUSH_SHORT;
-                        end else begin
-                            state_next = S_PAYLOAD;
-                        end
-                    end else begin
-                        // Out-of-order: drop the remainder (seq_valid stays 0)
+                    if (!header_b2_valid) begin
+                        // Missing required header bytes [16:19] on beat 2.
+                        // Drop remainder and resync at next frame boundary.
                         stage_hi_valid_next = 1'b0;
                         if (s_tlast) begin
-                            // Short OOO datagram: last beat already consumed here.
-                            // The drop counter is incremented in the sequential block.
                             state_next = S_HEADER_B0;
                         end else begin
                             state_next = S_DROP;
+                        end
+                    end else begin
+                        // Complete seq_num assembly
+                        seq_num_next   = header_seq_num_b2;
+                        msg_count_next = header_msg_count_b2;
+
+                        if (header_in_order_b2) begin
+                            // In-order datagram: pulse seq_valid and stage ITCH bytes 0–3
+                            seq_valid           = 1'b1;  // notify CDC regs (in-order only)
+                            stage_hi_next       = s_tdata[63:32];
+                            stage_hi_keep_next  = s_tkeep[7:4];
+                            stage_hi_valid_next = 1'b1;
+                            if (s_tlast) begin
+                                // Short datagram: all ITCH bytes are in beat 2's upper half.
+                                // Flush them in one output beat without entering S_PAYLOAD.
+                                state_next = S_FLUSH_SHORT;
+                            end else begin
+                                state_next = S_PAYLOAD;
+                            end
+                        end else begin
+                            // Out-of-order: drop the remainder (seq_valid stays 0)
+                            stage_hi_valid_next = 1'b0;
+                            if (s_tlast) begin
+                                // Short OOO datagram: last beat already consumed here.
+                                // The drop counter is incremented in the sequential block.
+                                state_next = S_HEADER_B0;
+                            end else begin
+                                state_next = S_DROP;
+                            end
                         end
                     end
                 end
