@@ -178,6 +178,10 @@ UVM_HOME   ?= $(error UVM_HOME is not set. Point it to the Accellera UVM source 
 # Coverage: enable with COVERAGE=1
 COVERAGE   ?= 0
 
+# Keep Verilator-generated C++ build deterministic. Parallel sub-makes can race
+# on generated dependency/PCH files in shared build dirs.
+VERILATOR_JOBS ?= 1
+
 VL_FLAGS   := --binary --timing --trace -sv \
               -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
               -Wno-UNUSEDSIGNAL -Wno-IMPORTSTAR -Wno-CONSTRAINTIGN \
@@ -194,10 +198,6 @@ VL_FLAGS   := --binary --timing --trace -sv \
               -LDFLAGS "$(PY_LDFLAGS)" \
 			  -j $(VERILATOR_JOBS) \
               -o simv
-
-# Keep Verilator-generated C++ build deterministic. Parallel sub-makes can race
-# on generated dependency/PCH files in shared build dirs.
-VERILATOR_JOBS ?= 1
 
 ifeq ($(COVERAGE),1)
 VL_FLAGS   += --coverage
