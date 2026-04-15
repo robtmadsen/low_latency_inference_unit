@@ -80,7 +80,10 @@ module symbol_filter_sva (
         $rose(stock_valid) |=> (watchlist_hit === expected_hit_r);
     endproperty
     assert property (p_hit_latency)
-        else $error("SVA [SYMFILTER]: watchlist_hit != expected value 1 cycle after stock_valid");
+        else $error(
+            "SVA [SYMFILTER]: latency mismatch exp=%0b got=%0b stock=0x%016h stock_valid(prev)=%0b",
+            expected_hit_r, watchlist_hit, stock, $past(stock_valid)
+        );
 
     // ── S2: no spurious hit without stock_valid on previous cycle ───
     property p_no_spurious_hit;
@@ -88,7 +91,10 @@ module symbol_filter_sva (
         (!$past(stock_valid)) |-> !watchlist_hit;
     endproperty
     assert property (p_no_spurious_hit)
-        else $error("SVA [SYMFILTER]: watchlist_hit asserted without preceding stock_valid");
+        else $error(
+            "SVA [SYMFILTER]: spurious hit watchlist_hit=%0b stock_valid(prev)=%0b stock=0x%016h",
+            watchlist_hit, $past(stock_valid), stock
+        );
 
     // ── S3: back-to-back throughput — hit follows 1 cycle every time
     // expected_hit_r already provides the 1-cycle-delayed expected value.
@@ -97,7 +103,10 @@ module symbol_filter_sva (
         (stock_valid) |=> (watchlist_hit === expected_hit_r);
     endproperty
     assert property (p_pipeline_throughput)
-        else $error("SVA [SYMFILTER]: watchlist_hit wrong value in back-to-back mode");
+        else $error(
+            "SVA [SYMFILTER]: throughput mismatch exp=%0b got=%0b stock=0x%016h",
+            expected_hit_r, watchlist_hit, stock
+        );
 
     // ── S4: CAM write does not corrupt registered output mid-lookup ─
     // When cam_wr_valid and stock_valid occur on the same cycle, the
@@ -108,6 +117,9 @@ module symbol_filter_sva (
         (cam_wr_valid && stock_valid) |=> (watchlist_hit == $past(cam_entry_match));
     endproperty
     assert property (p_write_isolation)
-        else $error("SVA [SYMFILTER]: write-during-lookup corrupted registered output");
+        else $error(
+            "SVA [SYMFILTER]: write-isolation mismatch got=%0b expected(prev_match)=%0b wr_idx=%0d stock=0x%016h",
+            watchlist_hit, $past(cam_entry_match), cam_wr_index, stock
+        );
 
 endmodule

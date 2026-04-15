@@ -300,27 +300,18 @@ async def test_single_order_latency_within_spec(dut):
         price=PRICE_FP,
     )
 
-    # Timestamp tlast beat of ingress
-    t_start = 0
-    start_recorded = False
-
-    async def _record_start():
-        nonlocal t_start, start_recorded
-        await _drive_itch_packet(dut, msg)
-        t_start = cocotb.utils.get_sim_time(units="ns")
-        start_recorded = True
-
-    cocotb.start_soon(_record_start())
+    # Drive the ITCH packet; timestamp AFTER tlast is accepted so the
+    # latency window starts at the correct spec boundary (s_axis_tlast).
+    await _drive_itch_packet(dut, msg)
+    start_ns = cocotb.utils.get_sim_time(unit="ns")
 
     # Wait for OUCH output
-    start_ns = cocotb.utils.get_sim_time(units="ns")
-
     for _ in range(600):
         await RisingEdge(dut.clk)
         await ReadOnly()
         if (dut.m_axis_tvalid.value and dut.m_axis_tlast.value
                 and dut.m_axis_tready.value):
-            end_ns = cocotb.utils.get_sim_time(units="ns")
+            end_ns = cocotb.utils.get_sim_time(unit="ns")
             latency_ns = end_ns - start_ns
             latency_cycles = int(latency_ns / CLK_NS + 0.5)
             assert latency_cycles < LATENCY_LIMIT_CYCLES, (
@@ -348,9 +339,10 @@ async def test_ten_orders_all_within_spec(dut):
             price=PRICE_FP,   # keep price=0 so band-check passes with empty order book
         )
 
-        # Reset histogram and drive packet
-        start_ns = cocotb.utils.get_sim_time(units="ns")
+        # Drive packet; capture start_ns after tlast so we measure from the
+        # spec-defined boundary (s_axis_tlast assertion).
         await _drive_itch_packet(dut, msg)
+        start_ns = cocotb.utils.get_sim_time(unit="ns")
 
         # Wait for OUCH last beat
         done = False
@@ -359,7 +351,7 @@ async def test_ten_orders_all_within_spec(dut):
             await ReadOnly()
             if (dut.m_axis_tvalid.value and dut.m_axis_tlast.value
                     and dut.m_axis_tready.value):
-                end_ns = cocotb.utils.get_sim_time(units="ns")
+                end_ns = cocotb.utils.get_sim_time(unit="ns")
                 lat = int((end_ns - start_ns) / CLK_NS + 0.5)
                 latencies.append(lat)
                 done = True

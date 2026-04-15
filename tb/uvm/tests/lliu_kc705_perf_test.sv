@@ -31,7 +31,7 @@ class lliu_kc705_perf_test extends lliu_kc705_test;
     endfunction
 
     // ================================================================
-    //  Measure latency: assert fifo_rd_tvalid rising-edge → dp_result_valid.
+    //  Measure latency: assert fifo_rd_tvalid rising-edge → m_axis_tvalid (OUCH output).
     //  Returns cycle count, or -1 on timeout.
     //  Starts counting from the first fifo_rd_tvalid pulse seen.
     // ================================================================
@@ -43,9 +43,9 @@ class lliu_kc705_perf_test extends lliu_kc705_test;
             @(kc705_vif.monitor_cb);
             if (kc705_vif.monitor_cb.fifo_rd_tvalid) begin
                 cnt = 0;
-                // From here count until dp_result_valid
+                // From here count until m_axis_tvalid
                 repeat (E2E_BOUND_CYCLES + 20) begin
-                    if (kc705_vif.monitor_cb.dp_result_valid) begin
+                    if (kc705_vif.monitor_cb.m_axis_tvalid) begin
                         cycles = cnt;
                         return;
                     end
@@ -95,7 +95,7 @@ class lliu_kc705_perf_test extends lliu_kc705_test;
             send_frame(beats);
             measure_e2e_cycles(cycles);
             if (cycles < 0)
-                `uvm_error("PERF", "P1: timeout waiting for dp_result_valid")
+                `uvm_error("PERF", "P1: timeout waiting for m_axis_tvalid")
             else if (cycles >= E2E_BOUND_CYCLES)
                 `uvm_error("PERF", $sformatf(
                     "P1 VIOLATION: E2E latency %0d >= %0d cycles (spec bound)",
@@ -166,12 +166,12 @@ class lliu_kc705_perf_test extends lliu_kc705_test;
             // Verify dp_result_valid does not fire for 100 cycles
             repeat (100) begin
                 @(kc705_vif.monitor_cb);
-                if (kc705_vif.monitor_cb.dp_result_valid) gap++;
+                if (kc705_vif.monitor_cb.m_axis_tvalid) gap++;;
             end
 
             if (gap > 0)
                 `uvm_error("PERF", $sformatf(
-                    "P3: dp_result_valid fired %0d time(s) for unwatched symbol after hit", gap))
+                    "P3: m_axis_tvalid fired %0d time(s) for unwatched symbol after hit", gap))
             else
                 `uvm_info("PERF", "P3 PASS: no spurious result after hit→miss transition", UVM_LOW)
         end
@@ -195,7 +195,7 @@ class lliu_kc705_perf_test extends lliu_kc705_test;
                 begin
                     repeat (2000) begin
                         @(kc705_vif.monitor_cb);
-                        if (kc705_vif.monitor_cb.dp_result_valid) hit_count++;
+                        if (kc705_vif.monitor_cb.m_axis_tvalid) hit_count++;
                     end
                 end
             join

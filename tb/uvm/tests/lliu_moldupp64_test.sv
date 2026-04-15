@@ -165,8 +165,16 @@ class lliu_moldupp64_test extends lliu_base_test;
         @(posedge kc705_vif.clk);  // sample on next rising edge
         if (kc705_vif.monitor_cb.expected_seq_num !== expected)
             `uvm_error("TEST", $sformatf(
-                "%s: expected_seq_num expected %0d, got %0d",
-                label, expected, kc705_vif.monitor_cb.expected_seq_num))
+                "%s: expected_seq_num expected %0d, got %0d (seq_valid=%0b seq_num=%0d msg_count=%0d dropped=%0d m_tvalid=%0b m_tlast=%0b)",
+                label,
+                expected,
+                kc705_vif.monitor_cb.expected_seq_num,
+                kc705_vif.monitor_cb.seq_valid,
+                kc705_vif.monitor_cb.seq_num,
+                kc705_vif.monitor_cb.msg_count,
+                kc705_vif.monitor_cb.dropped_datagrams,
+                kc705_vif.monitor_cb.m_tvalid,
+                kc705_vif.monitor_cb.m_tlast))
         else
             `uvm_info("TEST", $sformatf("%s PASS: expected_seq_num=%0d", label, expected), UVM_LOW)
     endtask

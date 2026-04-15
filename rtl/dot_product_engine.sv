@@ -1,23 +1,37 @@
-// dot_product_engine.sv — Pipelined MAC for small feature vectors
+// dot_product_engine.sv --- Pipelined MAC for small feature vectors
 //
-// Sequencing FSM: IDLE → COLLECT (buffer VEC_LEN elements) → MAC → DRAIN → DONE
+// Five-accumulator round-robin design (replaces BUG-001 7-cycle slot workaround).
+// Streaming: features are fed directly to the MAC pipeline as they arrive,
+// eliminating the separate buffer-then-replay (COLLECT + MAC) phases.
 //
-// Pipeline stages:
-//   bfloat16_mul: 2-cycle latency (Stage 1: DSP48E1 multiply, Stage 2: normalize)
-//   fp32_acc:     5-stage pipeline (A0 → A1 → B1 → B2 → C); acc_reg updated 4 cycles
-//                 after acc_en. Forwarding mux: acc_fb = acc_en_d4 ? partial_sum_r : acc_reg
+// FSM: IDLE -> STREAM (VEC_LEN+6 cycles minimum) -> DRAIN -> DONE
 //
-// BUG-001 fix: sequential per-element MAC with 7-cycle slot per element.
-//   For each element k: assert mul_en (present to bfloat16_mul) on cycle k*7 of the MAC
-//   phase. acc_en fires 2 cycles later (cycle k*7+2). fp32_acc propagates result through
-//   all 5 stages by cycle k*7+6 (acc_reg holds sum[0..k]).  Element k+1 enters Stage A0
-//   on cycle (k+1)*7+2 at which point acc_en_d4 = 0 and acc_reg is fully settled.
-//   This avoids the RAW hazard: every element correctly reads acc_reg, not partial_sum_r.
+// Timing (feature_valid=1 every cycle, no stalls):
+//   STREAM: VEC_LEN feed cycles + 6 mac_drain cycles = VEC_LEN+6 cycles.
+//   DRAIN : NUM_ACCS_USED merge pulses at 4-cycle intervals.
+//           Last merge_en at DRAIN_LAST_EN = (NUM-1)*4.
+//           Exit at drain_cnt == DRAIN_EXIT_VAL = DRAIN_LAST_EN + 4.
+//           (acc_en_d4 fires at DRAIN_EXIT_VAL; acc_reg written on that edge)
+//   DONE  : result_valid COMBINATIONAL (state==S_DONE), 1 clock wide.
 //
-//   Total latency from first feature_valid: COLLECT (VEC_LEN cycles) + MAC
-//   (VEC_LEN * 7 cycles) + DRAIN (5 cycles) = 4 + 28 + 5 = 37 cycles for VEC_LEN = 4.
-//   Throughput: one dp_result per 37 cycles (still 1 message/burst; no throughput loss
-//   because upstream issues one burst per ITCH message, not back-to-back continuous).
+//   DPE cycles from start to result_valid (no stalls):
+//     VEC_LEN=4  (NUM=4): (4+6)+(12+4)=26 cycles.
+//     VEC_LEN=32 (NUM=5): (32+6)+(16+4)=58 cycles.
+//
+// Pipeline overview:
+//   bfloat16_mul : 2-cycle latency. Inputs combinational from feature_in/weight_in.
+//   fp32_acc     : 5-stage pipeline; forwarding mux makes 4-cycle spacing safe.
+//
+// Round-robin accumulation (5 accs):
+//   Element i -> acc[i%5]. Consecutive products for any acc are VEC_LEN/5
+//   cycles apart (>=4 for VEC_LEN>=4), no RAW hazard.
+//
+// Merge (u_merge, 6th fp32_acc):
+//   merge_clear pulsed in IDLE so u_merge starts at 0.
+//   merge_en (COMBINATIONAL) at drain_cnt 0,4,8,12,(NUM>=5)?16.
+//   4-cycle spacing uses fp32_acc forwarding mux (acc_en_d4->partial_sum_r).
+//   acc_en_d4 fires at DRAIN_EXIT_VAL; acc_reg written at the clock-edge
+//   that transitions to S_DONE, so merge_out is valid during S_DONE.
 
 /* verilator lint_off IMPORTSTAR */
 import lliu_pkg::*;
@@ -29,11 +43,11 @@ module dot_product_engine #(
     input  logic      clk,
     input  logic      rst,
 
-    // Feature input (one element per cycle during COLLECT)
+    // Feature input (streamed, one element per feature_valid pulse)
     input  bfloat16_t feature_in,
     input  logic      feature_valid,
 
-    // Weight input (one element per cycle from weight_mem, aligned with feature_in)
+    // Weight input (aligned with feature_in during STREAM)
     input  bfloat16_t weight_in,
 
     // Control
@@ -44,30 +58,40 @@ module dot_product_engine #(
     output logic      result_valid
 );
 
+    // -----------------------------------------------------------------------
     // FSM states
-    typedef enum logic [2:0] {
-        S_IDLE    = 3'b000,
-        S_COLLECT = 3'b001,   // buffer all VEC_LEN (feature, weight) pairs
-        S_MAC     = 3'b010,   // sequential per-element multiply-accumulate
-        S_DRAIN   = 3'b011,   // flush last element through fp32_acc pipeline
-        S_DONE    = 3'b100
+    // -----------------------------------------------------------------------
+    typedef enum logic [1:0] {
+        S_IDLE   = 2'b00,
+        S_STREAM = 2'b01,
+        S_DRAIN  = 2'b10,
+        S_DONE   = 2'b11
     } state_t;
 
     state_t state;
 
-    // ----------------------------------------------------------------------
-    // Input buffers — hold all VEC_LEN elements during COLLECT
-    // ----------------------------------------------------------------------
-    bfloat16_t feat_buf  [0:VEC_LEN-1];
-    bfloat16_t wt_buf    [0:VEC_LEN-1];
-    logic [$clog2(VEC_LEN+1)-1:0] collect_cnt; // counts received elements
-    logic [$clog2(VEC_LEN+1)-1:0] mac_elem;    // current element index in MAC phase
-    logic [2:0] slot_cnt;  // 7-cycle slot counter within each element (0-6)
-    logic [2:0] drain_cnt; // 5-cycle drain counter (0-4)
+    // -----------------------------------------------------------------------
+    // Merge timing parameters
+    // -----------------------------------------------------------------------
+    localparam int NUM_ACCS_USED   = (VEC_LEN >= 5) ? 5 : VEC_LEN;
+    localparam int MERGE_STEP      = 4;
+    localparam int DRAIN_LAST_EN   = (NUM_ACCS_USED - 1) * MERGE_STEP;
+    // DRAIN_EXIT_VAL: drain_cnt at which S_DRAIN->S_DONE.
+    // acc_en_d4 fires here; acc_reg is written at this clock-edge;
+    // merge_out is valid in S_DONE (next cycle).
+    localparam logic [4:0] DRAIN_EXIT_VAL = DRAIN_LAST_EN[4:0] + 5'd4;
 
-    // ----------------------------------------------------------------------
-    // bfloat16_mul instance
-    // ----------------------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // Control registers
+    // -----------------------------------------------------------------------
+    logic [$clog2(VEC_LEN+1)-1:0] mac_elem;
+    logic [2:0]                    mac_drain;
+    logic                          mac_last_fed;
+    logic [4:0]                    drain_cnt;
+
+    // -----------------------------------------------------------------------
+    // bfloat16_mul -- single multiplier, 2-cycle latency
+    // -----------------------------------------------------------------------
     bfloat16_t mul_a, mul_b;
     float32_t  mul_result;
 
@@ -79,150 +103,157 @@ module dot_product_engine #(
         .result (mul_result)
     );
 
-    // ----------------------------------------------------------------------
-    // fp32_acc instance
-    // ----------------------------------------------------------------------
-    float32_t acc_addend;
-    logic     acc_en;
-    logic     acc_clear;
-    float32_t acc_out;
-
-    fp32_acc u_acc (
-        .clk       (clk),
-        .rst       (rst),
-        .addend    (acc_addend),
-        .acc_en    (acc_en),
-        .acc_clear (acc_clear),
-        .acc_out   (acc_out)
-    );
-
-    // In S_MAC, slot_cnt == 0: drive this element to bfloat16_mul.
-    // bfloat16_mul result is available 2 cycles later (slot_cnt == 2).
-    // Present the buffered element at the mul inputs continuously so it is
-    // registered at the right time.
+    // Combinational inputs: feed feature_in/weight_in when dispatching.
     always_comb begin
-        mul_a = (state == S_MAC) ? feat_buf[mac_elem[$clog2(VEC_LEN)-1:0]] : 16'h0000;
-        mul_b = (state == S_MAC) ? wt_buf[mac_elem[$clog2(VEC_LEN)-1:0]]   : 16'h0000;
+        if (state == S_STREAM && !mac_last_fed && feature_valid) begin
+            mul_a = feature_in;
+            mul_b = weight_in;
+        end else begin
+            mul_a = 16'h0000;
+            mul_b = 16'h0000;
+        end
     end
 
-    assign acc_addend = mul_result;
+    // -----------------------------------------------------------------------
+    // 5 parallel fp32_acc instances (round-robin)
+    // -----------------------------------------------------------------------
+    float32_t acc_addend [0:4];
+    logic     acc_en_r   [0:4];
+    logic     acc_clear;
+    float32_t acc_out    [0:4];
 
-    // ----------------------------------------------------------------------
+    fp32_acc u_acc0 (.clk(clk),.rst(rst),.addend(acc_addend[0]),.acc_en(acc_en_r[0]),.acc_clear(acc_clear),.acc_out(acc_out[0]));
+    fp32_acc u_acc1 (.clk(clk),.rst(rst),.addend(acc_addend[1]),.acc_en(acc_en_r[1]),.acc_clear(acc_clear),.acc_out(acc_out[1]));
+    fp32_acc u_acc2 (.clk(clk),.rst(rst),.addend(acc_addend[2]),.acc_en(acc_en_r[2]),.acc_clear(acc_clear),.acc_out(acc_out[2]));
+    fp32_acc u_acc3 (.clk(clk),.rst(rst),.addend(acc_addend[3]),.acc_en(acc_en_r[3]),.acc_clear(acc_clear),.acc_out(acc_out[3]));
+    fp32_acc u_acc4 (.clk(clk),.rst(rst),.addend(acc_addend[4]),.acc_en(acc_en_r[4]),.acc_clear(acc_clear),.acc_out(acc_out[4]));
+
+    // 2-stage shift register: routes mul_result to the correct acc[i].
+    logic [$clog2(VEC_LEN+1)-1:0] mac_pipe_elem  [0:1];
+    logic                          mac_pipe_valid [0:1];
+
+    always_comb begin
+        for (int i = 0; i < 5; i++) begin
+            acc_addend[i] = mul_result;
+            acc_en_r[i]   = mac_pipe_valid[1] && (int'(mac_pipe_elem[1]) % 5 == i);
+        end
+    end
+
+    // -----------------------------------------------------------------------
+    // Merge accumulator (6th fp32_acc)
+    // -----------------------------------------------------------------------
+    float32_t merge_addend;
+    logic     merge_en;    // COMBINATIONAL
+    logic     merge_clear;
+    float32_t merge_out;
+
+    fp32_acc u_merge (
+        .clk       (clk),
+        .rst       (rst),
+        .addend    (merge_addend),
+        .acc_en    (merge_en),
+        .acc_clear (merge_clear),
+        .acc_out   (merge_out)
+    );
+
+    always_comb begin
+        merge_addend = 32'h0000_0000;
+        if (drain_cnt == 5'd0)  merge_addend = acc_out[0];
+        if (drain_cnt == 5'd4)  merge_addend = acc_out[1];
+        if (drain_cnt == 5'd8)  merge_addend = acc_out[2];
+        if (drain_cnt == 5'd12) merge_addend = acc_out[3];
+        if (NUM_ACCS_USED >= 5 && drain_cnt == 5'd16) merge_addend = acc_out[4];
+    end
+
+    assign merge_en = (state == S_DRAIN) &&
+                      (drain_cnt == 5'd0  || drain_cnt == 5'd4  ||
+                       drain_cnt == 5'd8  || drain_cnt == 5'd12 ||
+                       (NUM_ACCS_USED >= 5 && drain_cnt == 5'd16));
+
+    // -----------------------------------------------------------------------
+    // Outputs -- combinational
+    // -----------------------------------------------------------------------
+    assign result_valid = (state == S_DONE);
+    assign result       = merge_out;
+
+    // -----------------------------------------------------------------------
     // FSM
-    // ----------------------------------------------------------------------
+    // -----------------------------------------------------------------------
     always_ff @(posedge clk) begin
         if (rst) begin
-            state        <= S_IDLE;
-            collect_cnt  <= '0;
-            mac_elem     <= '0;
-            slot_cnt     <= 3'd0;
-            drain_cnt    <= 3'd0;
-            acc_en       <= 1'b0;
-            acc_clear    <= 1'b0;
-            result_valid <= 1'b0;
+            state              <= S_IDLE;
+            mac_elem           <= '0;
+            mac_drain          <= 3'd0;
+            mac_last_fed       <= 1'b0;
+            drain_cnt          <= 5'd0;
+            acc_clear          <= 1'b0;
+            merge_clear        <= 1'b0;
+            mac_pipe_elem[0]   <= '0;
+            mac_pipe_elem[1]   <= '0;
+            mac_pipe_valid[0]  <= 1'b0;
+            mac_pipe_valid[1]  <= 1'b0;
         end else begin
-            // Default deasserts (registered outputs)
-            acc_en       <= 1'b0;
-            acc_clear    <= 1'b0;
-            result_valid <= 1'b0;
+            acc_clear   <= 1'b0;
+            merge_clear <= 1'b0;
+
+            // Advance mul pipeline every cycle
+            mac_pipe_elem[1]  <= mac_pipe_elem[0];
+            mac_pipe_valid[1] <= mac_pipe_valid[0];
+            mac_pipe_elem[0]  <= '0;
+            mac_pipe_valid[0] <= 1'b0;
 
             case (state)
 
-                // ----------------------------------------------------------------
                 S_IDLE: begin
+                    mac_last_fed <= 1'b0;
                     if (start) begin
-                        collect_cnt <= '0;
+                        mac_elem    <= '0;
+                        mac_drain   <= 3'd0;
                         acc_clear   <= 1'b1;
-                        state       <= S_COLLECT;
+                        merge_clear <= 1'b1;
+                        state       <= S_STREAM;
                     end
                 end
 
-                // ----------------------------------------------------------------
-                // S_COLLECT: accept VEC_LEN (feature, weight) pairs on
-                // consecutive feature_valid cycles and store them in buffers.
-                // ----------------------------------------------------------------
-                S_COLLECT: begin
-                    if (feature_valid) begin
-                        feat_buf[collect_cnt[$clog2(VEC_LEN)-1:0]] <= feature_in;
-                        wt_buf[collect_cnt[$clog2(VEC_LEN)-1:0]]   <= weight_in;
-                        if (collect_cnt == VEC_LEN[$clog2(VEC_LEN+1)-1:0] - 1) begin
-                            collect_cnt <= '0;
-                            mac_elem    <= '0;
-                            slot_cnt    <= 3'd0;
-                            state       <= S_MAC;
-                        end else begin
-                            collect_cnt <= collect_cnt + 1;
-                        end
-                    end
-                end
-
-                // ----------------------------------------------------------------
-                // S_MAC: sequentially process each buffered element.
-                //
-                // 7-cycle slot per element:
-                //   slot 0: mul_a/mul_b driven (bfloat16_mul Stage 1 samples inputs)
-                //   slot 1: bfloat16_mul Stage 2 (normalize)
-                //   slot 2: acc_en pulse (mul_result ready → fp32_acc Stage A0)
-                //   slot 3: fp32_acc Stage A1 (alignment)
-                //   slot 4: fp32_acc Stage B1 (adder)
-                //   slot 5: fp32_acc Stage B2 (normalise → partial_sum_r)
-                //   slot 6: fp32_acc Stage C  (partial_sum_r → acc_reg)
-                //   → acc_reg holds cumulative sum[0..mac_elem] after slot 6.
-                //
-                // The forwarding mux (acc_fb = acc_en_d4 ? partial_sum_r : acc_reg)
-                // is irrelevant here because the next acc_en fires at the start of the
-                // next 7-cycle slot (acc_en_d4 from step k is 0 at the time step k+1
-                // enters Stage A0; acc_reg is fully settled).
-                // ----------------------------------------------------------------
-                S_MAC: begin
-                    case (slot_cnt)
-                        3'd0: begin
-                            // mul inputs already muxed combinatorially for mac_elem
-                            slot_cnt <= 3'd1;
-                        end
-                        3'd1: begin
-                            slot_cnt <= 3'd2;
-                        end
-                        3'd2: begin
-                            // mul_result is valid; feed fp32_acc
-                            acc_en   <= 1'b1;
-                            slot_cnt <= 3'd3;
-                        end
-                        3'd3: slot_cnt <= 3'd4;
-                        3'd4: slot_cnt <= 3'd5;
-                        3'd5: slot_cnt <= 3'd6;
-                        3'd6: begin
-                            // acc_reg now holds sum[0..mac_elem]
+                // Feed feature_in/weight_in directly to mul each feature_valid.
+                // Stall (bubble) when !feature_valid.
+                // After last element (mac_elem==VEC_LEN-1), drain 6 cycles.
+                S_STREAM: begin
+                    if (!mac_last_fed) begin
+                        if (feature_valid) begin
+                            mac_pipe_elem[0]  <= mac_elem;
+                            mac_pipe_valid[0] <= 1'b1;
                             if (mac_elem == VEC_LEN[$clog2(VEC_LEN+1)-1:0] - 1) begin
-                                // Last element committed — fp32_acc Stage C already fired.
-                                // No additional drain needed: result is in acc_reg.
-                                state <= S_DONE;
+                                mac_last_fed <= 1'b1;
+                                mac_drain    <= 3'd0;
                             end else begin
                                 mac_elem <= mac_elem + 1;
-                                slot_cnt <= 3'd0;
                             end
                         end
-                        /* verilator coverage_off */
-                        default: slot_cnt <= 3'd0;
-                        /* verilator coverage_on */
-                    endcase
-                end
-
-                // ----------------------------------------------------------------
-                S_DRAIN: begin
-                    // Unused with the sequential MAC approach (kept for completeness).
-                    if (drain_cnt == 3'd4) begin
-                        state     <= S_DONE;
-                        drain_cnt <= 3'd0;
+                        // feature_valid=0: stall; pipe gets bubble via defaults above
                     end else begin
-                        drain_cnt <= drain_cnt + 1;
+                        if (mac_drain == 3'd5) begin
+                            drain_cnt <= 5'd0;
+                            state     <= S_DRAIN;
+                        end else begin
+                            mac_drain <= mac_drain + 1;
+                        end
                     end
                 end
 
-                // ----------------------------------------------------------------
+                // Merge acc_out[0..NUM_ACCS_USED-1] through u_merge.
+                // merge_en (comb) at drain_cnt 0,4,8,12,(NUM>=5)?16.
+                // Exit at DRAIN_EXIT_VAL when last acc_en_d4 fires.
+                S_DRAIN: begin
+                    drain_cnt <= drain_cnt + 1;
+                    if (drain_cnt == DRAIN_EXIT_VAL) begin
+                        state <= S_DONE;
+                    end
+                end
+
+                // result_valid=1 (combinational). Return to IDLE.
                 S_DONE: begin
-                    result_valid <= 1'b1;
-                    state        <= S_IDLE;
+                    state <= S_IDLE;
                 end
 
                 /* verilator coverage_off */
@@ -232,7 +263,5 @@ module dot_product_engine #(
             endcase
         end
     end
-
-    assign result = acc_out;
 
 endmodule

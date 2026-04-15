@@ -19,6 +19,8 @@ Usage:
     python3 scripts/run_cocotb_regression.py --output path/to/out.xml
 """
 
+from __future__ import annotations
+
 import argparse
 import shutil
 import subprocess
@@ -26,6 +28,7 @@ import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COCOTB_DIR = REPO_ROOT / "tb" / "cocotb"
@@ -59,6 +62,15 @@ TEST_MODULES = [
     ("ptp_core",           "test_ptp"),
     ("timestamp_tap",      "test_timestamp_tap"),
     ("latency_histogram",  "test_histogram"),
+    # Phase 2 v2.0 — risk, OUCH, BBO rescan, tick-to-trade
+    ("order_book",         "test_order_book_bbo_rescan"),
+    ("risk_check",         "test_risk_fuzz"),
+    ("ouch_engine",        "test_ouch_compliance"),
+    ("ouch_engine",        "test_tx_backpressure_kill"),
+    ("lliu_top_v2",        "test_tick_to_trade"),
+    # Phase 3 — kc705 end-to-end
+    ("kc705_top",          "test_kc705_e2e"),
+    ("kc705_top",          "test_kc705_latency"),
 ]
 
 
@@ -66,7 +78,7 @@ TEST_MODULES = [
 # Runner
 # ---------------------------------------------------------------------------
 
-def run_test(toplevel: str, module: str, prev_toplevel: str | None) -> tuple[int, Path]:
+def run_test(toplevel: str, module: str, prev_toplevel: Optional[str]) -> tuple[int, Path]:
     """Run one test module. Returns (make exit code, saved xml path)."""
     if prev_toplevel != toplevel:
         subprocess.run(["make", "clean"], cwd=COCOTB_DIR,
@@ -140,7 +152,8 @@ def merge_results(xml_files: list[Path], output_path: Path) -> tuple[int, int, i
         ts.append(tc)
 
     tree = ET.ElementTree(doc)
-    ET.indent(tree, space="  ")
+    if hasattr(ET, "indent"):  # Python 3.9+
+        ET.indent(tree, space="  ")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tree.write(str(output_path), encoding="unicode", xml_declaration=True)
 
@@ -170,7 +183,7 @@ def main() -> int:
         print(f"  cocotb Regression  —  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"{'='*64}\n")
 
-        prev_toplevel: str | None = None
+        prev_toplevel: Optional[str] = None
         for toplevel, module in TEST_MODULES:
             _, saved = run_test(toplevel, module, prev_toplevel)
             saved_files.append(saved)

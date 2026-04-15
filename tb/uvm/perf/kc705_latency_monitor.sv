@@ -22,9 +22,9 @@ module kc705_latency_monitor (
     input logic clk_300,
     input logic rst,
 
-    // CH1: FIFO → dp_result
+    // CH1: FIFO → OUCH output
     input logic fifo_rd_tvalid,     // CDC FIFO read-side tvalid (first ITCH beat)
-    input logic dp_result_valid,    // dot-product engine result valid
+    input logic ouch_tvalid,        // OUCH m_axis_tvalid (inference → order entry)
 
     // CH2: parser → feature extractor  (internal — stub until RTL annotates)
     input logic parser_fields_valid, // 1'b0 stub in bind until available
@@ -69,7 +69,7 @@ module kc705_latency_monitor (
                 ch1_in_window <= 1'b0;
 
             // Record egress
-            if (dp_result_valid && ch1_ingress_queue.size() > 0) begin
+            if (ouch_tvalid && ch1_ingress_queue.size() > 0) begin
                 automatic int unsigned lat =
                     cycle_count - ch1_ingress_queue.pop_front();
                 ch1_latencies.push_back(lat);
@@ -186,14 +186,14 @@ module kc705_latency_monitor (
             foreach (ch1_latencies[i])
                 if (ch1_latencies[i] >= 18) violations++;
             pass_str = (violations == 0) ? "PASS" : "FAIL";
-            $display("║  CH1  FIFO → dp_result_valid   (bound < 18 cycles)     ║");
+            $display("║  CH1  FIFO → OUCH tvalid       (bound < 18 cycles)     ║");
             $display("║    n=%0d  min=%0d  max=%0d  p99=%0d  mean=%.1f  [%s]",
                 ch1_latencies.size(), min_l, max_l, p99_l, mean_l, pass_str);
             if (violations > 0)
                 $error("kc705_latency_monitor CH1: %0d measurement(s) ≥ 18 cycles (MAS §2.4 violation)",
                     violations);
         end else begin
-            $display("║  CH1  FIFO → dp_result_valid   no samples collected    ║");
+            $display("║  CH1  FIFO → OUCH tvalid   no samples collected    ║");
         end
 
         $display("╠══════════════════════════════════════════════════════════╣");

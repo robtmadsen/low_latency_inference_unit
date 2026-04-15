@@ -71,8 +71,12 @@ interface kc705_ctrl_if (
     // (KC705_TOP_DUT context only; float in all other DUT contexts)
     // ----------------------------------------------------------------
     logic        cpu_reset;          // test drives, DUT reset
-    logic [31:0] dp_result;          // DUT drives, inference result
-    logic        dp_result_valid;    // DUT drives, result pulse
+    // OUCH 5.0 output stream — DUT drives, test controls m_axis_tready
+    logic [63:0] m_axis_tdata;       // DUT drives
+    logic [7:0]  m_axis_tkeep;       // DUT drives
+    logic        m_axis_tvalid;      // DUT drives — proxy for "inference result valid"
+    logic        m_axis_tlast;       // DUT drives
+    logic        m_axis_tready;      // test drives (backpressure control)
     logic        fifo_rd_tvalid;     // DUT drives, first ITCH beat from CDC FIFO
 
     // ----------------------------------------------------------------
@@ -91,6 +95,7 @@ interface kc705_ctrl_if (
         output eth_payload_tready;
         output s_tkeep;
         output cpu_reset;
+        output m_axis_tready;  // drive backpressure for tx_backpressure tests
     endclocking
 
     // ----------------------------------------------------------------
@@ -113,8 +118,10 @@ interface kc705_ctrl_if (
         input eth_payload_tvalid;
         input eth_payload_tlast;
         input dropped_frames;
-        input dp_result;
-        input dp_result_valid;
+        input m_axis_tdata;
+        input m_axis_tkeep;
+        input m_axis_tvalid;
+        input m_axis_tlast;
         input fifo_rd_tvalid;
     endclocking
 

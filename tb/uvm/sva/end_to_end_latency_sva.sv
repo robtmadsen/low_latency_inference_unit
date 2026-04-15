@@ -27,7 +27,8 @@ module end_to_end_latency_sva #(
     input logic add_order_accepted,
     // KC705_TOP_DUT path: connect to axis_async_fifo m_tvalid & m_tready (beat 0)
     input logic fifo_rd_tvalid,
-    input logic dp_result_valid
+    // LLIU_TOP_DUT: connect to dp_result_valid; KC705_TOP_DUT: connect to m_axis_tvalid (OUCH output)
+    input logic ouch_tvalid
 );
 
 `ifdef LLIU_TOP_DUT
@@ -60,16 +61,16 @@ module end_to_end_latency_sva #(
             if (add_order_accepted)
                 pending_starts.push_back(cycle_count);
 
-            if (dp_result_valid) begin
+if (ouch_tvalid) begin
                 if (pending_starts.size() == 0) begin
-                    $error("SVA [LLIU]: dp_result_valid asserted without pending message ingress");
+                    $error("SVA [LLIU]: result_valid asserted without pending message ingress");
                 end else begin
                     automatic int unsigned start_cycle = pending_starts.pop_front();
                     automatic int unsigned latency = cycle_count - start_cycle;
                     latencies.push_back(latency);
                     if (latency >= max_latency_cycles) begin
                         $error(
-                            "SVA [LLIU]: parser_fields_valid -> dp_result_valid latency %0d cycles exceeds spec %0d",
+                            "SVA [LLIU]: parser_fields_valid -> result_valid latency %0d cycles exceeds spec %0d",
                             latency,
                             max_latency_cycles
                         );
@@ -93,7 +94,7 @@ module end_to_end_latency_sva #(
         if (latencies.size() == 0) begin
             $display("========== End-to-End Latency Report (lliu_top) ===========");
             $display("  Limit:     %0d cycles", max_latency_cycles);
-            $display("  No parser_fields_valid -> dp_result_valid samples collected");
+            $display("  No parser_fields_valid -> result_valid samples collected");
             $display("===========================================================");
         end else begin
             int unsigned min_lat;
@@ -146,16 +147,16 @@ module end_to_end_latency_sva #(
             if (fifo_rd_tvalid)
                 kc705_pending_starts.push_back(kc705_cycle_count);
 
-            if (dp_result_valid) begin
+            if (ouch_tvalid) begin
                 if (kc705_pending_starts.size() == 0) begin
-                    $error("SVA [KC705]: dp_result_valid asserted without pending FIFO beat");
+                    $error("SVA [KC705]: ouch_tvalid asserted without pending FIFO beat");
                 end else begin
                     automatic int unsigned start_cycle = kc705_pending_starts.pop_front();
                     automatic int unsigned latency = kc705_cycle_count - start_cycle;
                     kc705_latencies.push_back(latency);
                     if (latency >= KC705_MAX_LATENCY_CYCLES) begin
                         $error(
-                            "SVA [KC705]: FIFO beat 0 -> dp_result_valid latency %0d cycles exceeds spec %0d",
+                            "SVA [KC705]: FIFO beat 0 -> ouch_tvalid latency %0d cycles exceeds spec %0d",
                             latency,
                             KC705_MAX_LATENCY_CYCLES
                         );
@@ -166,7 +167,7 @@ module end_to_end_latency_sva #(
             if (kc705_pending_starts.size() > 0) begin
                 if ((kc705_cycle_count - kc705_pending_starts[0]) >= KC705_MAX_LATENCY_CYCLES) begin
                     $error(
-                        "SVA [KC705]: FIFO beat pending for %0d cycles without dp_result_valid (spec %0d)",
+                        "SVA [KC705]: FIFO beat pending for %0d cycles without ouch_tvalid (spec %0d)",
                         kc705_cycle_count - kc705_pending_starts[0],
                         KC705_MAX_LATENCY_CYCLES
                     );
@@ -179,7 +180,7 @@ module end_to_end_latency_sva #(
         if (kc705_latencies.size() == 0) begin
             $display("========== End-to-End Latency Report (kc705_top) ==========");
             $display("  Limit:     %0d cycles", KC705_MAX_LATENCY_CYCLES);
-            $display("  No FIFO beat 0 -> dp_result_valid samples collected");
+            $display("  No FIFO beat 0 -> ouch_tvalid samples collected");
             $display("===========================================================");
         end else begin
             int unsigned min_lat;

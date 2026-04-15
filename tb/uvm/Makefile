@@ -33,11 +33,13 @@ RTL_SRC   := $(filter-out $(RTL_PKG), $(wildcard $(RTL_DIR)/*.sv))
 TB_IFS    := $(TB_DIR)/axi4_stream_if.sv \
              $(TB_DIR)/axi4_lite_if.sv \
              $(TB_DIR)/kc705_ctrl_if.sv \
-             $(TB_DIR)/order_book_if.sv
+             $(TB_DIR)/order_book_if.sv \
+             $(TB_DIR)/risk_check_if.sv
 
 TB_PKGS   := $(TB_DIR)/agents/axi4_stream_agent/axi4_stream_agent_pkg.sv \
              $(TB_DIR)/agents/axi4_lite_agent/axi4_lite_agent_pkg.sv \
              $(TB_DIR)/agents/order_book_agent/order_book_agent_pkg.sv \
+             $(TB_DIR)/agents/risk_check_agent/risk_check_agent_pkg.sv \
              $(TB_DIR)/env/lliu_env_pkg.sv \
              $(TB_DIR)/sequences/lliu_seq_pkg.sv \
              $(TB_DIR)/tests/lliu_test_pkg.sv
@@ -54,8 +56,37 @@ TB_PERF   := $(wildcard $(TB_DIR)/perf/*.sv)
 DPI_SRC   := $(TB_DIR)/golden_model/dpi_bridge.c
 GM_PY     := $(TB_DIR)/golden_model/golden_model.py
 
-# ---- Forencich verilog-ethernet library (required by eth_axis_rx_wrap) ----
-LIB_VER_ETH := $(PROJ_ROOT)/lib/verilog-ethernet/rtl/eth_axis_rx.v
+# ---- Forencich verilog-ethernet library (required by eth_axis_rx_wrap + kc705_top) ----
+# eth_axis_rx_wrap uses eth_axis_rx.
+# kc705_top (under KINTEX7_SIM_GTX_BYPASS) uses udp_complete_64 and axis_async_fifo.
+# Dependency tree: udp_complete_64 → ip_complete_64, udp_64 → arp, eth_arb_mux,
+#                  ip_eth_rx_64, ip_eth_tx_64, udp_ip_rx_64, udp_ip_tx_64,
+#                  ip_arb_mux, arp_cache, arp_eth_rx, arp_eth_tx, lfsr,
+#                  udp_checksum_gen_64 → axis_fifo (axis lib)
+#                  axis_async_fifo (axis lib) → arbiter (axis lib)
+LIB_AXIS_RTL  := $(PROJ_ROOT)/lib/verilog-ethernet/lib/axis/rtl
+LIB_ETH_RTL   := $(PROJ_ROOT)/lib/verilog-ethernet/rtl
+LIB_VER_ETH := \
+    $(LIB_ETH_RTL)/eth_axis_rx.v \
+    $(LIB_ETH_RTL)/udp_complete_64.v \
+    $(LIB_ETH_RTL)/udp_64.v \
+    $(LIB_ETH_RTL)/udp_ip_rx_64.v \
+    $(LIB_ETH_RTL)/udp_ip_tx_64.v \
+    $(LIB_ETH_RTL)/udp_checksum_gen_64.v \
+    $(LIB_ETH_RTL)/ip_complete_64.v \
+    $(LIB_ETH_RTL)/ip_64.v \
+    $(LIB_ETH_RTL)/ip_eth_rx_64.v \
+    $(LIB_ETH_RTL)/ip_eth_tx_64.v \
+    $(LIB_ETH_RTL)/ip_arb_mux.v \
+    $(LIB_ETH_RTL)/arp.v \
+    $(LIB_ETH_RTL)/arp_cache.v \
+    $(LIB_ETH_RTL)/arp_eth_rx.v \
+    $(LIB_ETH_RTL)/arp_eth_tx.v \
+    $(LIB_ETH_RTL)/eth_arb_mux.v \
+    $(LIB_ETH_RTL)/lfsr.v \
+    $(LIB_AXIS_RTL)/axis_async_fifo.v \
+    $(LIB_AXIS_RTL)/axis_fifo.v \
+    $(LIB_AXIS_RTL)/arbiter.v
 
 # ---- Python configuration (for DPI-C) ----
 PYTHON    ?= python3
@@ -69,7 +100,8 @@ PY_CFLAGS := -I$(PY_INC)
 PY_LDFLAGS:= -L$(PY_LIBDIR) -lpython$(PY_VER) -lpthread -ldl -lutil -lm
 
 # ---- Build directory ----
-BUILD_DIR := $(TB_DIR)/sim_build/$(SIM)
+SIM_BUILD_ROOT := $(TB_DIR)/sim_build/$(SIM)
+BUILD_DIR      := $(SIM_BUILD_ROOT)
 
 # ---- All SV sources in compile order ----
 ALL_SV    := $(RTL_PKG) $(RTL_SRC) $(LIB_VER_ETH) $(TB_IFS) $(TB_PKGS) $(TB_SVA) $(TB_PERF) $(TB_TOP)
@@ -147,19 +179,29 @@ UVM_HOME   ?= $(error UVM_HOME is not set. Point it to the Accellera UVM source 
 # Coverage: enable with COVERAGE=1
 COVERAGE   ?= 0
 
+# Keep Verilator-generated C++ build deterministic. Parallel sub-makes can race
+# on generated dependency/PCH files in shared build dirs.
+VERILATOR_JOBS ?= 1
+
+# Isolate Verilator artifacts per TOPLEVEL to avoid cross-test races in shared
+# sim_build directories.
+VERILATOR_BUILD_DIR := $(SIM_BUILD_ROOT)/$(TOPLEVEL)
+
 VL_FLAGS   := --binary --timing --trace -sv \
               -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
               -Wno-UNUSEDSIGNAL -Wno-IMPORTSTAR -Wno-CONSTRAINTIGN \
               -Wno-MISINDENT -Wno-CASEINCOMPLETE -Wno-MULTITOP \
               -Wno-PINMISSING \
+              -Wno-LATCH -Wno-SELRANGE -Wno-UNOPTFLAT \
               --timescale 1ns/1ps \
               +incdir+$(RTL_DIR) +incdir+$(TB_DIR) \
+              +incdir+$(LIB_ETH_RTL) +incdir+$(LIB_AXIS_RTL) \
               +incdir+$(UVM_HOME) \
               +define+UVM_NO_DPI \
               +define+LLIU_ENABLE_DPI \
               -CFLAGS "$(PY_CFLAGS)" \
               -LDFLAGS "$(PY_LDFLAGS)" \
-              -j 0 \
+			  -j $(VERILATOR_JOBS) \
               -o simv
 
 ifeq ($(COVERAGE),1)
@@ -190,19 +232,30 @@ VL_SV      := $(RTL_PKG) $(RTL_SRC) $(LIB_VER_ETH) $(TB_IFS) $(TB_PKGS) $(TB_SVA
 .PHONY: compile run clean help
 
 compile: $(BUILD_DIR)
-	$(VERILATOR) $(VL_FLAGS) \
+	@# Always compile in a clean per-top-level directory to avoid stale
+	@# dependency/PCH artifacts from prior interrupted or parallel runs.
+	@rm -rf $(VERILATOR_BUILD_DIR)
+	@mkdir -p $(VERILATOR_BUILD_DIR)
+	@bash -o pipefail -c '$(VERILATOR) $(VL_FLAGS) \
 	    $(UVM_PKG) $(VL_SV) \
 	    --exe $(DPI_SRC) \
-	    --Mdir $(BUILD_DIR) \
-	    2>&1 | tee $(BUILD_DIR)/compile.log
+	    --Mdir $(VERILATOR_BUILD_DIR) \
+	    2>&1 | tee $(VERILATOR_BUILD_DIR)/compile.log'
 
 run: compile
-	$(BUILD_DIR)/simv \
+	@bash -o pipefail -c '$(VERILATOR_BUILD_DIR)/simv \
 	    +UVM_TESTNAME=$(TEST) \
 	    +UVM_VERBOSITY=$(VERBOSITY) \
 	    +DATA_DIR=$(DATA_DIR) \
 	    +GOLDEN_MODEL=$(GM_PY) \
-	    2>&1 | tee $(BUILD_DIR)/$(TEST).log
+	    2>&1 | tee $(VERILATOR_BUILD_DIR)/$(TEST).log; \
+	    sim_ec=$${PIPESTATUS[0]}; \
+	    if [ $$sim_ec -ne 0 ]; then \
+	        exit $$sim_ec; \
+	    fi; \
+	    if grep -Eq "\*\* TEST FAILED \*\*|UVM_FATAL|UVM_ERROR[[:space:]]*:[[:space:]]*[1-9]" $(VERILATOR_BUILD_DIR)/$(TEST).log; then \
+	        exit 1; \
+	    fi'
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -223,13 +276,13 @@ coverage-run: coverage-clean
 	$(MAKE) SIM=verilator UVM_HOME=$(UVM_HOME) COVERAGE=1 clean compile
 	@for t in $(UVM_TESTS); do \
 		echo "==== Running UVM test: $$t ===="; \
-		cd $(BUILD_DIR) && ./simv \
+		cd $(VERILATOR_BUILD_DIR) && ./simv \
 		    +UVM_TESTNAME=$$t \
 		    +UVM_VERBOSITY=$(VERBOSITY) \
 		    +DATA_DIR=$(DATA_DIR) \
 		    +GOLDEN_MODEL=$(GM_PY) \
 		    2>&1 | tee $$t.log || true; \
-		for loc in $(BUILD_DIR)/coverage.dat coverage.dat; do \
+		for loc in $(VERILATOR_BUILD_DIR)/coverage.dat coverage.dat; do \
 		    if [ -f "$$loc" ]; then \
 		        cp "$$loc" $(COV_DIR)/$$t.dat; \
 		        break; \

@@ -63,7 +63,13 @@ module tb_top;
     // ----------------------------------------------------------------
     // Interface instances
     // ----------------------------------------------------------------
+    // KC705 MAC RX runs in the 156.25 MHz domain; drive axis_if at
+    // clk_156 so the driver CB and DUT sample on the same edges.
+`ifdef KC705_TOP_DUT
+    axi4_stream_if axis_if (.clk(clk_156), .rst(rst));
+`else
     axi4_stream_if axis_if (.clk(clk), .rst(rst));
+`endif
     axi4_lite_if   axil_if (.clk(clk), .rst(rst));
 
     // KC705 block-test control interface (extra DUT-specific pins)
@@ -154,23 +160,50 @@ module tb_top;
     //
     // cpu_reset is driven from kc705_ctrl_if (not the tb_top rst).
     // Both clk_300 (=clk) and clk_156 are connected.
-    // dp_result / dp_result_valid / fifo_rd_tvalid route through kc705_if.
+    // OUCH m_axis_* output and fifo_rd_tvalid route through kc705_if.
 
     kc705_top u_dut (
         .clk_300_in          (clk),
         .clk_156_in          (clk_156),
         .cpu_reset           (kc705_if.cpu_reset),
+        // Board-level differential inputs — tied low in simulation
+        // (unused under KINTEX7_SIM_GTX_BYPASS; suppressed by lint_off)
+        .sys_clk_p           (1'b0),
+        .sys_clk_n           (1'b1),
+        .sfp_rx_p            (1'b0),
+        .sfp_rx_n            (1'b1),
+        .mgt_refclk_p        (1'b0),
+        .mgt_refclk_n        (1'b1),
+        .sfp_tx_p            (),
+        .sfp_tx_n            (),
+        // PCIe — tied off (not exercised in UVM sim)
+        .pcie_clk_p          (1'b0),
+        .pcie_clk_n          (1'b1),
+        .pcie_rst_n          (1'b1),
+        .pcie_rxp            (4'b0),
+        .pcie_rxn            (4'b1111),
+        .pcie_txp            (),
+        .pcie_txn            (),
         // MAC RX — AXI4-S from axis_if
         .mac_rx_tdata        (axis_if.tdata),
         .mac_rx_tkeep        (kc705_if.s_tkeep),
         .mac_rx_tvalid       (axis_if.tvalid),
         .mac_rx_tlast        (axis_if.tlast),
         .mac_rx_tready       (axis_if.tready),
-        // Inference output
-        .dp_result           (kc705_if.dp_result),
-        .dp_result_valid     (kc705_if.dp_result_valid),
-        // FIFO status
+        // OUCH 5.0 output stream → kc705_if
+        .m_axis_tdata        (kc705_if.m_axis_tdata),
+        .m_axis_tkeep        (kc705_if.m_axis_tkeep),
+        .m_axis_tvalid       (kc705_if.m_axis_tvalid),
+        .m_axis_tlast        (kc705_if.m_axis_tlast),
+        .m_axis_tready       (kc705_if.m_axis_tready),
+        // ITCH CDC FIFO observation
         .fifo_rd_tvalid      (kc705_if.fifo_rd_tvalid),
+        // Monitoring outputs (observed but not routed through kc705_if)
+        .collision_count_out  (),
+        .tx_overflow_out      (),
+        .dropped_frames_out   (),
+        .dropped_datagrams_out(),
+        .expected_seq_num_out (),
         // AXI4-Lite slave
         .axil_awaddr         (axil_if.awaddr),
         .axil_awvalid        (axil_if.awvalid),
@@ -190,6 +223,8 @@ module tb_top;
         .axil_rvalid         (axil_if.rvalid),
         .axil_rready         (axil_if.rready)
     );
+
+    // (Diagnostic monitor removed — see git history for debug instrumentation)
 
 `elsif DROPFULL_DUT
     // === DUT: eth_axis_rx_wrap =====================================
@@ -334,6 +369,17 @@ module tb_top;
     end
 
     // ----------------------------------------------------------------
+    // Default KC705 control interface (tready = 1 so DUT can output OUCH)
+    // ----------------------------------------------------------------
+`ifdef KC705_TOP_DUT
+    initial begin
+        kc705_if.m_axis_tready = 1'b1;  // accept OUCH output by default
+        kc705_if.s_tkeep       = 8'hFF;
+        kc705_if.cpu_reset     = 1'b0;
+    end
+`endif
+
+    // ----------------------------------------------------------------
     // Default drive for AXI4-Lite (until UVM driver takes over)
     // ----------------------------------------------------------------
     initial begin
@@ -439,7 +485,7 @@ module tb_top;
         .rst                (sys_rst),
         .add_order_accepted (parser_fields_valid),
         .fifo_rd_tvalid     (1'b0),            // KC705 path unused in lliu_top context
-        .dp_result_valid    (dp_result_valid)
+        .ouch_tvalid        (dp_result_valid)
     );
 
     // ----------------------------------------------------------------
@@ -511,29 +557,37 @@ module tb_top;
 
 `ifdef KC705_TOP_DUT
     // ── end_to_end_latency_sva — KC705 variant (18-cycle bound) ──
-    // fifo_rd_tvalid (first ITCH beat from CDC FIFO) → dp_result_valid
+    // fifo_rd_tvalid (first ITCH beat from CDC FIFO) → m_axis_tvalid (OUCH output)
     bind kc705_top end_to_end_latency_sva #(.DEFAULT_MAX_LATENCY_CYCLES(18))
         u_e2e_sva (
             .clk                (clk_300_in),
             .rst                (cpu_reset),
             .add_order_accepted (1'b0),          // unused in KC705 context
             .fifo_rd_tvalid     (fifo_rd_tvalid),
-            .dp_result_valid    (dp_result_valid)
+            .ouch_tvalid        (m_axis_tvalid)
         );
 
     // ── kc705_latency_monitor — 4-channel performance profiler ───
-    // Internal RTL signals (parser_fields_valid, feat_valid, stock_valid,
-    // watchlist_hit) are stubbed until the rtl_engineer annotates them
-    // with (* keep = "true" *).  CH1 (FIFO→result) is always active.
     bind kc705_top kc705_latency_monitor u_kc705_perf_mon (
         .clk_300             (clk_300_in),
         .rst                 (cpu_reset),
         .fifo_rd_tvalid      (fifo_rd_tvalid),
-        .dp_result_valid     (dp_result_valid),
+        .ouch_tvalid         (m_axis_tvalid),
         .parser_fields_valid (1'b0),   // stub — RTL coordination required
         .feat_valid          (1'b0),   // stub — RTL coordination required
         .stock_valid         (1'b0),   // stub — RTL coordination required
         .watchlist_hit       (1'b0)    // stub — RTL coordination required
+    );
+
+    // ── ouch_packet_sva — OUCH 5.0 structural packet checker ───
+    bind kc705_top ouch_packet_sva u_ouch_pkt_sva (
+        .clk            (clk_300_in),
+        .rst            (cpu_reset),
+        .m_axis_tdata   (m_axis_tdata),
+        .m_axis_tkeep   (m_axis_tkeep),
+        .m_axis_tvalid  (m_axis_tvalid),
+        .m_axis_tlast   (m_axis_tlast),
+        .m_axis_tready  (m_axis_tready)
     );
 `endif // KC705_TOP_DUT
 

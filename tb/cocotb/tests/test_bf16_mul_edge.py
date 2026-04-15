@@ -11,7 +11,7 @@ Targets gaps in:
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge
+from cocotb.triggers import RisingEdge, ReadOnly
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -40,6 +40,7 @@ async def test_bf16_mul_zero_both(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"0x0 should be 0, got {result}"
     dut._log.info("PASS: 0x0=0")
@@ -54,6 +55,7 @@ async def test_bf16_mul_zero_a(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"0x3.14 should be 0, got {result}"
     dut._log.info("PASS: 0xnonzero=0")
@@ -68,6 +70,7 @@ async def test_bf16_mul_zero_b(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"2.5x0 should be 0, got {result}"
     dut._log.info("PASS: nonzerox0=0")
@@ -82,6 +85,7 @@ async def test_bf16_mul_neg_neg(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result = bits_to_fp32(int(dut.result.value))
     assert result > 0, f"-2x-3 should be positive, got {result}"
     expected = bfloat16_mul_ref(-2.0, -3.0)
@@ -98,6 +102,7 @@ async def test_bf16_mul_neg_pos(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result = bits_to_fp32(int(dut.result.value))
     assert result < 0, f"-5x4 should be negative, got {result}"
     dut._log.info("PASS: negxpos=neg")
@@ -112,6 +117,7 @@ async def test_bf16_mul_pos_neg(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result = bits_to_fp32(int(dut.result.value))
     assert result < 0, f"7x-0.5 should be negative, got {result}"
     dut._log.info("PASS: posxneg=neg")
@@ -193,8 +199,10 @@ async def test_bf16_mul_norm_shift_decision(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     r1 = bits_to_fp32(int(dut.result.value))
     assert abs(r1 - 1.0) < 0.01
+    await RisingEdge(dut.clk)  # exit ReadOnly before next write
 
     # 1.5 x 1.5 = 2.25: needs shift
     dut.a.value = float_to_bfloat16(1.5)
@@ -202,6 +210,7 @@ async def test_bf16_mul_norm_shift_decision(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     r2 = bits_to_fp32(int(dut.result.value))
     assert abs(r2 - 2.25) < 0.1
 

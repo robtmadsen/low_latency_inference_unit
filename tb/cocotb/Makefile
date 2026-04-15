@@ -25,6 +25,9 @@ else ifeq ($(TOPLEVEL),axi4_lite_slave)
     VERILOG_SOURCES += $(RTL_DIR)/axi4_lite_slave.sv
 else ifeq ($(TOPLEVEL),lliu_top)
     VERILOG_SOURCES += $(shell find $(RTL_DIR) -name '*.sv' ! -name 'lliu_pkg.sv')
+    # v2 modules (itch_parser_v2, axi4_lite_slave) added ports that lliu_top.sv
+    # does not connect; suppress PINMISSING to keep legacy tests buildable.
+    EXTRA_ARGS += -Wno-PINMISSING
 else ifeq ($(TOPLEVEL),moldupp64_strip)
     VERILOG_SOURCES += $(RTL_DIR)/moldupp64_strip.sv
 else ifeq ($(TOPLEVEL),symbol_filter)
@@ -40,6 +43,32 @@ else ifeq ($(TOPLEVEL),timestamp_tap)
     VERILOG_SOURCES += $(RTL_DIR)/timestamp_tap.sv
 else ifeq ($(TOPLEVEL),latency_histogram)
     VERILOG_SOURCES += $(RTL_DIR)/latency_histogram.sv
+else ifeq ($(TOPLEVEL),risk_check)
+    VERILOG_SOURCES += $(RTL_DIR)/risk_check.sv
+else ifeq ($(TOPLEVEL),ouch_engine)
+    VERILOG_SOURCES += $(RTL_DIR)/ouch_engine.sv
+    EXTRA_ARGS += -Wno-MULTIDRIVEN
+else ifeq ($(TOPLEVEL),lliu_top_v2)
+    VERILOG_SOURCES += $(RTL_DIR)/bfloat16_mul.sv
+    VERILOG_SOURCES += $(RTL_DIR)/fp32_acc.sv
+    VERILOG_SOURCES += $(RTL_DIR)/dot_product_engine.sv
+    VERILOG_SOURCES += $(RTL_DIR)/itch_field_extract.sv
+    VERILOG_SOURCES += $(RTL_DIR)/itch_parser_v2.sv
+    VERILOG_SOURCES += $(RTL_DIR)/feature_extractor_v2.sv
+    VERILOG_SOURCES += $(RTL_DIR)/weight_mem.sv
+    VERILOG_SOURCES += $(RTL_DIR)/output_buffer.sv
+    VERILOG_SOURCES += $(RTL_DIR)/order_book.sv
+    VERILOG_SOURCES += $(RTL_DIR)/symbol_filter.sv
+    VERILOG_SOURCES += $(RTL_DIR)/risk_check.sv
+    VERILOG_SOURCES += $(RTL_DIR)/ouch_engine.sv
+    VERILOG_SOURCES += $(RTL_DIR)/ptp_core.sv
+    VERILOG_SOURCES += $(RTL_DIR)/timestamp_tap.sv
+    VERILOG_SOURCES += $(RTL_DIR)/latency_histogram.sv
+    VERILOG_SOURCES += $(RTL_DIR)/snapshot_mux.sv
+    VERILOG_SOURCES += $(RTL_DIR)/lliu_core.sv
+    VERILOG_SOURCES += $(RTL_DIR)/strategy_arbiter.sv
+    VERILOG_SOURCES += $(RTL_DIR)/lliu_top_v2.sv
+    EXTRA_ARGS += -Wno-MULTIDRIVEN -Wno-UNOPTFLAT
 else ifeq ($(TOPLEVEL),eth_axis_rx_wrap)
     VERILOG_SOURCES += $(RTL_DIR)/eth_axis_rx_wrap.sv
     # eth_axis_rx_wrap instantiates Forencich eth_axis_rx internally
@@ -53,12 +82,24 @@ else ifeq ($(TOPLEVEL),kc705_top)
     VERILOG_SOURCES += $(RTL_DIR)/dot_product_engine.sv
     VERILOG_SOURCES += $(RTL_DIR)/itch_field_extract.sv
     VERILOG_SOURCES += $(RTL_DIR)/itch_parser.sv
+    VERILOG_SOURCES += $(RTL_DIR)/itch_parser_v2.sv
     VERILOG_SOURCES += $(RTL_DIR)/feature_extractor.sv
+    VERILOG_SOURCES += $(RTL_DIR)/feature_extractor_v2.sv
     VERILOG_SOURCES += $(RTL_DIR)/weight_mem.sv
     VERILOG_SOURCES += $(RTL_DIR)/axi4_lite_slave.sv
     VERILOG_SOURCES += $(RTL_DIR)/output_buffer.sv
+    VERILOG_SOURCES += $(RTL_DIR)/order_book.sv
+    VERILOG_SOURCES += $(RTL_DIR)/risk_check.sv
+    VERILOG_SOURCES += $(RTL_DIR)/ouch_engine.sv
+    VERILOG_SOURCES += $(RTL_DIR)/ptp_core.sv
+    VERILOG_SOURCES += $(RTL_DIR)/timestamp_tap.sv
+    VERILOG_SOURCES += $(RTL_DIR)/latency_histogram.sv
+    VERILOG_SOURCES += $(RTL_DIR)/snapshot_mux.sv
+    VERILOG_SOURCES += $(RTL_DIR)/lliu_core.sv
+    VERILOG_SOURCES += $(RTL_DIR)/strategy_arbiter.sv
     VERILOG_SOURCES += $(RTL_DIR)/moldupp64_strip.sv
     VERILOG_SOURCES += $(RTL_DIR)/symbol_filter.sv
+    VERILOG_SOURCES += $(RTL_DIR)/lliu_top_v2.sv
     VERILOG_SOURCES += $(RTL_DIR)/eth_axis_rx_wrap.sv
     VERILOG_SOURCES += $(RTL_DIR)/kc705_top.sv
     # Forencich verilog-ethernet library — required by kc705_top sim path
@@ -88,15 +129,19 @@ else ifeq ($(TOPLEVEL),kc705_top)
     EXTRA_ARGS += -DKINTEX7_SIM_GTX_BYPASS
     EXTRA_ARGS += -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-BLKSEQ -Wno-PROCASSINIT
     EXTRA_ARGS += -Wno-GENUNNAMED -Wno-TIMESCALEMOD -Wno-PINMISSING -Wno-LATCH
-    EXTRA_ARGS += -Wno-CASEINCOMPLETE -Wno-SELRANGE -Wno-UNOPTFLAT
+    EXTRA_ARGS += -Wno-CASEINCOMPLETE -Wno-SELRANGE -Wno-UNOPTFLAT -Wno-MULTIDRIVEN
 endif
 
 # Test module lives in tests/
 COCOTB_TEST_MODULES = tests.$(TEST_MODULE)
 
 # Verilator extra args
-EXTRA_ARGS += --trace
 EXTRA_ARGS += -Wno-IMPORTSTAR -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL
+
+# VCD tracing: disabled by default (large designs fill disk). Enable with VL_TRACE=1.
+ifeq ($(VL_TRACE),1)
+EXTRA_ARGS += --trace
+endif
 
 # Coverage: enable with VL_COVERAGE=1 (not COVERAGE — that's cocotb Python coverage)
 ifeq ($(VL_COVERAGE),1)
@@ -130,7 +175,14 @@ COV_TESTS  := \
 	order_book:test_order_book \
 	order_book:test_order_book_collision \
 	ptp_core:test_ptp \
-	latency_histogram:test_histogram
+	latency_histogram:test_histogram \
+	order_book:test_order_book_bbo_rescan \
+	risk_check:test_risk_fuzz \
+	ouch_engine:test_ouch_compliance \
+	ouch_engine:test_tx_backpressure_kill \
+	lliu_top_v2:test_tick_to_trade \
+	kc705_top:test_kc705_e2e \
+	kc705_top:test_kc705_latency
 
 .PHONY: coverage-run coverage-merge coverage-report coverage-clean
 

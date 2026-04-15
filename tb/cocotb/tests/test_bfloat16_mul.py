@@ -7,7 +7,7 @@ before sampling `result`.
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge
+from cocotb.triggers import RisingEdge, ReadOnly
 import sys
 import os
 
@@ -53,7 +53,7 @@ async def test_bfloat16_mul_basic(dut):
         await RisingEdge(dut.clk)  # edge N: Stage1 FF latches a,b
         await RisingEdge(dut.clk)  # edge N+1: Stage2 FF latches Stage1 result
         await RisingEdge(dut.clk)  # edge N+2: read (active phase = post-NBA of edge N+1)
-
+        await ReadOnly()            # settle registered FFs (cocotb v2 + Verilator)
         result_bits = int(dut.result.value)
         result_float = bits_to_fp32(result_bits)
         expected = bfloat16_mul_ref(a_float, b_float)
@@ -67,6 +67,7 @@ async def test_bfloat16_mul_basic(dut):
                 f"{a_float} * {b_float}: expected {expected}, got {result_float} (rel_err={rel_err:.4f})"
 
         dut._log.info(f"PASS: bf16({a_float}) * bf16({b_float}) = {result_float} (expected {expected})")
+        await RisingEdge(dut.clk)  # exit ReadOnly before next iteration's writes
 
 
 @cocotb.test()
@@ -80,8 +81,10 @@ async def test_bfloat16_mul_special_cases(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"0.0 * 5.0 should be 0.0, got {result}"
+    await RisingEdge(dut.clk)  # exit ReadOnly before next write
 
     # Nonzero × zero
     dut.a.value = float_to_bfloat16(5.0)
@@ -89,8 +92,10 @@ async def test_bfloat16_mul_special_cases(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"5.0 * 0.0 should be 0.0, got {result}"
+    await RisingEdge(dut.clk)  # exit ReadOnly before next write
 
     # Zero × zero
     dut.a.value = float_to_bfloat16(0.0)
@@ -98,8 +103,10 @@ async def test_bfloat16_mul_special_cases(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result = bits_to_fp32(int(dut.result.value))
     assert result == 0.0, f"0.0 * 0.0 should be 0.0, got {result}"
+    await RisingEdge(dut.clk)  # exit ReadOnly before next write
 
     # Large values
     dut.a.value = float_to_bfloat16(256.0)
@@ -107,9 +114,11 @@ async def test_bfloat16_mul_special_cases(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result = bits_to_fp32(int(dut.result.value))
     expected = bfloat16_mul_ref(256.0, 256.0)
     assert abs(result - expected) < 1.0, f"256*256: expected {expected}, got {result}"
+    await RisingEdge(dut.clk)  # exit ReadOnly before next write
 
     # Negative × positive
     dut.a.value = float_to_bfloat16(-4.0)
@@ -117,6 +126,7 @@ async def test_bfloat16_mul_special_cases(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result = bits_to_fp32(int(dut.result.value))
     assert result < 0, f"-4.0 * 2.0 should be negative, got {result}"
 

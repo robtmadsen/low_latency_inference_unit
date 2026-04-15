@@ -34,7 +34,7 @@ module symbol_filter (
     input  logic [63:0] stock,
     input  logic        stock_valid,
 
-    // Registered match output: 1 cycle after stock_valid
+    // Match output: combinational from the registered lookup stage
     output logic        watchlist_hit,
 
     // AXI4-Lite write interface (from axi4_lite_slave CAM register bank)
@@ -80,15 +80,33 @@ module symbol_filter (
 
     logic match_comb;
     assign match_comb = |match_vec;
+    logic lookup_valid_q;
+    logic lookup_match_q;
+
+    // cam_entry_match: combinational match result exposed for SVA binding.
+    // The (* keep = "true" *) attribute prevents synthesis optimisation from
+    // removing this wire.  The bind statement in tb_top.sv should connect
+    // .cam_entry_match(cam_entry_match) instead of the current 1'b0 stub.
+    /* verilator lint_off UNUSEDSIGNAL */
+    (* keep = "true" *) logic cam_entry_match;
+    /* verilator lint_on UNUSEDSIGNAL */
+    assign cam_entry_match = match_comb;
 
     // ---------------------------------------------------------------
-    // Output register: 1-cycle latency from stock_valid
+    // Single lookup stage: capture stock_valid + match in one cycle.
+    // Drive watchlist_hit combinationally from these flops so it is
+    // visible on the very next rising edge sample.
     // ---------------------------------------------------------------
+    assign watchlist_hit = lookup_valid_q & lookup_match_q;
+
     always_ff @(posedge clk) begin
-        if (rst)
-            watchlist_hit <= 1'b0;
-        else
-            watchlist_hit <= stock_valid & match_comb;
+        if (rst) begin
+            lookup_valid_q <= 1'b0;
+            lookup_match_q <= 1'b0;
+        end else begin
+            lookup_valid_q <= stock_valid;
+            lookup_match_q <= match_comb;
+        end
     end
 
 endmodule

@@ -26,6 +26,7 @@ You implement and maintain the cocotb/Python testbench for the LLIU project. You
 - The spec is the canonical source of truth. If the spec is unclear or inconsistent, **do not guess** — flag it to the `architect` agent to resolve before proceeding.
 - Never infer DUT behaviour by reading source files under `rtl/`. If an answer cannot be found in the spec, stop and escalate.
 - After editing, invoke the `run_cocotb_test_suite` skill to run affected tests and confirm they pass.
+- **NEVER run cocotb regressions locally.** All regression runs — individual tests or full suite — must be executed on the AWS EC2 instance. Running simulations locally will exhaust disk space on the development machine.
 
 ## Specification Documents — `.github/arch/`
 
@@ -56,7 +57,9 @@ tb/cocotb/
 
 ## Running Tests
 
-Use the `run_cocotb_test_suite` skill to run individual tests or the full suite. Do not construct raw `make` commands from memory — the skill contains the correct invocation recipe.
+> **WARNING: NEVER run regressions on the local machine.** Simulation build artifacts fill disk rapidly and will exhaust space on a MacBook Air. All test execution must happen on the AWS EC2 instance.
+
+Use the `run_cocotb_test_suite` skill to run individual tests or the full suite. Do not construct raw `make` commands from memory — the skill contains the correct invocation recipe. The skill will handle SSH to the EC2 instance; do not attempt to run `make` or `pytest` commands directly in the local terminal.
 
 ## Design Principles
 

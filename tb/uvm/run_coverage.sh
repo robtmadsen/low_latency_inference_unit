@@ -2,7 +2,8 @@
 # Run all UVM tests with coverage enabled, collecting coverage.dat from each
 
 PROJ_ROOT="/Users/robertmadsen/Documents/projects/low_latency_inference_unit"
-BUILD_DIR="$PROJ_ROOT/tb/uvm/sim_build/verilator"
+TOPLEVEL="${TOPLEVEL:-lliu_top}"
+BUILD_DIR="$PROJ_ROOT/tb/uvm/sim_build/verilator/$TOPLEVEL"
 COV_DIR="$PROJ_ROOT/tb/uvm/coverage_data"
 DATA_DIR="$PROJ_ROOT/data"
 GM_PY="$PROJ_ROOT/tb/uvm/golden_model/golden_model.py"
@@ -11,6 +12,11 @@ TESTS="lliu_smoke_test lliu_replay_test lliu_random_test lliu_stress_test lliu_e
 
 rm -rf "$COV_DIR"
 mkdir -p "$COV_DIR"
+
+if [ ! -d "$BUILD_DIR" ]; then
+    # Backward-compatible fallback for older single-dir build layout.
+    BUILD_DIR="$PROJ_ROOT/tb/uvm/sim_build/verilator"
+fi
 
 cd "$BUILD_DIR"
 

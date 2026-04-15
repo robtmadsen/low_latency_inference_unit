@@ -62,13 +62,15 @@ module eth_axis_rx_wrap (
     // Frame-tracking state
     // ---------------------------------------------------------------
     logic frame_active;   // high from first beat to tlast (inclusive)
-    logic drop_next;      // latch fifo_almost_full at frame boundary
     logic drop_current;   // drop the entire current frame
+    logic drop_decision;  // drop decision for the beat currently at MAC input
 
-    // mac_rx_tready: when dropping, always accept; when forwarding, follow
-    // eth_axis_rx.s_axis_tready for proper flow control.
-    logic eth_rx_s_tready;
-    assign mac_rx_tready = drop_current ? 1'b1 : eth_rx_s_tready;
+    // mac_rx_tready is permanently 1.  The MAC must never be stalled; the
+    // drop-on-full policy discards whole frames instead of applying backpressure.
+    // Previously this was gated on eth_rx_s_tready, which can be 0 for one
+    // cycle immediately after reset exits, violating the SVA D1 invariant.
+    assign mac_rx_tready = 1'b1;
+    assign drop_decision = frame_active ? drop_current : fifo_almost_full;
 
     // ---------------------------------------------------------------
     // Frame-boundary detection
@@ -76,25 +78,20 @@ module eth_axis_rx_wrap (
     always_ff @(posedge clk) begin
         if (rst) begin
             frame_active <= 1'b0;
-            drop_next    <= 1'b0;
             drop_current <= 1'b0;
         end else begin
             if (mac_rx_tvalid && mac_rx_tready) begin
-                if (mac_rx_tlast) begin
-                    // End of frame: close frame_active; sample fifo_almost_full
-                    // for the NEXT frame; clear drop_current
-                    frame_active <= 1'b0;
-                    drop_next    <= fifo_almost_full;
-                    drop_current <= 1'b0;
-                end else if (!frame_active) begin
-                    // First beat of a new frame: commit the drop decision
+                if (!frame_active && !mac_rx_tlast) begin
+                    // First beat of a multi-beat frame: commit the drop
+                    // decision and hold it stable until EOF.
                     frame_active <= 1'b1;
-                    drop_current <= drop_next;
-                    // drop_next latches again at the next tlast
+                    drop_current <= drop_decision;
+                end else if (mac_rx_tlast) begin
+                    // End of frame (single-beat or multi-beat): clear state
+                    // so the next SOF samples fifo_almost_full again.
+                    frame_active <= 1'b0;
+                    drop_current <= 1'b0;
                 end
-            end else if (!frame_active) begin
-                // Idle between frames: keep watching fifo_almost_full
-                drop_next <= fifo_almost_full;
             end
         end
     end
@@ -105,7 +102,7 @@ module eth_axis_rx_wrap (
     always_ff @(posedge clk) begin
         if (rst) begin
             dropped_frames <= 32'd0;
-        end else if (drop_current && mac_rx_tvalid && mac_rx_tlast &&
+        end else if (drop_decision && mac_rx_tvalid && mac_rx_tlast &&
                      dropped_frames != 32'hFFFF_FFFF) begin
             dropped_frames <= dropped_frames + 32'd1;
         end
@@ -119,6 +116,7 @@ module eth_axis_rx_wrap (
     logic eth_rx_busy;
     logic eth_rx_error;
     logic eth_rx_payload_tuser;
+    logic eth_rx_s_tready;  // eth_axis_rx backpressure — not used for MAC; MAC is always-ready
     /* verilator lint_on UNUSED */
 
     eth_axis_rx #(
@@ -132,7 +130,7 @@ module eth_axis_rx_wrap (
         // AXI-S input from MAC (gated: not forwarded during drop_current)
         .s_axis_tdata                     (mac_rx_tdata),
         .s_axis_tkeep                     (mac_rx_tkeep),
-        .s_axis_tvalid                    (mac_rx_tvalid & ~drop_current),
+        .s_axis_tvalid                    (mac_rx_tvalid & ~drop_decision),
         .s_axis_tready                    (eth_rx_s_tready),
         .s_axis_tlast                     (mac_rx_tlast),
         .s_axis_tuser                     (1'b0),   // no MAC error in bypass

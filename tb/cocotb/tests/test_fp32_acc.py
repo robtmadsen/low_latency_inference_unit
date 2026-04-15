@@ -2,7 +2,7 @@
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge
+from cocotb.triggers import RisingEdge, ReadOnly
 import sys
 import os
 
@@ -43,6 +43,7 @@ async def test_fp32_acc_accumulate(dut):
         for _ in range(PIPELINE_STAGES):   # flush: A1, B1, B2, C
             await RisingEdge(dut.clk)
 
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result = bits_to_fp32(int(dut.acc_out.value))
     assert abs(result - 10.0) < 0.01, f"Expected 10.0, got {result}"
     dut._log.info(f"PASS: accumulate sum = {result}")
@@ -75,8 +76,10 @@ async def test_fp32_acc_clear(dut):
         for _ in range(PIPELINE_STAGES):
             await RisingEdge(dut.clk)
 
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result_before = bits_to_fp32(int(dut.acc_out.value))
     assert result_before != 0.0, f"Accumulator should be nonzero, got {result_before}"
+    await RisingEdge(dut.clk)  # exit ReadOnly before next write
 
     # Clear
     dut.acc_clear.value = 1
@@ -84,6 +87,7 @@ async def test_fp32_acc_clear(dut):
     dut.acc_clear.value = 0
     await RisingEdge(dut.clk)
 
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result_after = bits_to_fp32(int(dut.acc_out.value))
     assert result_after == 0.0, f"Accumulator should be 0 after clear, got {result_after}"
     dut._log.info(f"PASS: clear works (was {result_before}, now {result_after})")
@@ -125,6 +129,7 @@ async def test_fp32_acc_forwarding_mux(dut):
         for _ in range(PIPELINE_STAGES):
             await RisingEdge(dut.clk)
 
+    await ReadOnly()  # settle registered FFs (cocotb v2 + Verilator)
     result = bits_to_fp32(int(dut.acc_out.value))
     assert abs(result - expected) / expected < 0.01, (
         f"Expected {expected}, got {result} — acc_reg feedback may be broken"
