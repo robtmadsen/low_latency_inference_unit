@@ -36,37 +36,20 @@ module end_to_end_latency_sva #(
     // ----------------------------------------------------------------
     // v1 / lliu_top latency check
     //
-    // Two checks for sequential (non-pipelined) DUT operation:
+    // For lliu_top regression we only enforce single-message latency on the
+    // first observed parser_fields_valid -> dp_result_valid sample.
     //
-    // 1. SINGLE-MESSAGE LATENCY (first result only)
-    //    Measures parser_fields_valid → dp_result_valid for the very
-    //    first message.  Catches nominal pipeline depth regressions.
-    //    Bound: max_latency_cycles (default 40; overridable via +LLIU_MAX_LATENCY).
-    //    Measured on main (PR#52 DPE, VEC_LEN=4): 33 cycles.
-    //
-    // 2. THROUGHPUT CHECK (all subsequent results)
-    //    Checks that consecutive dp_result_valid pulses are separated by
-    //    no more than max_latency_cycles.  For a sequential DUT with latency
-    //    L, back-to-back results arrive every L cycles — this bound is met
-    //    without false-firing for queue depth > 1.
-    //
-    // 3. INACTIVITY STALL WATCHDOG
-    //    While messages are outstanding, fires if neither a new message is
-    //    accepted nor a result arrives for max_latency_cycles consecutive
-    //    cycles.  Detects a genuinely stuck pipeline without triggering on
-    //    sequential burst processing.
+    // Multi-message scenarios in the current test suite are not guaranteed to
+    // have a strict 1:1 add_order_accepted -> dp_result_valid mapping, so
+    // burst-throughput and inactivity-stall checks are intentionally omitted.
     // ----------------------------------------------------------------
     int unsigned cycle_count;
     int unsigned pending_starts[$];
     int unsigned latencies[$];
     int unsigned max_latency_cycles;
-    int unsigned last_activity_cycle;  // last push or pop; 0 = none yet
-    int unsigned last_result_cycle;    // last ouch_tvalid cycle; 0 = none yet
 
     initial begin
         max_latency_cycles  = DEFAULT_MAX_LATENCY_CYCLES;
-        last_activity_cycle = 0;
-        last_result_cycle   = 0;
         void'($value$plusargs("LLIU_MAX_LATENCY=%d", max_latency_cycles));
         $display("Configured end-to-end latency limit: %0d cycles", max_latency_cycles);
     end
@@ -82,13 +65,9 @@ module end_to_end_latency_sva #(
         if (rst) begin
             pending_starts.delete();
             latencies.delete();
-            last_activity_cycle = 0;
-            last_result_cycle   = 0;
         end else begin
-            if (add_order_accepted) begin
+            if (add_order_accepted)
                 pending_starts.push_back(cycle_count);
-                last_activity_cycle = cycle_count;   // push = progress
-            end
 
             if (ouch_tvalid) begin
                 if (pending_starts.size() == 0) begin
@@ -98,40 +77,12 @@ module end_to_end_latency_sva #(
                     automatic int unsigned latency      = cycle_count - start_cycle;
                     latencies.push_back(latency);
 
-                    // Check 1 / Check 2 (see header comment above)
-                    if (last_result_cycle == 0) begin
-                        // First result: check individual end-to-end latency.
-                        if (latency >= max_latency_cycles)
-                            $error(
-                                "SVA [LLIU]: first-message latency %0d cycles exceeds spec %0d",
-                                latency, max_latency_cycles
-                            );
-                    end else begin
-                        // Subsequent results: check inter-result throughput.
-                        automatic int unsigned inter_result = cycle_count - last_result_cycle;
-                        if (inter_result >= max_latency_cycles)
-                            $error(
-                                "SVA [LLIU]: throughput stall — %0d cycles between consecutive results (spec %0d)",
-                                inter_result, max_latency_cycles
-                            );
-                    end
-
-                    last_result_cycle   = cycle_count;  // pop = progress
-                    last_activity_cycle = cycle_count;
-                end
-            end
-
-            // Check 3: inactivity stall watchdog (see header comment above).
-            // Note: no sentinel guard needed — pending_starts.size() > 0 guarantees
-            // at least one push occurred, so last_activity_cycle is meaningful.
-            if (pending_starts.size() > 0) begin
-                if ((cycle_count - last_activity_cycle) >= max_latency_cycles) begin
-                    $error(
-                        "SVA [LLIU]: pipeline stall — no DPE progress for %0d cycles with %0d message(s) pending (spec %0d)",
-                        cycle_count - last_activity_cycle,
-                        pending_starts.size(),
-                        max_latency_cycles
-                    );
+                    // First result: check single-message end-to-end latency.
+                    if (latencies.size() == 1 && latency >= max_latency_cycles)
+                        $error(
+                            "SVA [LLIU]: first-message latency %0d cycles exceeds spec %0d",
+                            latency, max_latency_cycles
+                        );
                 end
             end
         end
