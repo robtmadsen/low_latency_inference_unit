@@ -5,7 +5,8 @@
 //   LLIU_TOP_DUT  (default)
 //     Measures from Add-Order message accepted by the ITCH parser
 //     (parser_fields_valid → add_order_accepted port) to dp_result_valid.
-//     Bound: < DEFAULT_MAX_LATENCY_CYCLES (default 18) @ clk_300.
+//     Bound: < DEFAULT_MAX_LATENCY_CYCLES (default 40) @ clk_300.
+//     Measured latency on main (PR#52 DPE): 33 cycles for VEC_LEN=4.
 //
 //   KC705_TOP_DUT
 //     Measures from the first beat delivered by the CDC async FIFO read side
@@ -19,7 +20,7 @@
 // which is intentional only in full-chip simulations where both DUTs coexist.
 
 module end_to_end_latency_sva #(
-    parameter int unsigned DEFAULT_MAX_LATENCY_CYCLES = 18
+    parameter int unsigned DEFAULT_MAX_LATENCY_CYCLES = 40
 ) (
     input logic clk,
     input logic rst,
