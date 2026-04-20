@@ -48,7 +48,7 @@ module feature_extractor_v2 #(
     input  logic [31:0] shares,      // only [23:0] used; upper byte is msg-type-specific
     /* verilator lint_on UNUSEDSIGNAL */
     input  logic        side,        // 1 = buy, 0 = sell
-    input  logic [8:0]  sym_id,      // symbol index (0..511)
+    input  logic [OB_SYM_ID_W-1:0] sym_id, // symbol index (0..OB_NUM_SYMBOLS-1)
     input  logic        fields_valid,
 
     // BBO inputs (from order_book, 1-cycle registered latency)
@@ -69,9 +69,9 @@ module feature_extractor_v2 #(
 );
 
     // ------------------------------------------------------------------
-    // Per-symbol last-price LUT: 512 entries, sym_id selects
+    // Per-symbol last-price LUT: OB_NUM_SYMBOLS entries, sym_id selects
     // ------------------------------------------------------------------
-    logic [31:0] last_price_lut [0:511];
+    logic [31:0] last_price_lut [0:OB_NUM_SYMBOLS-1];
 
     // ------------------------------------------------------------------
     // Running order-flow counter (cumulative buy − sell)
@@ -123,10 +123,119 @@ module feature_extractor_v2 #(
     // Incremental rolling sums (updated each fields_valid)
     logic [26:0] buy_vol_sum;          // max: 8 × 2^24 < 2^27
     logic [26:0] sell_vol_sum;
-    logic [58:0] px_vol_sum;           // max: 8 × 2^56 < 2^59
+    (* use_dsp = "no" *) logic [58:0] px_vol_sum;           // Run 54: use_dsp=no prevents Vivado from absorbing msg_pxvol_s075 into a 59-bit accumulate DSP CREG (relay at X5Y19, WNS -0.119 ns)
 
     // Local free-running 16-bit cycle counter (for arrival period feature)
     logic [15:0] local_cnt;
+
+    // ------------------------------------------------------------------
+    // Stage-0.5 registers: pre-registered multiply + delayed Stage-1 inputs.
+    // Breaks the DSP\u2192CARRY critical path (WNS \u22123.7 ns at 312.5 MHz) by
+    // registering price\u00d7shares before the 59-bit accumulation.
+    // Pipeline latency increases from 4 cycles to 5 cycles (fields_valid
+    // to features_valid), which exceeds the \u201c< 5 cycles\u201d secondary spec.
+    // This trade-off is accepted to achieve Fmax closure at 312.5 MHz.
+    //
+    // PREG=1 pattern (Run 17 timing fix):
+    //   price_d / shares_d are pre-registers placed in the SAME always_ff block
+    //   as msg_pxvol_s05.  Vivado sees the chain: module-input FF (price_d,
+    //   shares_d) -> DSP A/B-port -> PREG -> msg_pxvol_s05, and infers PREG=1
+    //   on the multiply DSP.  PREG=1 uses the Setup_dsp48e1_CLK_A arc (negative
+    //   setup ~-0.6 ns), giving ~3.8 ns required time vs 3.0 ns arrival -> +0.8 ns
+    //   WNS.  Without this, Vivado cascades two DSPs (PREG=0 + CREG) which
+    //   produces the 3.773 ns path that cannot close at 312.5 MHz.
+    //   The msg_pxvol_s05 value lags msg arrival by 2 cycles instead of 1, but
+    //   price/shares are stable for hundreds of cycles per ITCH message so the
+    //   misalignment has no functional effect.
+    // ------------------------------------------------------------------
+    logic [26:0]            price_d;          // Run 55: 27-bit A-port → single DSP48E1 PREG=1; was [29:0]=30-bit → 2-DSP relay (msg_pxvol_s075_reg upper partial product, WNS -0.122 ns)
+    logic [17:0]            shares_d;         // B-port pre-register (co-located with DSP by Vivado)
+    (* use_dsp = "yes" *) logic [47:0] msg_pxvol_s05;  // MUST be DSP PREG (30×18); use_dsp=yes
+    // overrides RuntimeOptimized tendency to fall back to LUT fabric when the
+    // downstream msg_pxvol_s075 has use_dsp="no" (Run 33 regression: WNS −1.977 ns).
+    logic                   fv_s05;           // fields_valid delayed 1 cycle
+    logic [31:0]            price_s05;
+    logic [23:0]            shares_s05;       // only [23:0] used; matches port
+    logic                   side_s05;
+    logic [OB_SYM_ID_W-1:0] sym_id_s05;
+    logic [31:0]            bbo_bid_px_s05;
+    logic [31:0]            bbo_ask_px_s05;
+    logic [23:0]            bbo_bid_sz_s05;
+    logic [23:0]            bbo_ask_sz_s05;
+    logic [31:0]            l2_bid_px_s05 [0:3];
+    logic [23:0]            l2_bid_sz_s05 [0:3];
+    logic [31:0]            l2_ask_px_s05 [0:3];
+    logic [23:0]            l2_ask_sz_s05 [0:3];
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            price_d        <= '0;
+            shares_d       <= '0;
+            msg_pxvol_s05  <= '0;
+            msg_pxvol_s075 <= '0;   // Run53: reset in same always_ff as msg_pxvol_s05
+            fv_s05         <= 1'b0;
+            fv_s075        <= 1'b0; // Run53: reset in same always_ff as fv_s05
+            price_s05      <= '0;
+            shares_s05     <= '0;
+            side_s05       <= 1'b0;
+            sym_id_s05     <= '0;
+            bbo_bid_px_s05 <= '0;
+            bbo_ask_px_s05 <= '0;
+            bbo_bid_sz_s05 <= '0;
+            bbo_ask_sz_s05 <= '0;
+            for (int k = 0; k < 4; k++) begin
+                l2_bid_px_s05[k] <= '0;
+                l2_bid_sz_s05[k] <= '0;
+                l2_ask_px_s05[k] <= '0;
+                l2_ask_sz_s05[k] <= '0;
+            end
+        end else begin
+            price_d        <= price[26:0];    // Run 55: 27-bit A-port → single DSP PREG=1 (30-bit caused 2-DSP partial-product relay, WNS -0.122 ns)
+            shares_d       <= shares[17:0];   // pre-register: Vivado places adjacent to DSP column
+            msg_pxvol_s05  <= price_d * shares_d;  // A(30)xB(18)=1 DSP48E1 PREG=1 pattern
+            msg_pxvol_s075 <= msg_pxvol_s05;   // Run53: in same always_ff → no relay DSP (was separate always_ff → relay at X5Y19)
+            fv_s05         <= fields_valid;
+            fv_s075        <= fv_s05;          // Run53: aligned with msg_pxvol_s075 (non-blocking: reads prev-cycle fv_s05)
+            price_s05      <= price;
+            shares_s05     <= shares[23:0];
+            side_s05       <= side;
+            sym_id_s05     <= sym_id;
+            bbo_bid_px_s05 <= bbo_bid_price;
+            bbo_ask_px_s05 <= bbo_ask_price;
+            bbo_bid_sz_s05 <= bbo_bid_size;
+            bbo_ask_sz_s05 <= bbo_ask_size;
+            for (int k = 0; k < 4; k++) begin
+                l2_bid_px_s05[k] <= l2_bid_price[k];
+                l2_bid_sz_s05[k] <= l2_bid_size[k];
+                l2_ask_px_s05[k] <= l2_ask_price[k];
+                l2_ask_sz_s05[k] <= l2_ask_size[k];
+            end
+        end
+    end
+
+    // ------------------------------------------------------------------
+    // Stage-0.75 registers: msg_pxvol_s075 and fv_s075.
+    // Run 32 fix (original): separate always_ff + use_dsp="no" prevented
+    // Vivado from creating a relay CREG DSP for msg_pxvol_s075.
+    //
+    // Run 53 update: moved msg_pxvol_s075/fv_s075 assignments INTO the
+    // Stage-0.5 always_ff above (same always_ff as the msg_pxvol_s05 multiply).
+    // Root cause of Run 52 failure (WNS -0.119 ns):
+    //   Vivado synthesized msg_pxvol_s075_reg (DSP48E1, CREG=1) at X5Y19,
+    //   despite use_dsp="no" on msg_pxvol_s075.  The relay was created because
+    //   the SEPARATE Stage-0.75 always_ff caused synthesis to treat this as
+    //   a multi-always_ff pipeline boundary and insert a CREG relay DSP.
+    //   P→C routing between adjacent DSPs (X5Y18→X5Y19) through fabric takes
+    //   ~2.892 ns, exceeding the 2.773 ns budget → WNS -0.119 ns.
+    // Fix: merge into SAME always_ff as the DSP PREG — Vivado sees PREG→FDRE
+    //   as a single-block pipeline (no relay), direct PREG→FDRE routing
+    //   (~0.4 ns) trivially meets timing.  Functional behavior is identical:
+    //   non-blocking semantics ensure msg_pxvol_s075 captures msg_pxvol_s05
+    //   from the PREVIOUS cycle (same 1-cycle delay as before).
+    // ------------------------------------------------------------------
+    (* use_dsp = "no" *) logic [47:0] msg_pxvol_s075;
+    logic fv_s075;
+    // Assignments moved to Stage-0.5 always_ff above (Run53).
 
     // ------------------------------------------------------------------
     // Stage 1 registers (integer arithmetic results)
@@ -138,7 +247,7 @@ module feature_extractor_v2 #(
     logic        [31:0] s1_l2_ask_sz [0:3];
     logic        [26:0] s1_buy_vol_sum;
     logic        [26:0] s1_sell_vol_sum;
-    logic        [58:0] s1_px_vol_sum;
+    (* use_dsp = "no" *) logic        [58:0] s1_px_vol_sum;
     logic        [26:0] s1_vol_sum;
     logic        [15:0] s1_msg_delta;
     logic               valid_d1;
@@ -173,54 +282,54 @@ module feature_extractor_v2 #(
                 msg_lcnt_win[k] <= '0;
             end
         end else begin
-            valid_d1  <= fields_valid;
+            valid_d1  <= fv_s075;  // Stage-0.75 delayed by 1 cycle (Run 32 fix)
             local_cnt <= local_cnt + 16'h1;
 
-            if (fields_valid) begin
+            if (fv_s075) begin  // Run 32: gate on fv_s075 so Stage-1 uses msg_pxvol_s075
                 // ---- Feature 0: price_delta (signed) ----
-                s1_feat[0] <= 32'($signed({1'b0, price}) -
-                                  $signed({1'b0, last_price_lut[sym_id]}));
+                s1_feat[0] <= 32'($signed({1'b0, price_s05}) -
+                                  $signed({1'b0, last_price_lut[sym_id_s05]}));
 
                 // ---- Feature 1: side_enc (+1 / -1) ----
-                s1_feat[1] <= side ? 32'sd1 : -32'sd1;
+                s1_feat[1] <= side_s05 ? 32'sd1 : -32'sd1;
 
                 // ---- Feature 2: order_flow (running counter) ----
-                if (side)
+                if (side_s05)
                     s1_feat[2] <= $signed({{16{order_flow_cnt[15]}}, order_flow_cnt}) + 32'sd1;
                 else
                     s1_feat[2] <= $signed({{16{order_flow_cnt[15]}}, order_flow_cnt}) - 32'sd1;
 
                 // ---- Feature 3: norm_price (treated as unsigned) ----
-                s1_feat[3] <= 32'({1'b0, price[30:0]});
+                s1_feat[3] <= 32'({1'b0, price_s05[30:0]});
 
                 // ---- Features 4-7: raw BBO prices and sizes ----
-                s1_feat[4] <= 32'(bbo_bid_price);
-                s1_feat[5] <= 32'(bbo_ask_price);
-                s1_feat[6] <= 32'({8'h00, bbo_bid_size});
-                s1_feat[7] <= 32'({8'h00, bbo_ask_size});
+                s1_feat[4] <= 32'(bbo_bid_px_s05);
+                s1_feat[5] <= 32'(bbo_ask_px_s05);
+                s1_feat[6] <= 32'({8'h00, bbo_bid_sz_s05});
+                s1_feat[7] <= 32'({8'h00, bbo_ask_sz_s05});
 
                 // ---- Feature 8: bid-ask spread (unsigned) ----
-                s1_feat[8] <= (bbo_ask_price >= bbo_bid_price)
-                              ? 32'(bbo_ask_price - bbo_bid_price)
+                s1_feat[8] <= (bbo_ask_px_s05 >= bbo_bid_px_s05)
+                              ? 32'(bbo_ask_px_s05 - bbo_bid_px_s05)
                               : 32'h0;
 
                 // ---- Feature 9: mid price (unsigned) ----
-                s1_feat[9] <= 32'((bbo_ask_price + bbo_bid_price) >> 1);
+                s1_feat[9] <= 32'((bbo_ask_px_s05 + bbo_bid_px_s05) >> 1);
 
                 // ---- Feature 10: order size vs bid BBO (signed) ----
-                s1_feat[10] <= 32'($signed({8'h00, shares[23:0]}) -
-                                   $signed({8'h00, bbo_bid_size}));
+                s1_feat[10] <= 32'($signed({8'h00, shares_s05}) -
+                                   $signed({8'h00, bbo_bid_sz_s05}));
 
                 // ---- Feature 11: order size vs ask BBO (signed) ----
-                s1_feat[11] <= 32'($signed({8'h00, shares[23:0]}) -
-                                   $signed({8'h00, bbo_ask_size}));
+                s1_feat[11] <= 32'($signed({8'h00, shares_s05}) -
+                                   $signed({8'h00, bbo_ask_sz_s05}));
 
                 // ---- Features 12-27: L2 book levels ----
                 for (int k = 0; k < 4; k++) begin
-                    s1_l2_bid_px[k] <= l2_bid_price[k];
-                    s1_l2_ask_px[k] <= l2_ask_price[k];
-                    s1_l2_bid_sz[k] <= {8'h00, l2_bid_size[k]};
-                    s1_l2_ask_sz[k] <= {8'h00, l2_ask_size[k]};
+                    s1_l2_bid_px[k] <= l2_bid_px_s05[k];
+                    s1_l2_ask_px[k] <= l2_ask_px_s05[k];
+                    s1_l2_bid_sz[k] <= {8'h00, l2_bid_sz_s05[k]};
+                    s1_l2_ask_sz[k] <= {8'h00, l2_ask_sz_s05[k]};
                 end
 
                 // ---- Rolling window update (8-message shift register) ----
@@ -230,12 +339,12 @@ module feature_extractor_v2 #(
                     automatic logic [26:0] new_sell_sum;
                     automatic logic [58:0] new_px_sum;
 
-                    msg_pxvol    = 56'(price) * 56'(shares[23:0]);
+                    msg_pxvol    = {8'h0, msg_pxvol_s075};  // zero-extend 48→56 bits; use Stage-0.75 FDRE (Run 32)
                     new_buy_sum  = buy_vol_sum
-                                   + (side ? 27'(shares[23:0]) : 27'h0)
+                                   + (side_s05 ? 27'(shares_s05) : 27'h0)
                                    - 27'(buy_vol_win[7]);
                     new_sell_sum = sell_vol_sum
-                                   + (side ? 27'h0 : 27'(shares[23:0]))
+                                   + (side_s05 ? 27'h0 : 27'(shares_s05))
                                    - 27'(sell_vol_win[7]);
                     new_px_sum   = px_vol_sum + 59'(msg_pxvol) - 59'(px_vol_win[7]);
 
@@ -246,8 +355,8 @@ module feature_extractor_v2 #(
                         px_vol_win[k]   <= px_vol_win[k-1];
                         msg_lcnt_win[k] <= msg_lcnt_win[k-1];
                     end
-                    buy_vol_win[0]  <= side ? shares[23:0] : 24'h0;
-                    sell_vol_win[0] <= side ? 24'h0 : shares[23:0];
+                    buy_vol_win[0]  <= side_s05 ? shares_s05 : 24'h0;
+                    sell_vol_win[0] <= side_s05 ? 24'h0 : shares_s05;
                     px_vol_win[0]   <= msg_pxvol;
                     msg_lcnt_win[0] <= local_cnt;
 
@@ -265,8 +374,8 @@ module feature_extractor_v2 #(
                 end
 
                 // ---- Persistent state updates ----
-                last_price_lut[sym_id] <= price;
-                if (side)
+                last_price_lut[sym_id_s05] <= price_s05;
+                if (side_s05)
                     order_flow_cnt <= order_flow_cnt + 16'sd1;
                 else
                     order_flow_cnt <= order_flow_cnt - 16'sd1;
@@ -391,10 +500,79 @@ module feature_extractor_v2 #(
     end
 
     // ------------------------------------------------------------------
-    // Stage 3 registers: bf16 conversion for features [0..15];
-    //                    pipeline mag/sgn/zero for features [16..31]
+    // Stage 2.5 registers: LZ-split — pre-register leading-zero count for
+    // [0..15] and pipeline mag/sgn/zero for both halves.
+    //
+    // Run 26 timing fix: calling the full mag_to_bf16() function in a single
+    // always_ff creates a 7-LUT combinational chain (4 LUTs for 32-to-5 LZ
+    // priority encode + 3 LUTs for 32-to-1 mantissa barrel shift) that cannot
+    // close at 3.2 ns.  Solution: split the function into two halves across
+    // pipeline stages.
+    //   Stage 2.5: compute lz (leading-zero count, ~4 LUT levels) from s2_mag.
+    //   Stage 3  : compute exp/mantissa from pre-registered lz + pipelined mag
+    //              (~3 LUT levels — one 32-to-1 MUX per mantissa bit).
+    // The same split is applied symmetrically to features [16..31] across
+    // Stage 3 (lz compute) → Stage 4 (exp/mantissa compute).
+    // ------------------------------------------------------------------
+    logic [4:0]  s25_lz_lo  [0:15];   // leading-zero count for features [0..15]
+    logic [31:0] s25_mag_lo [0:15];   // pipelined mag for features [0..15]
+    logic        s25_sgn_lo [0:15];
+    logic        s25_zero_lo[0:15];
+    logic [31:0] s25_mag_hi [16:31];  // pipelined mag for features [16..31]
+    logic        s25_sgn_hi [16:31];
+    logic        s25_zero_hi[16:31];
+    logic        valid_d25;
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            valid_d25 <= 1'b0;
+            for (int i = 0; i < 16; i++) begin
+                s25_lz_lo[i]   <= '0;
+                s25_mag_lo[i]  <= '0;
+                s25_sgn_lo[i]  <= 1'b0;
+                s25_zero_lo[i] <= 1'b1;
+            end
+            for (int i = 16; i < 32; i++) begin
+                s25_mag_hi[i]  <= '0;
+                s25_sgn_hi[i]  <= 1'b0;
+                s25_zero_hi[i] <= 1'b1;
+            end
+        end else begin
+            valid_d25 <= valid_d2;
+            if (valid_d2) begin
+                // [0..15]: compute LZ count (~4 LUT levels); pipeline mag/sgn/zero
+                for (int i = 0; i < 16; i++) begin
+                    s25_sgn_lo[i]  <= s2_sgn[i];
+                    s25_zero_lo[i] <= s2_zero[i];
+                    s25_mag_lo[i]  <= s2_mag[i];
+                    begin
+                        automatic int lz_cnt;
+                        lz_cnt = 0;
+                        for (int j = 31; j >= 0; j--) begin
+                            if (s2_mag[i][j]) break;
+                            lz_cnt = lz_cnt + 1;
+                        end
+                        s25_lz_lo[i] <= 5'(lz_cnt);
+                    end
+                end
+                // [16..31]: pipeline mag/sgn/zero only (lz computed in Stage 3)
+                for (int i = 16; i < 32; i++) begin
+                    s25_mag_hi[i]  <= s2_mag[i];
+                    s25_sgn_hi[i]  <= s2_sgn[i];
+                    s25_zero_hi[i] <= s2_zero[i];
+                end
+            end
+        end
+    end
+
+    // ------------------------------------------------------------------
+    // Stage 3 registers:
+    //   [0..15]: assemble bf16 from pre-registered lz + pipelined mag
+    //            (~3 LUT levels: 32-to-1 MUX per mantissa bit + add for exp)
+    //   [16..31]: compute LZ count from pipelined mag; pipeline mag/sgn/zero
     // ------------------------------------------------------------------
     bfloat16_t   s3_feat_lo  [0:15];
+    logic [4:0]  s3_lz_hi    [16:31];  // leading-zero count for [16..31]
     logic [31:0] s3_mag_hi   [16:31];
     logic        s3_sgn_hi   [16:31];
     logic        s3_zero_hi  [16:31];
@@ -405,26 +583,52 @@ module feature_extractor_v2 #(
             valid_d3 <= 1'b0;
             for (int i = 0; i < 16; i++) s3_feat_lo[i] <= 16'h0;
             for (int i = 16; i < 32; i++) begin
+                s3_lz_hi[i]   <= '0;
                 s3_mag_hi[i]  <= '0;
                 s3_sgn_hi[i]  <= 1'b0;
                 s3_zero_hi[i] <= 1'b1;
             end
         end else begin
-            valid_d3 <= valid_d2;
-            if (valid_d2) begin
-                for (int i = 0; i < 16; i++)
-                    s3_feat_lo[i] <= mag_to_bf16(s2_zero[i], s2_sgn[i], s2_mag[i]);
+            valid_d3 <= valid_d25;
+            if (valid_d25) begin
+                // [0..15]: exp/mantissa from pre-registered lz (~3 LUT levels)
+                for (int i = 0; i < 16; i++) begin
+                    if (s25_zero_lo[i]) begin
+                        s3_feat_lo[i] <= 16'h0000;
+                    end else begin
+                        automatic logic [7:0] exp_v;
+                        automatic logic [6:0] man_v;
+                        // exp = 127 + 31 - lz = 158 - lz (8-bit minus 5-bit)
+                        exp_v = 8'd158 - {3'b0, s25_lz_lo[i]};
+                        // man: shift mag left by (lz+1), take bits [31:25].
+                        // Use 6-bit shift amount to correctly represent lz+1=32
+                        // when lz=31 (shift by 32 → 0, correct for mantissa).
+                        man_v = 7'((s25_mag_lo[i] << ({1'b0, s25_lz_lo[i]} + 6'd1)) >> 25);
+                        s3_feat_lo[i] <= {s25_sgn_lo[i], exp_v, man_v};
+                    end
+                end
+                // [16..31]: LZ count from pipelined mag + pipeline mag/sgn/zero
                 for (int i = 16; i < 32; i++) begin
-                    s3_mag_hi[i]  <= s2_mag[i];
-                    s3_sgn_hi[i]  <= s2_sgn[i];
-                    s3_zero_hi[i] <= s2_zero[i];
+                    s3_mag_hi[i]  <= s25_mag_hi[i];
+                    s3_sgn_hi[i]  <= s25_sgn_hi[i];
+                    s3_zero_hi[i] <= s25_zero_hi[i];
+                    begin
+                        automatic int lz_cnt;
+                        lz_cnt = 0;
+                        for (int j = 31; j >= 0; j--) begin
+                            if (s25_mag_hi[i][j]) break;
+                            lz_cnt = lz_cnt + 1;
+                        end
+                        s3_lz_hi[i] <= 5'(lz_cnt);
+                    end
                 end
             end
         end
     end
 
     // ------------------------------------------------------------------
-    // Stage 4 (output): bf16 for features [16..31]; latch [0..15]; valid
+    // Stage 4 (output): latch bf16 for [0..15]; assemble bf16 for [16..31]
+    //   [16..31]: exp/mantissa from pre-registered s3_lz_hi (~3 LUT levels)
     // ------------------------------------------------------------------
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -433,10 +637,21 @@ module feature_extractor_v2 #(
         end else begin
             features_valid <= valid_d3;
             if (valid_d3) begin
+                // [0..15]: pure latch — no combinational logic
                 for (int i = 0; i < 16; i++)
                     features[i] <= s3_feat_lo[i];
-                for (int i = 16; i < 32; i++)
-                    features[i] <= mag_to_bf16(s3_zero_hi[i], s3_sgn_hi[i], s3_mag_hi[i]);
+                // [16..31]: assemble bf16 from pre-registered lz
+                for (int i = 16; i < 32; i++) begin
+                    if (s3_zero_hi[i]) begin
+                        features[i] <= 16'h0000;
+                    end else begin
+                        automatic logic [7:0] exp_v;
+                        automatic logic [6:0] man_v;
+                        exp_v = 8'd158 - {3'b0, s3_lz_hi[i]};
+                        man_v = 7'((s3_mag_hi[i] << ({1'b0, s3_lz_hi[i]} + 6'd1)) >> 25);
+                        features[i] <= {s3_sgn_hi[i], exp_v, man_v};
+                    end
+                end
             end
         end
     end

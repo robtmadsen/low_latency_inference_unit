@@ -1,16 +1,14 @@
 // snapshot_mux.sv — BBO shadow buffer and snapshot streamer for pcie_dma_engine
 //
-// Maintains a 512-entry shadow BRAM copy of all 500 symbol BBOs.  Each entry
+// Maintains a OB_NUM_SYMBOLS-entry shadow BRAM copy of all symbol BBOs.  Each entry
 // is updated on every order_book bbo_valid pulse — with a 1-cycle delay to
 // let the order_book registered read path (bbo_bid_price_r → bbo_bid_price)
 // settle after the write.
 //
-// A snapshot is streamed out on snap_req as 1 000 × 64-bit beats:
+// A snapshot is streamed out on snap_req as 2×OB_NUM_SYMBOLS × 64-bit beats:
 //   beat 2k+0 : {bid_price[31:0],  8'h00, bid_size[23:0]}  (symbol k, bid)
 //   beat 2k+1 : {ask_price[31:0],  8'h00, ask_size[23:0]}  (symbol k, ask)
-//   k = 0 … 499
-//
-// Total payload = 1 000 × 8 B = 8 000 B ≈ 8 KB (matches MAS §4.10).
+//   k = 0 … OB_NUM_SYMBOLS-1
 //
 // snap_valid and snap_data are COMBINATIONAL outputs derived from the state
 // register and the BRAM read pipeline registers.  snap_ready may be tied
@@ -40,7 +38,7 @@ module snapshot_mux (
     // read path).  snapshot_mux delays bbo_valid by one cycle internally so
     // the BRAM write captures the fresh, settled BBO value.
     input  logic        bbo_valid,
-    input  logic [8:0]  bbo_sym_id,
+    input  logic [OB_SYM_ID_W-1:0] bbo_sym_id,
     input  logic [31:0] bbo_bid_price,
     input  logic [31:0] bbo_ask_price,
     input  logic [23:0] bbo_bid_size,
@@ -55,10 +53,10 @@ module snapshot_mux (
 );
 
     // ------------------------------------------------------------------
-    // Shadow BRAMs: 512 × 64-bit each (Vivado infers 2 × RAMB36E1)
+    // Shadow BRAMs: OB_NUM_SYMBOLS × 64-bit each
     // ------------------------------------------------------------------
-    (* ram_style = "block" *) logic [63:0] bid_bram [0:511];
-    (* ram_style = "block" *) logic [63:0] ask_bram [0:511];
+    (* ram_style = "block" *) logic [63:0] bid_bram [0:OB_NUM_SYMBOLS-1];
+    (* ram_style = "block" *) logic [63:0] ask_bram [0:OB_NUM_SYMBOLS-1];
 
     // Bit-layout per entry:
     //   [63:32] = price[31:0]
@@ -70,12 +68,12 @@ module snapshot_mux (
     // settled registered-read value from order_book.
     // ------------------------------------------------------------------
     logic        bbo_valid_d1;
-    logic [8:0]  bbo_sym_id_d1;
+    logic [OB_SYM_ID_W-1:0] bbo_sym_id_d1;
 
     always_ff @(posedge clk) begin
         if (rst) begin
             bbo_valid_d1  <= 1'b0;
-            bbo_sym_id_d1 <= 9'h0;
+            bbo_sym_id_d1 <= '0;
         end else begin
             bbo_valid_d1  <= bbo_valid;
             bbo_sym_id_d1 <= bbo_sym_id;
@@ -91,7 +89,7 @@ module snapshot_mux (
     end
 
     // BRAM read port: registered, 1-cycle latency
-    logic [8:0]  rd_addr;
+    logic [OB_SYM_ID_W-1:0] rd_addr;
     logic [63:0] rd_bid_r;
     logic [63:0] rd_ask_r;
 
@@ -124,7 +122,7 @@ module snapshot_mux (
     always_ff @(posedge clk) begin
         if (rst) begin
             state     <= S_IDLE;
-            rd_addr   <= 9'h0;
+            rd_addr   <= '0;
             snap_done <= 1'b0;
         end else begin
             snap_done <= 1'b0;  // default: deassert
@@ -132,7 +130,7 @@ module snapshot_mux (
             case (state)
                 S_IDLE: begin
                     if (snap_req) begin
-                        rd_addr <= 9'h0;
+                        rd_addr <= '0;
                         state   <= S_PREFETCH;
                     end
                 end
@@ -150,11 +148,11 @@ module snapshot_mux (
 
                 S_SEND_ASK: begin
                     if (snap_ready) begin
-                        if (rd_addr == 9'd499) begin
+                        if (rd_addr == OB_SYM_ID_W'(OB_NUM_SYMBOLS - 1)) begin
                             snap_done <= 1'b1;
                             state     <= S_IDLE;
                         end else begin
-                            rd_addr <= rd_addr + 9'h1;
+                            rd_addr <= rd_addr + OB_SYM_ID_W'(1);
                             state   <= S_PREFETCH;
                         end
                     end

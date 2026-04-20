@@ -114,7 +114,7 @@ module lliu_top_v2 #(
     logic [31:0] parser_shares;
     logic        parser_side;
     logic [63:0] parser_stock;
-    logic [8:0]  parser_sym_id;
+    logic [OB_SYM_ID_W-1:0]  parser_sym_id;
     logic        parser_fields_valid;
 
     itch_parser_v2 u_parser (
@@ -174,7 +174,7 @@ module lliu_top_v2 #(
     logic [23:0] l2_ask_size  [0:3];
     logic [31:0] collision_count;
     logic        bbo_valid_w;
-    logic [8:0]  bbo_sym_id_w;
+    logic [OB_SYM_ID_W-1:0]  bbo_sym_id_w;
     /* verilator lint_off UNUSEDSIGNAL */
     logic        collision_flag_w;
     logic        book_ready_w;
@@ -206,7 +206,7 @@ module lliu_top_v2 #(
     // Symbol filter
     // ================================================================
     logic        watchlist_hit;
-    logic [9:0]  cam_wr_index;
+    logic [SYM_FILTER_IDX_W:0] cam_wr_index;
     logic [63:0] cam_wr_data;
     logic        cam_wr_valid;
     logic        cam_wr_en_bit;
@@ -220,30 +220,44 @@ module lliu_top_v2 #(
     );
 
     // ================================================================
-    // One-cycle delay: align parser fields + BBO with watchlist_hit
+    // Three-cycle delay: align parser fields + BBO with watchlist_hit
+    // (symbol_filter has stock_q + match_partial_r + lookup_match_q stages,
+    //  so watchlist_hit arrives 3 cycles after parser_fields_valid)
     // ================================================================
-    logic        fields_valid_d1;
-    logic [31:0] price_d1;
-    logic [31:0] shares_d1;
-    logic        side_d1;
-    logic [8:0]  sym_id_d1;
+    logic        fields_valid_d1, fields_valid_d2, fields_valid_d3;
+    logic [31:0] price_d1,  price_d2,  price_d3;
+    logic [31:0] shares_d1, shares_d2, shares_d3;
+    logic        side_d1,   side_d2,   side_d3;
+    logic [OB_SYM_ID_W-1:0]  sym_id_d1, sym_id_d2, sym_id_d3;
 
     always_ff @(posedge clk) begin
         if (rst) begin
-            fields_valid_d1 <= 1'b0;
-            price_d1 <= 32'h0; shares_d1 <= 32'h0;
-            side_d1  <= 1'b0;  sym_id_d1 <= 9'h0;
+            fields_valid_d1 <= 1'b0; fields_valid_d2 <= 1'b0; fields_valid_d3 <= 1'b0;
+            price_d1  <= 32'h0; price_d2  <= 32'h0; price_d3  <= 32'h0;
+            shares_d1 <= 32'h0; shares_d2 <= 32'h0; shares_d3 <= 32'h0;
+            side_d1   <= 1'b0;  side_d2   <= 1'b0;  side_d3   <= 1'b0;
+            sym_id_d1 <= '0;    sym_id_d2 <= '0;    sym_id_d3 <= '0;
         end else begin
             fields_valid_d1 <= parser_fields_valid;
+            fields_valid_d2 <= fields_valid_d1;
+            fields_valid_d3 <= fields_valid_d2;
             price_d1        <= parser_price;
+            price_d2        <= price_d1;
+            price_d3        <= price_d2;
             shares_d1       <= parser_shares;
+            shares_d2       <= shares_d1;
+            shares_d3       <= shares_d2;
             side_d1         <= parser_side;
+            side_d2         <= side_d1;
+            side_d3         <= side_d2;
             sym_id_d1       <= parser_sym_id;
+            sym_id_d2       <= sym_id_d1;
+            sym_id_d3       <= sym_id_d2;
         end
     end
 
     logic feat_ext_fv;
-    assign feat_ext_fv = fields_valid_d1 & watchlist_hit;
+    assign feat_ext_fv = fields_valid_d3 & watchlist_hit;
 
     // ================================================================
     // Feature extractor v2  (4-cy latency)
@@ -253,8 +267,8 @@ module lliu_top_v2 #(
 
     feature_extractor_v2 #(.VEC_LEN(VEC_LEN)) u_feat_ext (
         .clk            (clk), .rst (rst),
-        .price          (price_d1), .shares (shares_d1),
-        .side           (side_d1),  .sym_id (sym_id_d1),
+        .price          (price_d3), .shares (shares_d3),
+        .side           (side_d3),  .sym_id (sym_id_d3),
         .fields_valid   (feat_ext_fv),
         .bbo_bid_price  (bbo_bid_price), .bbo_ask_price (bbo_ask_price),
         .bbo_bid_size   (bbo_bid_size),  .bbo_ask_size  (bbo_ask_size),
@@ -358,14 +372,14 @@ module lliu_top_v2 #(
     // Hold registers
     // ================================================================
     logic [31:0] held_price_r;
-    logic [8:0]  held_sym_id_r;
+    logic [OB_SYM_ID_W-1:0]  held_sym_id_r;
     logic        held_side_r;
     logic [31:0] held_ref_r;
 
     always_ff @(posedge clk) begin
         if (rst) begin
             held_price_r  <= 32'h0;
-            held_sym_id_r <= 9'h0;
+            held_sym_id_r <= '0;
             held_side_r   <= 1'b0;
             held_ref_r    <= 32'h0;
         end else if (feat_ext_fv) begin
@@ -394,7 +408,10 @@ module lliu_top_v2 #(
     logic [1:0]  block_reason_w;
     /* verilator lint_on UNUSEDSIGNAL */
     logic        risk_blocked_latch;
+    logic        risk_status_rd;
 
+    assign risk_status_rd  = s_axil_arvalid && !s_axil_rvalid
+                           && (s_axil_araddr == 12'h410);
     assign tx_overflow_out = tx_overflow_int;
 
     risk_check u_risk (
@@ -437,7 +454,7 @@ module lliu_top_v2 #(
         .risk_pass      (risk_pass),
         .side           (held_side_r),
         .price          (held_price_r),
-        .symbol_id      (held_sym_id_r[6:0]),
+        .symbol_id      ({1'b0, held_sym_id_r}),
         .proposed_shares(risk_proposed_shares),
         .timestamp      (ptp_epoch),
         .tmpl_wr_addr   (tmpl_wr_addr),
@@ -552,7 +569,7 @@ module lliu_top_v2 #(
             cam_dat_hi_r   <= 32'h0;
             cam_wr_valid   <= 1'b0;
             cam_wr_data    <= 64'h0;
-            cam_wr_index   <= 10'h0;
+            cam_wr_index   <= '0;
             cam_wr_en_bit  <= 1'b0;
             tmpl_addr_stg  <= 9'h0;
             tmpl_lo_stg    <= 32'h0;
@@ -572,6 +589,8 @@ module lliu_top_v2 #(
             for (int i = 0; i < NUM_CORES; i++)
                 wgt_wr_en_ar[i] <= 1'b0;
 
+            if (risk_status_rd)
+                risk_blocked_latch <= 1'b0;
             if (risk_blocked_w)
                 risk_blocked_latch <= 1'b1;
 
@@ -602,7 +621,7 @@ module lliu_top_v2 #(
                         12'h020: begin
                             if (wr_data_r[0]) begin
                                 cam_wr_valid  <= 1'b1;
-                                cam_wr_index  <= {cam_idx_hi_r, cam_idx_lo_r};
+                                cam_wr_index  <= {cam_idx_hi_r, cam_idx_lo_r}[SYM_FILTER_IDX_W:0];
                                 cam_wr_data   <= {cam_dat_hi_r, cam_dat_lo_r};
                                 cam_wr_en_bit <= wr_data_r[1];
                             end
@@ -651,8 +670,7 @@ module lliu_top_v2 #(
                 s_axil_rvalid  <= 1'b1;
 
                 if (s_axil_araddr == 12'h410) begin
-                    s_axil_rdata       <= {30'h0, kill_sw_r, risk_blocked_latch};
-                    risk_blocked_latch <= 1'b0;
+                    s_axil_rdata <= {30'h0, kill_sw_r, risk_blocked_latch};
                 end else if (s_axil_araddr == 12'h048)
                     s_axil_rdata <= collision_count;
                 else if (s_axil_araddr == 12'h580)

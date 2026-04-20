@@ -106,71 +106,130 @@ module strategy_arbiter (
     endgenerate
 
     // ------------------------------------------------------------------
-    // Level 1: compare lv0 pairs (0,1) and (2,3) — all combinational
+    // Level 0 → Level 1 pipeline registers
+    // Breaks the 16-level combinational path (score_thresh→gated_valid→lv0→lv1→
+    // lv2→best_core_id_reg, WNS -2.007 ns at 312.5 MHz) into two ≈8-level halves.
+    // Increases best_* output latency from 1 cycle to 2 cycles.
+    // ------------------------------------------------------------------
+    (* DONT_TOUCH = "TRUE" *) float32_t  lv0_score_r [0:3];
+    (* DONT_TOUCH = "TRUE" *) logic [2:0] lv0_id_r   [0:3];
+    (* DONT_TOUCH = "TRUE" *) logic       lv0_valid_r [0:3];
+    (* DONT_TOUCH = "TRUE" *) logic       lv0_side_r  [0:3];
+
+    // Level 1 → Level 2 pipeline registers (DONT_TOUCH prevents phys_opt retiming)
+    (* DONT_TOUCH = "TRUE" *) float32_t  lv1_score_r [0:1];
+    (* DONT_TOUCH = "TRUE" *) logic [2:0] lv1_id_r   [0:1];
+    (* DONT_TOUCH = "TRUE" *) logic       lv1_valid_r [0:1];
+    (* DONT_TOUCH = "TRUE" *) logic       lv1_side_r  [0:1];
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            for (int i = 0; i < 4; i++) begin
+                lv0_score_r[i] <= '0;
+                lv0_id_r[i]    <= '0;
+                lv0_valid_r[i] <= 1'b0;
+                lv0_side_r[i]  <= 1'b0;
+            end
+        end else begin
+            for (int i = 0; i < 4; i++) begin
+                lv0_score_r[i] <= lv0_score[i];
+                lv0_id_r[i]    <= lv0_id[i];
+                lv0_valid_r[i] <= lv0_valid[i];
+                lv0_side_r[i]  <= lv0_side[i];
+            end
+        end
+    end
+
+    // ------------------------------------------------------------------
+    // Level 1: compare lv0_r pairs (0,1) and (2,3) — all combinational
     // ------------------------------------------------------------------
     always_comb begin
         for (int i = 0; i < 2; i++) begin
-            if (!lv0_valid[i*2] && !lv0_valid[i*2+1]) begin
-                lv1_score[i] = lv0_score[i*2];
-                lv1_id[i]    = lv0_id[i*2];
+            if (!lv0_valid_r[i*2] && !lv0_valid_r[i*2+1]) begin
+                lv1_score[i] = lv0_score_r[i*2];
+                lv1_id[i]    = lv0_id_r[i*2];
                 lv1_valid[i] = 1'b0;
-                lv1_side[i]  = lv0_side[i*2];
-            end else if (!lv0_valid[i*2]) begin
-                lv1_score[i] = lv0_score[i*2+1];
-                lv1_id[i]    = lv0_id[i*2+1];
+                lv1_side[i]  = lv0_side_r[i*2];
+            end else if (!lv0_valid_r[i*2]) begin
+                lv1_score[i] = lv0_score_r[i*2+1];
+                lv1_id[i]    = lv0_id_r[i*2+1];
                 lv1_valid[i] = 1'b1;
-                lv1_side[i]  = lv0_side[i*2+1];
-            end else if (!lv0_valid[i*2+1]) begin
-                lv1_score[i] = lv0_score[i*2];
-                lv1_id[i]    = lv0_id[i*2];
+                lv1_side[i]  = lv0_side_r[i*2+1];
+            end else if (!lv0_valid_r[i*2+1]) begin
+                lv1_score[i] = lv0_score_r[i*2];
+                lv1_id[i]    = lv0_id_r[i*2];
                 lv1_valid[i] = 1'b1;
-                lv1_side[i]  = lv0_side[i*2];
+                lv1_side[i]  = lv0_side_r[i*2];
             end else begin
-                if (lv0_score[i*2] >= lv0_score[i*2+1]) begin
-                    lv1_score[i] = lv0_score[i*2];
-                    lv1_id[i]    = lv0_id[i*2];
+                if (lv0_score_r[i*2] >= lv0_score_r[i*2+1]) begin
+                    lv1_score[i] = lv0_score_r[i*2];
+                    lv1_id[i]    = lv0_id_r[i*2];
                     lv1_valid[i] = 1'b1;
-                    lv1_side[i]  = lv0_side[i*2];
+                    lv1_side[i]  = lv0_side_r[i*2];
                 end else begin
-                    lv1_score[i] = lv0_score[i*2+1];
-                    lv1_id[i]    = lv0_id[i*2+1];
+                    lv1_score[i] = lv0_score_r[i*2+1];
+                    lv1_id[i]    = lv0_id_r[i*2+1];
                     lv1_valid[i] = 1'b1;
-                    lv1_side[i]  = lv0_side[i*2+1];
+                    lv1_side[i]  = lv0_side_r[i*2+1];
                 end
             end
         end
     end
 
     // ------------------------------------------------------------------
-    // Level 2: grand final — combinational
+    // Level 1 → Level 2 pipeline registers
+    // Breaks the second half of the 16-level path (lv0→lv1→lv2→best_reg)
+    // into two ≤6-level halves. Increases best_* latency from 2 to 3 cycles.
+    // DONT_TOUCH prevents phys_opt from retiming these away.
+    // ------------------------------------------------------------------
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            for (int i = 0; i < 2; i++) begin
+                lv1_score_r[i] <= '0;
+                lv1_id_r[i]    <= '0;
+                lv1_valid_r[i] <= 1'b0;
+                lv1_side_r[i]  <= 1'b0;
+            end
+        end else begin
+            for (int i = 0; i < 2; i++) begin
+                lv1_score_r[i] <= lv1_score[i];
+                lv1_id_r[i]    <= lv1_id[i];
+                lv1_valid_r[i] <= lv1_valid[i];
+                lv1_side_r[i]  <= lv1_side[i];
+            end
+        end
+    end
+
+    // ------------------------------------------------------------------
+    // Level 2: grand final — reads from lv1_r (registered Level 1 outputs)
     // ------------------------------------------------------------------
     always_comb begin
-        if (!lv1_valid[0] && !lv1_valid[1]) begin
-            lv2_score = lv1_score[0];
-            lv2_id    = lv1_id[0];
+        if (!lv1_valid_r[0] && !lv1_valid_r[1]) begin
+            lv2_score = lv1_score_r[0];
+            lv2_id    = lv1_id_r[0];
             lv2_valid = 1'b0;
-            lv2_side  = lv1_side[0];
-        end else if (!lv1_valid[0]) begin
-            lv2_score = lv1_score[1];
-            lv2_id    = lv1_id[1];
+            lv2_side  = lv1_side_r[0];
+        end else if (!lv1_valid_r[0]) begin
+            lv2_score = lv1_score_r[1];
+            lv2_id    = lv1_id_r[1];
             lv2_valid = 1'b1;
-            lv2_side  = lv1_side[1];
-        end else if (!lv1_valid[1]) begin
-            lv2_score = lv1_score[0];
-            lv2_id    = lv1_id[0];
+            lv2_side  = lv1_side_r[1];
+        end else if (!lv1_valid_r[1]) begin
+            lv2_score = lv1_score_r[0];
+            lv2_id    = lv1_id_r[0];
             lv2_valid = 1'b1;
-            lv2_side  = lv1_side[0];
+            lv2_side  = lv1_side_r[0];
         end else begin
-            if (lv1_score[0] >= lv1_score[1]) begin
-                lv2_score = lv1_score[0];
-                lv2_id    = lv1_id[0];
+            if (lv1_score_r[0] >= lv1_score_r[1]) begin
+                lv2_score = lv1_score_r[0];
+                lv2_id    = lv1_id_r[0];
                 lv2_valid = 1'b1;
-                lv2_side  = lv1_side[0];
+                lv2_side  = lv1_side_r[0];
             end else begin
-                lv2_score = lv1_score[1];
-                lv2_id    = lv1_id[1];
+                lv2_score = lv1_score_r[1];
+                lv2_id    = lv1_id_r[1];
                 lv2_valid = 1'b1;
-                lv2_side  = lv1_side[1];
+                lv2_side  = lv1_side_r[1];
             end
         end
     end

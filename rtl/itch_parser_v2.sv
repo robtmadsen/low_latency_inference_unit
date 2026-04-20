@@ -78,7 +78,7 @@ module itch_parser_v2 (
     output logic [31:0] shares,
     output logic        side,
     output logic [63:0] stock,
-    output logic [8:0]  sym_id,
+    output logic [OB_SYM_ID_W-1:0] sym_id,
     output logic        fields_valid
 );
 
@@ -115,7 +115,7 @@ module itch_parser_v2 (
             shares        <= 32'h0;
             side          <= 1'b0;
             stock         <= 64'h0;
-            sym_id        <= 9'h0;
+            sym_id        <= '0;
             fields_valid  <= 1'b0;
         end else begin
             case (state)
@@ -189,7 +189,7 @@ module itch_parser_v2 (
 
                     // msg_type always captured
                     msg_type <= msg_buf[0];
-                    sym_id   <= 9'h0;
+                    sym_id   <= '0;
 
                     // order_ref: bytes [11..18] for all modifying types
                     order_ref <= {msg_buf[11], msg_buf[12], msg_buf[13], msg_buf[14],

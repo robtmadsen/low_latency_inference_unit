@@ -12,6 +12,11 @@ set PART xc7k160tffg676-2
 # ── Read sources ───────────────────────────────────────────────────────────
 read_verilog -sv rtl/lliu_pkg.sv
 
+# order_book.sv is excluded — synthesized OOC via vivado_ooc_orderbook.tcl.
+# Read a black-box stub so Vivado can elaborate the hierarchy.
+# The real netlist is imported after synth_design via read_checkpoint -cell.
+read_verilog -sv syn/order_book_stub.sv
+
 read_verilog -sv {
   rtl/bfloat16_mul.sv
   rtl/fp32_acc.sv
@@ -20,7 +25,6 @@ read_verilog -sv {
   rtl/output_buffer.sv
   rtl/lliu_core.sv
   rtl/itch_parser_v2.sv
-  rtl/order_book.sv
   rtl/symbol_filter.sv
   rtl/feature_extractor_v2.sv
   rtl/strategy_arbiter.sv
@@ -29,6 +33,7 @@ read_verilog -sv {
   rtl/ptp_core.sv
   rtl/timestamp_tap.sv
   rtl/latency_histogram.sv
+  rtl/snapshot_mux.sv
   rtl/lliu_top_v2.sv
 }
 
@@ -36,24 +41,44 @@ read_verilog -sv {
 read_xdc syn/constraints_lliu_top.xdc
 
 # ── Synthesis ──────────────────────────────────────────────────────────────
-# Cap threads to 4 to keep peak memory within the 32 GB instance limit.
-set_param general.maxThreads 4
+# Thread policy: 4 threads reduces memory contention on BRAM-heavy designs.
+# Override with VIVADO_SYNTH_THREADS if needed for profiling.
+set synth_threads 4
+if {[info exists ::env(VIVADO_SYNTH_THREADS)] && [string is integer -strict $::env(VIVADO_SYNTH_THREADS)] && $::env(VIVADO_SYNTH_THREADS) > 0} {
+  set synth_threads $::env(VIVADO_SYNTH_THREADS)
+}
+set_param general.maxThreads $synth_threads
+puts "INFO: VIVADO_SYNTH_THREADS=$synth_threads"
 
-# Redirect .Xil temp files to /dev/shm to prevent root disk exhaustion.
-set ::env(XILINX_LOCALAPPDATA) /dev/shm
+# Keep Vivado scratch data on disk-backed storage by default.
+# Override with VIVADO_LOCALAPPDATA when needed.
+set localappdata ""
+if {[info exists ::env(VIVADO_LOCALAPPDATA)] && $::env(VIVADO_LOCALAPPDATA) ne ""} {
+  set localappdata $::env(VIVADO_LOCALAPPDATA)
+} else {
+  set home_dir "/tmp"
+  if {[info exists ::env(HOME)] && $::env(HOME) ne ""} {
+    set home_dir $::env(HOME)
+  }
+  set localappdata "$home_dir/.Xilinx/localappdata"
+}
+if {[catch {file mkdir $localappdata}]} {
+  set localappdata "/tmp/xilinx_localappdata"
+  file mkdir $localappdata
+}
+set ::env(XILINX_LOCALAPPDATA) $localappdata
+puts "INFO: XILINX_LOCALAPPDATA=$::env(XILINX_LOCALAPPDATA)"
 
-# -flatten_hierarchy rebuilt: synthesizes flat internally (fast, no cross-boundary
-# sweep), then reconstructs module hierarchy in utilization reports.
-# This is strictly faster than -flatten_hierarchy none at this design size
-# because "none" triggers an expensive cross-boundary analysis pass that
-# has caused multi-hour hangs. "rebuilt" preserves per-module resource counts.
-# -no_srlopt: disables shift-register extraction, a secondary slow step on
-# designs with large BRAM arrays (order_book). Safe to disable — SRL inference
-# is not needed; all delay lines are explicit always_ff.
+# -flatten_hierarchy full: fastest option — no hierarchy reconstruction pass.
+# Per-module resource counts come from the OOC checkpoints instead.
+# order_book is excluded from sources, so Vivado creates a black box for u_ob.
 synth_design -top lliu_top_v2 -part ${PART} \
-  -flatten_hierarchy rebuilt \
-  -directive RuntimeOptimized \
-  -no_srlopt
+  -flatten_hierarchy full \
+  -directive RuntimeOptimized
+
+# ── Import OOC order_book netlist ──────────────────────────────────────────
+# Populates the u_ob black box with the pre-synthesized order_book netlist.
+read_checkpoint -cell [get_cells u_ob] syn/order_book_ooc.dcp
 
 # ── Post-synthesis reports ─────────────────────────────────────────────────
 report_utilization -file syn/reports/utilization_synth.txt
