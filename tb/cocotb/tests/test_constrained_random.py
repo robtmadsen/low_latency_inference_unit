@@ -87,21 +87,26 @@ async def reset_dut(dut, cycles=10):
     await RisingEdge(dut.clk)
 
 
-async def wait_for_new_result(axil, timeout_cycles=500):
-    """Wait for previous result_ready to clear, then wait for fresh result.
+# Pipeline drain cycles: updated for new RTL (+fp32_acc stage A0.5, +DPE 2-stage mac_pipe)
+PIPELINE_LATENCY = 35
 
-    Phase 1 waits for result_ready (bit 0) to de-assert, which indicates the
-    new inference is in-flight and the old latch has been overtaken.  This
-    avoids the race where the pipeline finishes before Phase 1 could observe
-    the busy bit, causing the stale previous result to be returned.
+
+async def wait_for_new_result(axil, timeout_cycles=500):
+    """Consume stale result, drain pipeline, then read fresh inference result.
+
+    Flushes any previous result from the output buffer so the DUT can accept
+    the new result_valid.  Then waits PIPELINE_LATENCY cycles — enough for the
+    longest inference path to complete — before polling result_ready.
     """
-    # Phase 1: wait for result_ready to clear (inference in-flight)
-    for _ in range(timeout_cycles):
-        status = await axil.read(REG_STATUS)
-        if not (status & 0x1):
-            break
-        await RisingEdge(axil.clk)
-    # Phase 2: wait for fresh result_ready
+    # Step 1: consume stale result to free the output buffer
+    status = await axil.read(REG_STATUS)
+    if status & 0x1:
+        _ = await axil.read(REG_RESULT)  # discard; clears output buffer
+
+    # Step 2: wait for the inference pipeline to produce the next result
+    await ClockCycles(axil.clk, PIPELINE_LATENCY)
+
+    # Step 3: poll for fresh result_ready
     for _ in range(timeout_cycles):
         status = await axil.read(REG_STATUS)
         if status & 0x1:
@@ -242,7 +247,7 @@ async def test_random_coverage_closure(dut):
     last_price = 0
     buy_flow = 0
     msg_count = 0
-    max_messages = 200
+    max_messages = 400  # increased: pipeline latency growth reduces msgs-per-sim-cycle
 
     first_result = True
     for iteration in range(max_messages):

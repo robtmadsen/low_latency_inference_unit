@@ -94,15 +94,26 @@ async def wait_for_result(axil, timeout_cycles=200):
     raise TimeoutError("Inference result not ready within timeout")
 
 
-async def wait_for_new_result(axil, timeout_cycles=300):
-    """Wait for result_ready to clear (new inference in-flight), then re-assert."""
-    # Phase 1: wait for result_ready to de-assert
-    for _ in range(timeout_cycles):
-        status = await axil.read(REG_STATUS)
-        if not (status & 0x1):
-            break
-        await RisingEdge(axil.clk)
-    # Phase 2: wait for fresh result_ready
+# Pipeline drain cycles: updated for new RTL (+fp32_acc stage A0.5, +DPE 2-stage mac_pipe)
+PIPELINE_LATENCY = 35
+
+
+async def wait_for_new_result(axil, timeout_cycles=500):
+    """Consume stale result, drain pipeline, then read fresh inference result.
+
+    Flushes any previous result from the output buffer so the DUT can accept
+    the new result_valid.  Then waits PIPELINE_LATENCY cycles — enough for the
+    longest inference path to complete — before polling result_ready.
+    """
+    # Step 1: consume stale result to free the output buffer
+    status = await axil.read(REG_STATUS)
+    if status & 0x1:
+        _ = await axil.read(REG_RESULT)  # discard; clears output buffer
+
+    # Step 2: wait for the inference pipeline to produce the next result
+    await ClockCycles(axil.clk, PIPELINE_LATENCY)
+
+    # Step 3: poll for fresh result_ready
     for _ in range(timeout_cycles):
         status = await axil.read(REG_STATUS)
         if status & 0x1:
