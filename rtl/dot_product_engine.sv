@@ -77,9 +77,10 @@ module dot_product_engine #(
     localparam int MERGE_STEP      = 4;
     localparam int DRAIN_LAST_EN   = (NUM_ACCS_USED - 1) * MERGE_STEP;
     // DRAIN_EXIT_VAL: drain_cnt at which S_DRAIN->S_DONE.
-    // acc_en_d4 fires here; acc_reg is written at this clock-edge;
-    // merge_out is valid in S_DONE (next cycle).
-    localparam logic [4:0] DRAIN_EXIT_VAL = DRAIN_LAST_EN[4:0] + 5'd4;
+    // merge_en_r (registered, +1 cycle) fires its last pulse at DRAIN_LAST_EN+1.
+    // fp32_acc then needs 4 more cycles for acc_en_d4 to fire and write acc_reg.
+    // So DRAIN_EXIT_VAL = DRAIN_LAST_EN + 1 + 4 = DRAIN_LAST_EN + 5.
+    localparam logic [4:0] DRAIN_EXIT_VAL = DRAIN_LAST_EN[4:0] + 5'd5;
 
     // -----------------------------------------------------------------------
     // Control registers
@@ -128,7 +129,7 @@ module dot_product_engine #(
     fp32_acc u_acc3 (.clk(clk),.rst(rst),.addend(acc_addend[3]),.acc_en(acc_en_r[3]),.acc_clear(acc_clear),.acc_out(acc_out[3]));
     fp32_acc u_acc4 (.clk(clk),.rst(rst),.addend(acc_addend[4]),.acc_en(acc_en_r[4]),.acc_clear(acc_clear),.acc_out(acc_out[4]));
 
-    // 2-stage shift register: routes mul_result to the correct acc[i].
+    // 3-stage shift register: routes mul_result to the correct acc[i].
     logic [$clog2(VEC_LEN+1)-1:0] mac_pipe_elem  [0:1];
     logic                          mac_pipe_valid [0:1];
 
@@ -143,15 +144,22 @@ module dot_product_engine #(
     // Merge accumulator (6th fp32_acc)
     // -----------------------------------------------------------------------
     float32_t merge_addend;
+    float32_t merge_addend_r;  // registered MUX output — eliminates 2 LUT levels
+                                // from the acc_out[3] → u_merge/addend routing
+                                // path (Run 27: was u_merge_i_42 + u_merge_i_8
+                                // adding 0.647 ns route + LUT delay before u_merge
+                                // Stage A0 combinational).  merge_en_r is delayed
+                                // by 1 cycle to stay aligned.
     logic     merge_en;    // COMBINATIONAL
+    logic     merge_en_r;  // 1-cycle delayed (aligned with merge_addend_r)
     logic     merge_clear;
     float32_t merge_out;
 
     fp32_acc u_merge (
         .clk       (clk),
         .rst       (rst),
-        .addend    (merge_addend),
-        .acc_en    (merge_en),
+        .addend    (merge_addend_r),
+        .acc_en    (merge_en_r),
         .acc_clear (merge_clear),
         .acc_out   (merge_out)
     );
@@ -169,6 +177,16 @@ module dot_product_engine #(
                       (drain_cnt == 5'd0  || drain_cnt == 5'd4  ||
                        drain_cnt == 5'd8  || drain_cnt == 5'd12 ||
                        (NUM_ACCS_USED >= 5 && drain_cnt == 5'd16));
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            merge_addend_r <= 32'h0000_0000;
+            merge_en_r     <= 1'b0;
+        end else begin
+            merge_addend_r <= merge_addend;
+            merge_en_r     <= merge_en;
+        end
+    end
 
     // -----------------------------------------------------------------------
     // Outputs -- combinational

@@ -3,19 +3,28 @@
 // Accumulates float32 values over multiple cycles.
 // Supports clear (reset to zero) and accumulate enable.
 //
-// Five-stage pipeline to meet 300 MHz on Kintex-7 -2:
-//   Stage A0: exponent compare                   → registered → *_r0
-//   Stage A1: mantissa alignment (barrel shift)  → registered
-//   Stage B1: mantissa add/subtract (CARRY4)     → registered → sum_man_b1_r
-//   Stage B2: normalise                          → registered → partial_sum_r
-//   Stage C:  partial_sum_r → acc_reg            → acc_out
+// Six-stage pipeline to meet 312.5 MHz on Kintex-7 -2:
+//   Stage A0:   exponent compare                           → registered → *_r0
+//   Stage A0.5: barrel-shift alignment only                → registered → *_r05
+//   Stage A1:   pre-compute arith (CARRY4 from r05 FDREs)  → registered → *_r
+//   Stage B1:   mantissa MUX-select (no CARRY4)            → registered → sum_man_b1_r
+//   Stage B2:   normalise                                  → registered → partial_sum_r
+//   Stage C:    partial_sum_r → acc_reg                    → acc_out
 //
-// Stage B was split into B1 (CARRY4 adder) and B2 (normalisation LUT tree)
-// to break the Run 7 critical path: aligned_small_r → CARRY4×6 adder →
-// normalization LUT tree → partial_sum_r (15 levels, 5.065 ns, WNS −1.852 ns).
+// Run 43 fix: Stage A0 acc_larger_a0 (exponent compare CARRY4, fo=64) gets
+// (* max_fanout = 16 *) synthesis attribute.  Synthesis creates ~4 CARRY4
+// replicas each driving ≤16 endpoints, reducing the routing budget from
+// 0.544 ns (fo=64, critical in Run 41) to ~0.150 ns per copy.
+// Run 40 fix: Stage A1 registers both the alignment result AND all three
+// pre-computed arithmetic results (sub_big_minus_small, sub_small_minus_big,
+// add_result, big_ge_small) computed combinationally from Stage A0 FDRE outputs.
+// This structurally cuts the critical path:
+//   OLD (9 levels): big_man_r → CARRY4×2 (cmp) → fo=26 → CARRY4×5 (sub) → B1
+//   NEW (Stage A0→A1 CARRY4 chains start from A0 FDREs; Stage A1→B1 is MUX only)
+// All CARRY4 chains start from registered FDREs — no cascade across stages.
 //
 // Back-to-back acc_en forwarding:
-//   acc_en_d4 asserted (Stage C about to fire) → Stage A0 uses partial_sum_r.
+//   acc_en_d5 asserted (Stage C about to fire) → Stage A0 uses partial_sum_r.
 //   (Otherwise)                                → Stage A0 uses acc_reg.
 //
 // Uses a simplified float32 add: aligns mantissas by exponent difference,
@@ -40,21 +49,22 @@ module fp32_acc (
     // Stage B2 register (sum result from normalise, feeds Stage C)
     float32_t partial_sum_r;
     // Delayed enables: drive pipelined stages
-    logic     acc_en_d1;  // 1 cycle after acc_en  → Stage A1 fires
-    logic     acc_en_d2;  // 2 cycles after acc_en → Stage B1 fires
-    logic     acc_en_d3;  // 3 cycles after acc_en → Stage B2 fires
-    logic     acc_en_d4;  // 4 cycles after acc_en → Stage C fires
+    logic     acc_en_d1;  // 1 cycle after acc_en  → Stage A0.5 fires
+    logic     acc_en_d2;  // 2 cycles after acc_en → Stage A1 fires
+    logic     acc_en_d3;  // 3 cycles after acc_en → Stage B1 fires
+    logic     acc_en_d4;  // 4 cycles after acc_en → Stage B2 fires
+    logic     acc_en_d5;  // 5 cycles after acc_en → Stage C fires
 
     // -------------------------------------------------------------------
     // Forwarding mux: decide which accumulated value to use as the
     // feedback operand entering Stage A0.
-    //   - acc_en_d4: Stage C is about to register partial_sum_r, so the
+    //   - acc_en_d5: Stage C is about to register partial_sum_r, so the
     //     most recent committed sum is still in partial_sum_r.
     //   - Otherwise: acc_reg holds the most recent committed sum.
     // This eliminates the RAW hazard on consecutive acc_en pulses.
     // -------------------------------------------------------------------
     float32_t acc_fb;
-    assign acc_fb = acc_en_d4 ? partial_sum_r : acc_reg;
+    assign acc_fb = acc_en_d5 ? partial_sum_r : acc_reg;
 
     // -------------------------------------------------------------------
     // Stage A0 combinational: decompose operands, compare exponents
@@ -64,7 +74,10 @@ module fp32_acc (
     logic [7:0]  acc_exp_a0,  add_exp_a0;
     logic [23:0] acc_man_a0,  add_man_a0;
     logic        acc_zero_a0, add_zero_a0;
-    logic        acc_larger_a0;
+    // max_fanout=16: synthesis replicates this CARRY4 chain into ~4 copies,
+    // each driving ≤16 of the 64 Stage-A0 register endpoints.  This cuts the
+    // fo=64 routing (0.544 ns in Run 41) to ≤0.15 ns per replica.
+    (* max_fanout = 16 *) logic acc_larger_a0;
     logic [23:0] big_man_a0,  small_man_a0;
     logic        big_sign_a0;
     logic [7:0]  big_exp_a0;
@@ -84,15 +97,17 @@ module fp32_acc (
 
         acc_larger_a0 = (acc_exp_a0 >= add_exp_a0);
 
-        if (acc_larger_a0) begin
-            big_exp_a0   = acc_exp_a0;  big_man_a0   = acc_man_a0;
-            big_sign_a0  = acc_sign_a0; small_man_a0 = add_man_a0;
-        end else begin
-            big_exp_a0   = add_exp_a0;  big_man_a0   = add_man_a0;
-            big_sign_a0  = add_sign_a0; small_man_a0 = acc_man_a0;
-        end
+        small_man_a0 = acc_larger_a0 ? add_man_a0  : acc_man_a0;
+        big_man_a0   = acc_larger_a0 ? acc_man_a0  : add_man_a0;
+        big_sign_a0  = acc_larger_a0 ? acc_sign_a0 : add_sign_a0;
+        big_exp_a0   = acc_larger_a0 ? acc_exp_a0  : add_exp_a0;
 
-        exp_diff_a0 = big_exp_a0 - (acc_larger_a0 ? add_exp_a0 : acc_exp_a0);
+        // Run 27 fix: compute both possible differences in parallel (no serial
+        // dependency on acc_larger_a0), then MUX the result.  Breaks the
+        // compare-CARRY4 → serial-subtract-CARRY4 chain (7 LUT/CARRY4 levels,
+        // −0.327 ns WNS) into compare-CARRY4 + MUX-LUT (3 levels).
+        exp_diff_a0 = acc_larger_a0 ? (acc_exp_a0 - add_exp_a0)
+                                    : (add_exp_a0 - acc_exp_a0);
         eff_sub_a0  = acc_sign_a0 ^ add_sign_a0;
     end
 
@@ -135,21 +150,79 @@ module fp32_acc (
     end
 
     // -------------------------------------------------------------------
-    // Stage A1 combinational: mantissa alignment (barrel shift)
-    // Input: Stage A0 registers; no feedback from acc_reg.
+    // Stage A0.5 combinational: barrel-shift only (no arithmetic)
+    // Input: Stage A0 registers (small_man_r0, exp_diff_r0)
+    // Separating the shift from the CARRY4 arithmetic breaks the 11-level
+    // critical path into two ~5-level chains.
     // -------------------------------------------------------------------
-    logic [23:0] aligned_small_man_a1;
+    logic [23:0] aligned_small_man_a05;
 
     always_comb begin
         if (exp_diff_r0 > 8'd24)
-            aligned_small_man_a1 = 24'b0;
+            aligned_small_man_a05 = 24'b0;
         else
-            aligned_small_man_a1 = small_man_r0 >> exp_diff_r0;
+            aligned_small_man_a05 = small_man_r0 >> exp_diff_r0;
     end
 
-    // Stage A1 registers (capture alignment result; fires on acc_en_d1)
-    logic [23:0] big_man_r;
-    logic [23:0] aligned_small_r;
+    // Stage A0.5 registers (barrel-shift result + sidecar; fires on acc_en_d1)
+    logic [23:0] aligned_small_man_r05;
+    logic [23:0] big_man_r05;
+    logic        big_sign_r05;
+    logic [7:0]  big_exp_r05;
+    logic        eff_sub_r05;
+    logic        acc_zero_r05;
+    logic        add_zero_r05;
+    float32_t    addend_r05;
+    float32_t    acc_fb_r05;
+
+    always_ff @(posedge clk) begin
+        if (rst || acc_clear) begin
+            aligned_small_man_r05 <= 24'b0;
+            big_man_r05           <= 24'b0;
+            big_sign_r05          <= 1'b0;
+            big_exp_r05           <= 8'b0;
+            eff_sub_r05           <= 1'b0;
+            acc_zero_r05          <= 1'b1;
+            add_zero_r05          <= 1'b1;
+            addend_r05            <= 32'b0;
+            acc_fb_r05            <= 32'b0;
+        end else if (acc_en_d1) begin
+            aligned_small_man_r05 <= aligned_small_man_a05;
+            big_man_r05           <= big_man_r0;
+            big_sign_r05          <= big_sign_r0;
+            big_exp_r05           <= big_exp_r0;
+            eff_sub_r05           <= eff_sub_r0;
+            acc_zero_r05          <= acc_zero_r0;
+            add_zero_r05          <= add_zero_r0;
+            addend_r05            <= addend_r0;
+            acc_fb_r05            <= acc_fb_r0;
+        end
+    end
+
+    // -------------------------------------------------------------------
+    // Stage A1 combinational: pre-compute arithmetic from A0.5 FDREs
+    // Input: Stage A0.5 registers only — barrel shift already done.
+    // All three arithmetic results (CARRY4) start from registered FDREs.
+    // -------------------------------------------------------------------
+    logic [24:0] sub_bms_a1;      // {1'b0,big_man_r05} - {1'b0,aligned_small_man_r05}
+    logic [24:0] sub_smb_a1;      // {1'b0,aligned_small_man_r05} - {1'b0,big_man_r05}
+    logic [24:0] add_a1;          // {1'b0,big_man_r05} + {1'b0,aligned_small_man_r05}
+    logic        big_ge_small_a1; // big_man_r05 >= aligned_small_man_r05
+
+    always_comb begin
+        sub_bms_a1      = {1'b0, big_man_r05} - {1'b0, aligned_small_man_r05};
+        sub_smb_a1      = {1'b0, aligned_small_man_r05} - {1'b0, big_man_r05};
+        add_a1          = {1'b0, big_man_r05} + {1'b0, aligned_small_man_r05};
+        big_ge_small_a1 = (big_man_r05 >= aligned_small_man_r05);
+    end
+
+    // Stage A1 registers (capture pre-computed arithmetic; fires on acc_en_d2)
+    // Run 39: registering sub_bms_r/sub_smb_r/add_r/big_ge_small_r here cuts the
+    // critical path: Stage A1→B1 is a pure MUX (no CARRY4).
+    logic [24:0] sub_bms_r;      // registered: big - small
+    logic [24:0] sub_smb_r;      // registered: small - big
+    logic [24:0] add_r;          // registered: big + small
+    logic        big_ge_small_r; // registered: big >= small
     logic        big_sign_r;
     logic        eff_sub_r;
     logic [7:0]  big_exp_r;
@@ -160,8 +233,10 @@ module fp32_acc (
 
     always_ff @(posedge clk) begin
         if (rst || acc_clear) begin
-            big_man_r      <= 24'b0;
-            aligned_small_r <= 24'b0;
+            sub_bms_r      <= 25'b0;
+            sub_smb_r      <= 25'b0;
+            add_r          <= 25'b0;
+            big_ge_small_r <= 1'b0;
             big_sign_r     <= 1'b0;
             eff_sub_r      <= 1'b0;
             big_exp_r      <= 8'b0;
@@ -169,21 +244,25 @@ module fp32_acc (
             add_zero_r     <= 1'b1;
             addend_r       <= 32'b0;
             acc_fb_r       <= 32'b0;
-        end else if (acc_en_d1) begin
-            big_man_r      <= big_man_r0;
-            aligned_small_r <= aligned_small_man_a1;
-            big_sign_r     <= big_sign_r0;
-            eff_sub_r      <= eff_sub_r0;
-            big_exp_r      <= big_exp_r0;
-            acc_zero_r     <= acc_zero_r0;
-            add_zero_r     <= add_zero_r0;
-            addend_r       <= addend_r0;
-            acc_fb_r       <= acc_fb_r0;
+        end else if (acc_en_d2) begin
+            sub_bms_r      <= sub_bms_a1;
+            sub_smb_r      <= sub_smb_a1;
+            add_r          <= add_a1;
+            big_ge_small_r <= big_ge_small_a1;
+            big_sign_r     <= big_sign_r05;
+            eff_sub_r      <= eff_sub_r05;
+            big_exp_r      <= big_exp_r05;
+            acc_zero_r     <= acc_zero_r05;
+            add_zero_r     <= add_zero_r05;
+            addend_r       <= addend_r05;
+            acc_fb_r       <= acc_fb_r05;
         end
     end
 
     // -------------------------------------------------------------------
-    // Stage B1 registers (raw adder output; fires on acc_en_d2)
+    // Stage B1 registers (pure MUX-select; fires on acc_en_d3)
+    // Run 39: uses pre-computed sub_bms_r/sub_smb_r/add_r/big_ge_small_r
+    // from Stage A1. No CARRY4 on the critical path.
     // -------------------------------------------------------------------
     logic [24:0] sum_man_b1_r;    // raw 25-bit mantissa sum/difference
     logic        sum_sign_b1_r;   // sign of result
@@ -204,7 +283,7 @@ module fp32_acc (
             add_zero_b1_r  <= 1'b1;
             addend_b1_r    <= 32'b0;
             acc_fb_b1_r    <= 32'b0;
-        end else if (acc_en_d2) begin
+        end else if (acc_en_d3) begin
             sum_exp_b1_r   <= big_exp_r;
             both_zero_b1_r <= acc_zero_r && add_zero_r;
             acc_zero_b1_r  <= acc_zero_r;
@@ -212,15 +291,15 @@ module fp32_acc (
             addend_b1_r    <= addend_r;
             acc_fb_b1_r    <= acc_fb_r;
             if (eff_sub_r) begin
-                if (big_man_r >= aligned_small_r) begin
-                    sum_man_b1_r  <= {1'b0, big_man_r} - {1'b0, aligned_small_r};
+                if (big_ge_small_r) begin
+                    sum_man_b1_r  <= sub_bms_r;
                     sum_sign_b1_r <= big_sign_r;
                 end else begin
-                    sum_man_b1_r  <= {1'b0, aligned_small_r} - {1'b0, big_man_r};
+                    sum_man_b1_r  <= sub_smb_r;
                     sum_sign_b1_r <= !big_sign_r;
                 end
             end else begin
-                sum_man_b1_r  <= {1'b0, big_man_r} + {1'b0, aligned_small_r};
+                sum_man_b1_r  <= add_r;
                 sum_sign_b1_r <= big_sign_r;
             end
         end
@@ -284,19 +363,21 @@ module fp32_acc (
             acc_en_d2 <= 1'b0;
             acc_en_d3 <= 1'b0;
             acc_en_d4 <= 1'b0;
+            acc_en_d5 <= 1'b0;
         end else begin
             acc_en_d1 <= acc_en;
             acc_en_d2 <= acc_en_d1;
             acc_en_d3 <= acc_en_d2;
             acc_en_d4 <= acc_en_d3;
+            acc_en_d5 <= acc_en_d4;
         end
     end
 
-    // Stage B2 register: capture normalised sum (fires on acc_en_d3)
+    // Stage B2 register: capture normalised sum (fires on acc_en_d4)
     always_ff @(posedge clk) begin
         if (rst || acc_clear)
             partial_sum_r <= 32'b0;
-        else if (acc_en_d3)
+        else if (acc_en_d4)
             partial_sum_r <= sum_result_b2;
     end
 
@@ -304,7 +385,7 @@ module fp32_acc (
     always_ff @(posedge clk) begin
         if (rst || acc_clear)
             acc_reg <= 32'b0;
-        else if (acc_en_d4)
+        else if (acc_en_d5)
             acc_reg <= partial_sum_r;
     end
 

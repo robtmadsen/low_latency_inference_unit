@@ -5,7 +5,8 @@ Clock: 3 ns (≈333 MHz — fast enough to probe 300/250 MHz timing)
 Spec ref: .github/arch/kintex-7/Kintex-7_MAS.md §2.4 (CAM implementation)
 
 Performance contract (MAS §2.4):
-  stock_valid → watchlist_hit: exactly 1 cycle
+  stock_valid → watchlist_hit: exactly 3 cycles (pipeline stages 1-3 for
+  312.5 MHz timing closure; lliu_top_v2 compensates with fields_valid_d3).
 
 All tests use SymbolFilterChecker to verify protocol compliance on every pulse.
 """
@@ -78,9 +79,11 @@ async def test_empty_cam_no_hit(dut):
 
     for sym in ["AAPL    ", "MSFT    ", "GOOG    "]:
         await _present(dut, _stock_int(sym))
-        await RisingEdge(dut.clk)   # let hit register
+        for _ in range(3):
+            await RisingEdge(dut.clk)   # 3-cycle pipeline flush
 
-    await RisingEdge(dut.clk)
+    for _ in range(3):
+        await RisingEdge(dut.clk)
     chk.stop()
     chk.assert_no_errors()
     assert int(dut.watchlist_hit.value) == 0, "watchlist_hit unexpectedly set after idle"
@@ -103,7 +106,8 @@ async def test_single_entry_hit(dut):
     await RisingEdge(dut.clk)
     dut.stock_valid.value = 0
 
-    await RisingEdge(dut.clk)   # result cycle
+    for _ in range(3):
+        await RisingEdge(dut.clk)   # 3-cycle pipeline
     hit = int(dut.watchlist_hit.value)
     assert hit == 1, f"Expected watchlist_hit=1 for AAPL, got {hit}"
 
@@ -123,7 +127,8 @@ async def test_single_entry_miss(dut):
     await _cam_write(dut, 0, key, en_bit=1)
     await _present(dut, _stock_int("MSFT    "))
 
-    await RisingEdge(dut.clk)
+    for _ in range(3):
+        await RisingEdge(dut.clk)
     hit = int(dut.watchlist_hit.value)
     assert hit == 0, f"Expected watchlist_hit=0 for MSFT (only AAPL loaded), got {hit}"
 
@@ -144,7 +149,8 @@ async def test_entry_invalidate(dut):
     await _cam_write(dut, 0, key, en_bit=1)
 
     await _present(dut, key)
-    await RisingEdge(dut.clk)
+    for _ in range(3):
+        await RisingEdge(dut.clk)
     assert int(dut.watchlist_hit.value) == 1, "Should hit before invalidation"
 
     # Invalidate — same index, en_bit=0
@@ -152,7 +158,8 @@ async def test_entry_invalidate(dut):
     await _cam_write(dut, 0, key, en_bit=0)
 
     await _present(dut, key)
-    await RisingEdge(dut.clk)
+    for _ in range(3):
+        await RisingEdge(dut.clk)
     assert int(dut.watchlist_hit.value) == 0, "Should miss after invalidation"
 
     chk.stop()
@@ -177,12 +184,14 @@ async def test_overwrite_entry(dut):
 
     # AAPL should now miss
     await _present(dut, key_aapl)
-    await RisingEdge(dut.clk)
+    for _ in range(3):
+        await RisingEdge(dut.clk)
     assert int(dut.watchlist_hit.value) == 0, "AAPL should miss after overwrite"
 
     # MSFT should now hit
     await _present(dut, key_msft)
-    await RisingEdge(dut.clk)
+    for _ in range(3):
+        await RisingEdge(dut.clk)
     assert int(dut.watchlist_hit.value) == 1, "MSFT should hit after overwrite"
 
     chk.stop()
@@ -209,7 +218,8 @@ async def test_all_64_entries_hit(dut):
         dut.stock_valid.value = 1
         await RisingEdge(dut.clk)
         dut.stock_valid.value = 0
-        await RisingEdge(dut.clk)
+        for _ in range(3):
+            await RisingEdge(dut.clk)
         assert int(dut.watchlist_hit.value) == 1, \
             f"Expected hit for {sym_bytes}, got 0"
 
@@ -219,7 +229,7 @@ async def test_all_64_entries_hit(dut):
 
 @cocotb.test()
 async def test_back_to_back(dut):
-    """10 consecutive stock_valid pulses (alternating hit/miss); latency=1 every time."""
+    """10 stock_valid pulses (alternating hit/miss); 3-cycle pipeline between each."""
     await _reset(dut)
     key_hit = _stock_int("NVDA    ")
     key_miss = _stock_int("ZZZZ    ")
@@ -237,7 +247,8 @@ async def test_back_to_back(dut):
         dut.stock_valid.value = 1
         await RisingEdge(dut.clk)
         dut.stock_valid.value = 0
-        await RisingEdge(dut.clk)
+        for _ in range(3):          # wait full 3-cycle pipeline before sampling
+            await RisingEdge(dut.clk)
         results.append(int(dut.watchlist_hit.value))
 
     for i, r in enumerate(results):
@@ -249,8 +260,8 @@ async def test_back_to_back(dut):
 
 
 @cocotb.test()
-async def test_1_cycle_latency(dut):
-    """MAS §2.4 performance assertion: stock_valid → watchlist_hit = exactly 1 cycle."""
+async def test_3_cycle_latency(dut):
+    """MAS §2.4: watchlist_hit arrives 3 cycles after stock_valid (pipeline stages 1-3 for 312.5 MHz timing closure)."""
     await _reset(dut)
     key = _stock_int("AMD     ")
     await _cam_write(dut, 5, key, en_bit=1)
@@ -261,10 +272,11 @@ async def test_1_cycle_latency(dut):
     await RisingEdge(dut.clk)
     dut.stock_valid.value = 0
 
-    # Hit should appear on very next rising edge (cycle 1)
-    await RisingEdge(dut.clk)
+    # Hit should appear exactly 3 rising edges later
+    for _ in range(3):
+        await RisingEdge(dut.clk)
     hit = int(dut.watchlist_hit.value)
-    assert hit == 1, f"Expected watchlist_hit=1 exactly 1 cycle after stock_valid, got {hit}"
+    assert hit == 1, f"Expected watchlist_hit=1 exactly 3 cycles after stock_valid, got {hit}"
 
     # Confirm it clears on the following cycle (no hold)
     await RisingEdge(dut.clk)
@@ -302,10 +314,10 @@ async def test_write_during_lookup(dut):
     # Now update checker model to reflect the write
     chk.add_cam_entry(3, b"META    ", enabled=True)
 
-    # Wait for result — the DUT will assert watchlist_hit based on whether IBM
-    # was still in the CAM at the time of the lookup (implementation-defined).
+    # Wait for result — 3-cycle pipeline; result appears 3 cycles after stock_valid.
     # Either 0 or 1 is acceptable here; we just check the checker sees no glitch.
-    await RisingEdge(dut.clk)
+    for _ in range(3):
+        await RisingEdge(dut.clk)
 
     chk.stop()
     # We intentionally don't call assert_no_errors() here — the RAW outcome

@@ -1,9 +1,9 @@
 // order_book.sv — BRAM-backed L3 order book for LLIU v2.0 Phase 1
 //
 // Resources (xc7k160tffg676-2 estimates):
-//   book_mem : 500×2×16 × 56b ≈ 28 BRAM18 (inference)
-//   ref_mem  : 32K × 128b ≈ 228 BRAM18   (inference)
-//   bbo_*_r  : 500 × 4 × 32b + 2 × 24b = FF arrays
+//   book_mem : 4 levels × 128 entries × 56b ≈ 448 LUTs (LUTRAM)
+//   ref_mem  : 8K × 128b ≈ 57 BRAM18   (inference)
+//   bbo_*_r  : 64 × 4 × 32b + 2 × 24b = FF arrays
 //
 // Phase 1 BBO simplification:
 //   Add  : update BBO if new order is better
@@ -32,17 +32,17 @@ module order_book (
     input  logic [31:0] shares,        // [31:24] reserved, only [23:0] used
 /* verilator lint_on UNUSEDSIGNAL */
     input  logic        side,          // 1=bid, 0=ask
-    input  logic [8:0]  sym_id,        // 0-499
+    input  logic [OB_SYM_ID_W-1:0] sym_id,  // 0..OB_NUM_SYMBOLS-1
     input  logic        fields_valid,
     // BBO combinatorial query (1-cycle FF latency)
-    input  logic [8:0]  bbo_query_sym,
+    input  logic [OB_SYM_ID_W-1:0] bbo_query_sym,
     output logic [31:0] bbo_bid_price,
     output logic [31:0] bbo_ask_price,
     output logic [23:0] bbo_bid_size,
     output logic [23:0] bbo_ask_size,
     // BBO update notification (1-cycle pulse)
     output logic        bbo_valid,
-    output logic [8:0]  bbo_sym_id,
+    output logic [OB_SYM_ID_W-1:0] bbo_sym_id,
     // L2 book levels (registered, 1-cycle latency, follows bbo_query_sym)
     // Levels 0-3 per side in insertion order (not price-sorted in Phase 1)
     output logic [31:0] l2_bid_price [0:3],
@@ -73,23 +73,26 @@ endfunction
 // ---------------------------------------------------------------------------
 // Storage
 // ---------------------------------------------------------------------------
-// book_mem: 500 symbols × 2 sides × 16 price levels
+// book_mem: OB_LEVELS levels × (OB_NUM_SYMBOLS × 2 sides) entries × 56 bits
 // Entry: {price[31:0], shares[23:0]} = 56 bits
+// Restructured from 3D to 2D: Vivado infers OB_LEVELS separate LUTRAMs.
+// S_SCAN_BOOK reads one entry per level per cycle across all LUTRAMs
+// simultaneously — 1 read port per LUTRAM, no multi-port conflicts.
+// 4 × 128 × 56b = 28 Kbits ≈ 448 LUTs (distributed RAM).
 /* verilator lint_off UNOPTFLAT */
-(* ram_style = "block" *) logic [55:0] book_mem [0:OB_NUM_SYMBOLS-1][0:1][0:OB_LEVELS-1];
+(* ram_style = "distributed" *) logic [55:0] book_mem [0:OB_LEVELS-1][0:(OB_NUM_SYMBOLS*2-1)];
 
-// ref_mem: 2^OB_REF_TABLE_BITS = 32768 entries, 128 bits wide
+// ref_mem: 2^OB_REF_TABLE_BITS = 8192 entries, 128 bits wide
 // Layout: [127]=valid, [126:63]=order_ref(64b), [62:31]=price(32b), [30:7]=shares(24b),
 //         [6]=side, [5:0]=reserved
 (* ram_style = "block" *) logic [127:0] ref_mem [0:(1<<OB_REF_TABLE_BITS)-1];
 /* verilator lint_on UNOPTFLAT */
 
 // l2_cache: shadow of book_mem levels 0-3 per side per symbol.
-// No ram_style → Vivado infers LUTRAM (distributed RAM).
-// 500 × 2 sides × 4 levels × 56 bits = 224 Kbits ≈ 3.5 K LUTs.
-// Mirrors every book_mem write where target_level < 4, enabling 8 simultaneous
-// reads per cycle from the L2 query block without multi-port BRAM conflicts.
-logic [55:0] l2_cache [0:OB_NUM_SYMBOLS-1][0:1][0:3];
+// With OB_LEVELS=4, l2_cache mirrors book_mem exactly — kept for interface
+// consistency with the L2 query path.
+// 4 × 128 × 56b = 28 Kbits ≈ 448 LUTs (distributed RAM).
+logic [55:0] l2_cache [0:3][0:(OB_NUM_SYMBOLS*2-1)];
 
 // BBO registers — kept as flip-flops for single-cycle registered read
 logic [31:0] bbo_bid_price_r [0:OB_NUM_SYMBOLS-1];
@@ -100,15 +103,18 @@ logic [23:0] bbo_ask_size_r  [0:OB_NUM_SYMBOLS-1];
 // ---------------------------------------------------------------------------
 // FSM state
 // ---------------------------------------------------------------------------
-typedef enum logic [2:0] {
-    S_IDLE      = 3'd0,
-    S_READ_REF1 = 3'd1,
-    S_READ_REF2 = 3'd2,
-    S_PROCESS   = 3'd3,
-    S_SCAN_BOOK = 3'd4,
-    S_UPDATE    = 3'd5,
-    S_DONE      = 3'd6,
-    S_UPDATE2   = 3'd7  // Replace only: second write to invalidate old hash slot
+typedef enum logic [3:0] {
+    S_IDLE      = 4'd0,
+    S_READ_REF1 = 4'd1,
+    S_READ_REF2 = 4'd2,
+    S_PROCESS   = 4'd3,
+    S_SCAN_BOOK = 4'd4,
+    S_UPDATE    = 4'd5,
+    S_DONE      = 4'd6,
+    S_UPDATE2   = 4'd7,  // Replace only: second write to invalidate old hash slot
+    S_MATCH      = 4'd8,  // Register comparison results before S_SCAN_BOOK (breaks BRAM→CE timing path)
+    S_SCAN_BOOK2 = 4'd9,  // Compare book_entry_r → match_vec (breaks MUX→compare timing path)
+    S_SCAN_BOOK3 = 4'd10  // Priority encode match_vec → target_level + BBO pre-registers
 } ob_state_t;
 
 ob_state_t state;
@@ -127,7 +133,7 @@ logic [63:0] op_new_order_ref;
 logic [31:0] op_price;
 logic [23:0] op_shares;          // truncated to 24 bits
 logic        op_side;
-logic [8:0]  op_sym_id;
+logic [OB_SYM_ID_W-1:0] op_sym_id;
 /* verilator lint_off UNUSEDSIGNAL */
 logic [16:0] op_hash;
 logic [16:0] op_new_hash;        // CRC of new_order_ref (for Replace)
@@ -148,11 +154,36 @@ logic [OB_REF_TABLE_BITS-1:0] ref_wr_addr;
 logic [127:0]                 ref_wr_data;
 
 // Scan-phase state
-logic [3:0]   target_level;
+localparam int OB_LVL_W = $clog2(OB_LEVELS);
+logic [OB_LVL_W-1:0] target_level;
 logic         target_found;
 logic [31:0]  op_ref_price;      // from ref entry
+/* verilator lint_off UNUSEDSIGNAL */
 logic [23:0]  op_ref_shares;     // from ref entry
+/* verilator lint_on UNUSEDSIGNAL */
 logic         op_ref_side;       // from ref entry
+// Pre-registered in S_PROCESS to break the fo=256 fan-out path in S_SCAN_BOOK
+logic         is_add_r;          // (op_msg_type=='A'||'F'), registered one cycle before S_SCAN_BOOK
+logic         op_book_side_r;    // is_add ? op_side : op_ref_side, registered one cycle before S_SCAN_BOOK
+// S_MATCH pipeline registers — break the BRAM-output→comparator→register-CE timing path
+logic         is_add_op_r;       // pre-registered in S_IDLE: op_msg_type is Add
+logic         ref_match_r;       // registered in S_PROCESS: ref_rd_data[127] && order_ref match
+logic         ref_empty_r;       // registered in S_PROCESS: !ref_rd_data[127]
+logic [OB_LEVELS-1:0] match_vec; // per-level match flags registered in S_SCAN_BOOK2
+logic [55:0] book_entry_r [0:OB_LEVELS-1]; // registered book_mem read data (Run 57: breaks MUX→compare timing path)
+logic [23:0] new_sh_r;      // pre-registered in S_PROCESS: max(op_ref_shares-op_shares, 0)
+logic        new_sh_zero_r; // pre-registered in S_PROCESS: new_sh would be zero (fully consumed)
+// BBO comparison pre-registers — breaks 64-entry mux + 32-bit compare out of S_UPDATE
+logic [31:0] bbo_bid_price_snap_r; // registered in S_SCAN_BOOK: bbo_bid_price_r[op_sym_id]
+logic [31:0] bbo_ask_price_snap_r; // registered in S_SCAN_BOOK: bbo_ask_price_r[op_sym_id]
+/* verilator lint_off UNUSEDSIGNAL */
+logic [23:0] bbo_bid_size_snap_r;  // registered in S_SCAN_BOOK: bbo_bid_size_r[op_sym_id]
+logic [23:0] bbo_ask_size_snap_r;  // registered in S_SCAN_BOOK: bbo_ask_size_r[op_sym_id]
+/* verilator lint_on UNUSEDSIGNAL */
+logic        bbo_bid_better_r;     // registered in S_SCAN_BOOK2: op_price > bbo_bid_price_snap_r
+logic        bbo_ask_better_r;     // registered in S_SCAN_BOOK2: bbo_ask==0 || op_price < bbo_ask_price_snap_r
+logic        bbo_ref_eq_bid_r;     // registered in S_SCAN_BOOK2: op_ref_price == bbo_bid_price_snap_r
+logic        bbo_ref_eq_ask_r;     // registered in S_SCAN_BOOK2: op_ref_price == bbo_ask_price_snap_r
 
 // BBO update helpers
 assign book_ready = (state == S_IDLE);
@@ -174,10 +205,10 @@ end
 // ---------------------------------------------------------------------------
 always_ff @(posedge clk) begin
     for (int k = 0; k < 4; k++) begin
-        l2_bid_price[k] <= l2_cache[bbo_query_sym][1][k][55:24];
-        l2_bid_size[k]  <= l2_cache[bbo_query_sym][1][k][23:0];
-        l2_ask_price[k] <= l2_cache[bbo_query_sym][0][k][55:24];
-        l2_ask_size[k]  <= l2_cache[bbo_query_sym][0][k][23:0];
+        l2_bid_price[k] <= l2_cache[k][{bbo_query_sym, 1'b1}][55:24];
+        l2_bid_size[k]  <= l2_cache[k][{bbo_query_sym, 1'b1}][23:0];
+        l2_ask_price[k] <= l2_cache[k][{bbo_query_sym, 1'b0}][55:24];
+        l2_ask_size[k]  <= l2_cache[k][{bbo_query_sym, 1'b0}][23:0];
     end
 end
 
@@ -201,14 +232,14 @@ always_ff @(posedge clk) begin
         collision_count <= 32'h0;
         collision_flag  <= 1'b0;
         bbo_valid       <= 1'b0;
-        bbo_sym_id      <= 9'h0;
+        bbo_sym_id      <= '0;
         op_msg_type     <= 8'h0;
         op_order_ref    <= 64'h0;
         op_new_order_ref<= 64'h0;
         op_price        <= 32'h0;
         op_shares       <= 24'h0;
         op_side         <= 1'b0;
-        op_sym_id       <= 9'h0;
+        op_sym_id       <= '0;
         op_hash         <= 17'h0;
         op_new_hash     <= 17'h0;
         probe_cnt       <= 3'd0;
@@ -218,11 +249,28 @@ always_ff @(posedge clk) begin
         ref_wr_en       <= 1'b0;
         ref_wr_addr     <= '0;
         ref_wr_data     <= 128'h0;
-        target_level    <= 4'h0;
+        target_level    <= '0;
         target_found    <= 1'b0;
         op_ref_price    <= 32'h0;
         op_ref_shares   <= 24'h0;
         op_ref_side     <= 1'b0;
+        is_add_r        <= 1'b0;
+        op_book_side_r  <= 1'b0;
+        is_add_op_r     <= 1'b0;
+        ref_match_r     <= 1'b0;
+        ref_empty_r     <= 1'b0;
+        match_vec       <= '0;
+        for (int k = 0; k < OB_LEVELS; k++) book_entry_r[k] <= 56'h0;
+        new_sh_r        <= 24'h0;
+        new_sh_zero_r   <= 1'b0;
+        bbo_bid_price_snap_r <= 32'h0;
+        bbo_ask_price_snap_r <= 32'h0;
+        bbo_bid_size_snap_r  <= 24'h0;
+        bbo_ask_size_snap_r  <= 24'h0;
+        bbo_bid_better_r     <= 1'b0;
+        bbo_ask_better_r     <= 1'b0;
+        bbo_ref_eq_bid_r     <= 1'b0;
+        bbo_ref_eq_ask_r     <= 1'b0;
         for (bbo_init_i = 0; bbo_init_i < OB_NUM_SYMBOLS; bbo_init_i = bbo_init_i + 1) begin
             bbo_bid_price_r[bbo_init_i] <= 32'h0;
             bbo_ask_price_r[bbo_init_i] <= 32'h0;
@@ -251,6 +299,7 @@ always_ff @(posedge clk) begin
                     op_hash          <= crc17(order_ref);
                     op_new_hash      <= crc17(new_order_ref);
                     probe_cnt        <= 3'd0;
+                    is_add_op_r      <= (msg_type == 8'h41) || (msg_type == 8'h46);
 
                     // Route based on message type
                     case (msg_type)
@@ -287,56 +336,65 @@ always_ff @(posedge clk) begin
 
             // ------------------------------------------------------------------
             S_PROCESS: begin
-                // For Add ops: probe for an empty slot (valid=0) or the same order_ref
-                // (duplicate add, which should overwrite).
-                // For modify ops: probe for the matching order_ref.
-                begin
-                    automatic logic is_add;
-                    is_add = (op_msg_type == 8'h41) || (op_msg_type == 8'h46);
+                // Register all BRAM-derived comparison results so S_MATCH uses
+                // only FDREs, breaking the BRAM-output→64b-comparator→register-CE
+                // timing path that caused WNS = -1.921 ns.
+                ref_match_r    <= ref_rd_data[127] && (ref_rd_data[126:63] == op_order_ref);
+                ref_empty_r    <= !ref_rd_data[127];
+                // Unconditionally latch ref fields (only used on modify path)
+                op_ref_side   <= ref_rd_data[6];
+                op_ref_price  <= ref_rd_data[62:31];
+                op_ref_shares <= ref_rd_data[30:7];
+                // Pre-latch resolved address (only used when match succeeds)
+                op_resolved_addr <= ref_rd_addr;
+                // Pre-register new_sh for Cancel/Execute paths (breaks 24-bit CARRY chain in S_UPDATE)
+                new_sh_r      <= (ref_rd_data[30:7] > op_shares) ?
+                                 (ref_rd_data[30:7] - op_shares) : 24'h0;
+                new_sh_zero_r <= !(ref_rd_data[30:7] > op_shares);
+                state <= S_MATCH;
+            end
 
-                    if (is_add) begin
-                        // Add: accept this slot if empty, or if order_ref already here
-                        if (!ref_rd_data[127] ||
-                            (ref_rd_data[127] && ref_rd_data[126:63] == op_order_ref)) begin
-                            // Found: record resolved address and proceed to book scan
-                            op_resolved_addr <= ref_rd_addr;
-                            state            <= S_SCAN_BOOK;
-                        end else begin
-                            // Slot occupied by a different order — probe next slot
-                            if (probe_cnt == 3'(OB_MAX_PROBE)) begin
-                                // Table full within probe range — drop silently
-                                collision_flag  <= 1'b1;
-                                collision_count <= collision_count + 32'h1;
-                                state           <= S_DONE;
-                            end else begin
-                                probe_cnt <= probe_cnt + 3'd1;
-                                state     <= S_READ_REF1;
-                            end
-                        end
+            // ------------------------------------------------------------------
+            // S_MATCH: all inputs are FDREs (no BRAM combinational dependency).
+            // Decides proceed-to-S_SCAN_BOOK vs. probe-next-slot vs. drop.
+            // ------------------------------------------------------------------
+            S_MATCH: begin
+                if (is_add_op_r) begin
+                    // Add: accept slot if empty OR same order_ref (duplicate overwrite)
+                    if (ref_empty_r || ref_match_r) begin
+                        is_add_r       <= 1'b1;
+                        op_book_side_r <= op_side;
+                        state          <= S_SCAN_BOOK;
                     end else begin
-                        // Modify: latch ref entry fields from the probed slot
-                        op_ref_side   <= ref_rd_data[6];
-                        op_ref_price  <= ref_rd_data[62:31];
-                        op_ref_shares <= ref_rd_data[30:7];
-
-                        if (!ref_rd_data[127]) begin
-                            // Slot empty — order not in table, drop silently
-                            state <= S_DONE;
-                        end else if (ref_rd_data[126:63] == op_order_ref) begin
-                            // Exact match — record slot and proceed
-                            op_resolved_addr <= ref_rd_addr;
-                            state            <= S_SCAN_BOOK;
-                        end else begin
-                            // Collision: valid entry for a different order_ref
+                        // Slot occupied by different order — probe next slot
+                        if (probe_cnt == 3'(OB_MAX_PROBE)) begin
                             collision_flag  <= 1'b1;
                             collision_count <= collision_count + 32'h1;
-                            if (probe_cnt == 3'(OB_MAX_PROBE)) begin
-                                // Exceeded probe depth — drop operation
-                                state <= S_DONE;
-                            end else begin
-                                probe_cnt <= probe_cnt + 3'd1;
-                                state     <= S_READ_REF1;
-                            end
+                            state           <= S_DONE;
+                        end else begin
+                            probe_cnt <= probe_cnt + 3'd1;
+                            state     <= S_READ_REF1;
+                        end
+                    end
+                end else begin
+                    // Modify/Delete/Execute/Replace
+                    if (ref_empty_r) begin
+                        // Slot empty — order not in table, drop silently
+                        state <= S_DONE;
+                    end else if (ref_match_r) begin
+                        // Exact match — proceed with registered side from op_ref_side
+                        is_add_r       <= 1'b0;
+                        op_book_side_r <= op_ref_side; // registered in S_PROCESS, FDRE
+                        state          <= S_SCAN_BOOK;
+                    end else begin
+                        // Collision: valid entry for different order_ref
+                        collision_flag  <= 1'b1;
+                        collision_count <= collision_count + 32'h1;
+                        if (probe_cnt == 3'(OB_MAX_PROBE)) begin
+                            state <= S_DONE;
+                        end else begin
+                            probe_cnt <= probe_cnt + 3'd1;
+                            state     <= S_READ_REF1;
                         end
                     end
                 end
@@ -344,44 +402,56 @@ always_ff @(posedge clk) begin
 
             // ------------------------------------------------------------------
             S_SCAN_BOOK: begin
-                // Load all 16 levels for this symbol/side and find target level
-                // For Add ops: side = op_side; find first empty level (shares == 0)
-                // For Modify ops: side = op_ref_side; find level where price matches op_ref_price
+                // Stage 1: read book_mem entries into registers (MUX tree only, no compare).
+                // Breaking the FDRE→128:1-MUX→32b-compare→match_vec path (Run 57).
+                for (int k = 0; k < OB_LEVELS; k++) begin
+                    book_entry_r[k] <= book_mem[k][{op_sym_id, op_book_side_r}];
+                end
+                // BBO price/size snapshot — breaks 64-entry mux decode out of S_UPDATE
+                bbo_bid_price_snap_r <= bbo_bid_price_r[op_sym_id];
+                bbo_ask_price_snap_r <= bbo_ask_price_r[op_sym_id];
+                bbo_bid_size_snap_r  <= bbo_bid_size_r[op_sym_id];
+                bbo_ask_size_snap_r  <= bbo_ask_size_r[op_sym_id];
+                state <= S_SCAN_BOOK2;
+            end
+
+            // ------------------------------------------------------------------
+            S_SCAN_BOOK2: begin
+                // Stage 2: compare registered book_mem entries → match_vec.
+                // All inputs are FDREs; path depth ~4 LUTs (CARRY4 equality only).
+                for (int k = 0; k < OB_LEVELS; k++) begin
+                    if (is_add_r)
+                        match_vec[k] <= (book_entry_r[k][23:0] == 24'h0);
+                    else
+                        match_vec[k] <= (book_entry_r[k][55:24] == op_ref_price);
+                end
+                state <= S_SCAN_BOOK3;
+            end
+
+            // ------------------------------------------------------------------
+            S_SCAN_BOOK3: begin
+                // Stage 3: priority encode match_vec → target_level, target_found.
+                // All inputs are FDREs; max path depth ~3 LUTs for OB_LEVELS=4.
                 begin
-                    automatic logic        is_add;
-                    automatic logic        found;
-                    automatic logic [3:0]  lvl;
-                    automatic logic [55:0] entry;
-
-                    is_add = (op_msg_type == 8'h41) || (op_msg_type == 8'h46);
-                    found  = 1'b0;
-                    lvl    = 4'h0;
-
+                    automatic logic                found;
+                    automatic logic [OB_LVL_W-1:0] lvl;
+                    found = 1'b0;
+                    lvl   = '0;
                     for (int k = 0; k < OB_LEVELS; k++) begin
-                        automatic logic op_book_side;
-                        op_book_side = is_add ? op_side : op_ref_side;
-                        entry = book_mem[op_sym_id][op_book_side][k];
-                        if (!found) begin
-                            if (is_add) begin
-                                // First empty slot (shares field [23:0] == 0)
-                                if (entry[23:0] == 24'h0) begin
-                                    lvl   = k[3:0];
-                                    found = 1'b1;
-                                end
-                            end else begin
-                                // Price match in existing entry
-                                if (entry[55:24] == op_ref_price) begin
-                                    lvl   = k[3:0];
-                                    found = 1'b1;
-                                end
-                            end
+                        if (!found && match_vec[k]) begin
+                            lvl   = OB_LVL_W'(k);
+                            found = 1'b1;
                         end
                     end
-
                     target_level <= lvl;
                     target_found <= found;
                 end
-
+                // BBO comparison pre-registers
+                bbo_bid_better_r <= (op_price > bbo_bid_price_snap_r);
+                bbo_ask_better_r <= (bbo_ask_price_snap_r == 32'h0 ||
+                                     op_price < bbo_ask_price_snap_r);
+                bbo_ref_eq_bid_r <= (op_ref_price == bbo_bid_price_snap_r);
+                bbo_ref_eq_ask_r <= (op_ref_price == bbo_ask_price_snap_r);
                 state <= S_UPDATE;
             end
 
@@ -398,22 +468,20 @@ always_ff @(posedge clk) begin
                                         op_price, op_shares, op_side, 6'h0};
                         // Write book level (+ mirror top 4 levels to l2_cache)
                         if (target_found) begin
-                            book_mem[op_sym_id][op_side][target_level] <=
+                            book_mem[target_level][{op_sym_id, op_side}] <=
                                 {op_price, op_shares};
-                            if (target_level < 4)
-                                l2_cache[op_sym_id][op_side][target_level[1:0]] <=
+                            l2_cache[target_level][{op_sym_id, op_side}] <=
                                     {op_price, op_shares};
                         end
 
                         // BBO update (Phase 1 simplified — better price wins)
                         if (op_side == 1'b1) begin // bid
-                            if (op_price > bbo_bid_price_r[op_sym_id]) begin
+                            if (bbo_bid_better_r) begin
                                 bbo_bid_price_r[op_sym_id] <= op_price;
                                 bbo_bid_size_r[op_sym_id]  <= op_shares;
                             end
                         end else begin // ask
-                            if (bbo_ask_price_r[op_sym_id] == 32'h0 ||
-                                op_price < bbo_ask_price_r[op_sym_id]) begin
+                            if (bbo_ask_better_r) begin
                                 bbo_ask_price_r[op_sym_id] <= op_price;
                                 bbo_ask_size_r[op_sym_id]  <= op_shares;
                             end
@@ -424,40 +492,34 @@ always_ff @(posedge clk) begin
                     end
 
                     // --- Order Cancel ('X') — partial share reduction ---
+                    // new_sh_r / new_sh_zero_r pre-registered in S_PROCESS (breaks CARRY-chain timing path)
                     8'h58: begin
-                        begin
-                            automatic logic [23:0] new_sh;
-                            new_sh = (op_ref_shares > op_shares) ?
-                                     (op_ref_shares - op_shares) : 24'h0;
+                        // Write ref entry to the resolved (probed) slot
+                        ref_wr_en   <= 1'b1;
+                        ref_wr_addr <= op_resolved_addr;
+                        ref_wr_data <= {1'b1, op_order_ref,
+                                        op_ref_price, new_sh_r,
+                                        op_ref_side, 6'h0};
 
-                            // Write ref entry to the resolved (probed) slot
-                            ref_wr_en   <= 1'b1;
-                            ref_wr_addr <= op_resolved_addr;
-                            ref_wr_data <= {1'b1, op_order_ref,
-                                            op_ref_price, new_sh,
-                                            op_ref_side, 6'h0};
+                        // Update book level (+ mirror l2_cache)
+                        if (target_found) begin
+                            book_mem[target_level][{op_sym_id, op_ref_side}] <=
+                                {op_ref_price, new_sh_r};
+                            l2_cache[target_level][{op_sym_id, op_ref_side}] <=
+                                    {op_ref_price, new_sh_r};
+                        end
 
-                            // Update book level (+ mirror l2_cache)
-                            if (target_found) begin
-                                book_mem[op_sym_id][op_ref_side][target_level] <=
-                                    {op_ref_price, new_sh};
-                                if (target_level < 4)
-                                    l2_cache[op_sym_id][op_ref_side][target_level[1:0]] <=
-                                        {op_ref_price, new_sh};
-                            end
-
-                            // BBO update: if share count hit 0 at BBO price → reset
-                            if (new_sh == 24'h0) begin
-                                if (op_ref_side == 1'b1) begin
-                                    if (op_ref_price == bbo_bid_price_r[op_sym_id]) begin
-                                        bbo_bid_price_r[op_sym_id] <= 32'h0;
-                                        bbo_bid_size_r[op_sym_id]  <= 24'h0;
-                                    end
-                                end else begin
-                                    if (op_ref_price == bbo_ask_price_r[op_sym_id]) begin
-                                        bbo_ask_price_r[op_sym_id] <= 32'h0;
-                                        bbo_ask_size_r[op_sym_id]  <= 24'h0;
-                                    end
+                        // BBO update: if share count hit 0 at BBO price → reset
+                        if (new_sh_zero_r) begin
+                            if (op_ref_side == 1'b1) begin
+                                if (bbo_ref_eq_bid_r) begin
+                                    bbo_bid_price_r[op_sym_id] <= 32'h0;
+                                    bbo_bid_size_r[op_sym_id]  <= 24'h0;
+                                end
+                            end else begin
+                                if (bbo_ref_eq_ask_r) begin
+                                    bbo_ask_price_r[op_sym_id] <= 32'h0;
+                                    bbo_ask_size_r[op_sym_id]  <= 24'h0;
                                 end
                             end
                         end
@@ -475,19 +537,18 @@ always_ff @(posedge clk) begin
 
                         // Zero book level (+ mirror l2_cache)
                         if (target_found) begin
-                            book_mem[op_sym_id][op_ref_side][target_level] <= 56'h0;
-                            if (target_level < 4)
-                                l2_cache[op_sym_id][op_ref_side][target_level[1:0]] <= 56'h0;
+                            book_mem[target_level][{op_sym_id, op_ref_side}] <= 56'h0;
+                            l2_cache[target_level][{op_sym_id, op_ref_side}] <= 56'h0;
                         end
 
                         // BBO update: clear BBO if this was at BBO price
                         if (op_ref_side == 1'b1) begin
-                            if (op_ref_price == bbo_bid_price_r[op_sym_id]) begin
+                            if (bbo_ref_eq_bid_r) begin
                                 bbo_bid_price_r[op_sym_id] <= 32'h0;
                                 bbo_bid_size_r[op_sym_id]  <= 24'h0;
                             end
                         end else begin
-                            if (op_ref_price == bbo_ask_price_r[op_sym_id]) begin
+                            if (bbo_ref_eq_ask_r) begin
                                 bbo_ask_price_r[op_sym_id] <= 32'h0;
                                 bbo_ask_size_r[op_sym_id]  <= 24'h0;
                             end
@@ -503,9 +564,8 @@ always_ff @(posedge clk) begin
 
                         // Zero old book level (+ mirror l2_cache)
                         if (target_found) begin
-                            book_mem[op_sym_id][op_ref_side][target_level] <= 56'h0;
-                            if (target_level < 4)
-                                l2_cache[op_sym_id][op_ref_side][target_level[1:0]] <= 56'h0;
+                            book_mem[target_level][{op_sym_id, op_ref_side}] <= 56'h0;
+                            l2_cache[target_level][{op_sym_id, op_ref_side}] <= 56'h0;
                         end
 
                         // Write new ref entry via registered write port
@@ -516,34 +576,32 @@ always_ff @(posedge clk) begin
 
                         // Reuse target_level for new entry (just zeroed → first empty)
                         if (target_found) begin
-                            book_mem[op_sym_id][op_side][target_level] <=
+                            book_mem[target_level][{op_sym_id, op_side}] <=
                                 {op_price, op_shares};
-                            if (target_level < 4)
-                                l2_cache[op_sym_id][op_side][target_level[1:0]] <=
+                            l2_cache[target_level][{op_sym_id, op_side}] <=
                                     {op_price, op_shares};
                         end
 
                         // BBO: clear old if it was at BBO price
                         if (op_ref_side == 1'b1) begin
-                            if (op_ref_price == bbo_bid_price_r[op_sym_id]) begin
+                            if (bbo_ref_eq_bid_r) begin
                                 bbo_bid_price_r[op_sym_id] <= 32'h0;
                                 bbo_bid_size_r[op_sym_id]  <= 24'h0;
                             end
                         end else begin
-                            if (op_ref_price == bbo_ask_price_r[op_sym_id]) begin
+                            if (bbo_ref_eq_ask_r) begin
                                 bbo_ask_price_r[op_sym_id] <= 32'h0;
                                 bbo_ask_size_r[op_sym_id]  <= 24'h0;
                             end
                         end
                         // BBO: apply add logic for new order
                         if (op_side == 1'b1) begin
-                            if (op_price > bbo_bid_price_r[op_sym_id]) begin
+                            if (bbo_bid_better_r) begin
                                 bbo_bid_price_r[op_sym_id] <= op_price;
                                 bbo_bid_size_r[op_sym_id]  <= op_shares;
                             end
                         end else begin
-                            if (bbo_ask_price_r[op_sym_id] == 32'h0 ||
-                                op_price < bbo_ask_price_r[op_sym_id]) begin
+                            if (bbo_ask_better_r) begin
                                 bbo_ask_price_r[op_sym_id] <= op_price;
                                 bbo_ask_size_r[op_sym_id]  <= op_shares;
                             end
@@ -554,50 +612,43 @@ always_ff @(posedge clk) begin
                     end
 
                     // --- Order Executed ('E' / 'C') — partial or full execution ---
+                    // new_sh_r / new_sh_zero_r pre-registered in S_PROCESS (breaks CARRY-chain timing path)
                     8'h45, 8'h43: begin
-                        begin
-                            automatic logic [23:0] new_sh;
-                            new_sh = (op_ref_shares > op_shares) ?
-                                     (op_ref_shares - op_shares) : 24'h0;
+                        // Write ref entry to the resolved (probed) slot
+                        ref_wr_en   <= 1'b1;
+                        ref_wr_addr <= op_resolved_addr;
 
-                            // Write ref entry to the resolved (probed) slot
-                            ref_wr_en   <= 1'b1;
-                            ref_wr_addr <= op_resolved_addr;
+                        if (new_sh_zero_r) begin
+                            // Fully executed — invalidate
+                            ref_wr_data <= 128'h0;
+                            if (target_found) begin
+                                book_mem[target_level][{op_sym_id, op_ref_side}] <= 56'h0;
+                                l2_cache[target_level][{op_sym_id, op_ref_side}] <= 56'h0;
+                            end
+                        end else begin
+                            // Partial execution — update shares
+                            ref_wr_data <= {1'b1, op_order_ref,
+                                            op_ref_price, new_sh_r,
+                                            op_ref_side, 6'h0};
+                            if (target_found) begin
+                                book_mem[target_level][{op_sym_id, op_ref_side}] <=
+                                    {op_ref_price, new_sh_r};
+                                l2_cache[target_level][{op_sym_id, op_ref_side}] <=
+                                        {op_ref_price, new_sh_r};
+                            end
+                        end
 
-                            if (new_sh == 24'h0) begin
-                                // Fully executed — invalidate
-                                ref_wr_data <= 128'h0;
-                                if (target_found) begin
-                                    book_mem[op_sym_id][op_ref_side][target_level] <= 56'h0;
-                                    if (target_level < 4)
-                                        l2_cache[op_sym_id][op_ref_side][target_level[1:0]] <= 56'h0;
+                        // BBO: if fully exec'd and was at BBO price → reset
+                        if (new_sh_zero_r) begin
+                            if (op_ref_side == 1'b1) begin
+                                if (bbo_ref_eq_bid_r) begin
+                                    bbo_bid_price_r[op_sym_id] <= 32'h0;
+                                    bbo_bid_size_r[op_sym_id]  <= 24'h0;
                                 end
                             end else begin
-                                // Partial execution — update shares
-                                ref_wr_data <= {1'b1, op_order_ref,
-                                                op_ref_price, new_sh,
-                                                op_ref_side, 6'h0};
-                                if (target_found) begin
-                                    book_mem[op_sym_id][op_ref_side][target_level] <=
-                                        {op_ref_price, new_sh};
-                                    if (target_level < 4)
-                                        l2_cache[op_sym_id][op_ref_side][target_level[1:0]] <=
-                                            {op_ref_price, new_sh};
-                                end
-                            end
-
-                            // BBO: if fully exec'd and was at BBO price → reset
-                            if (new_sh == 24'h0) begin
-                                if (op_ref_side == 1'b1) begin
-                                    if (op_ref_price == bbo_bid_price_r[op_sym_id]) begin
-                                        bbo_bid_price_r[op_sym_id] <= 32'h0;
-                                        bbo_bid_size_r[op_sym_id]  <= 24'h0;
-                                    end
-                                end else begin
-                                    if (op_ref_price == bbo_ask_price_r[op_sym_id]) begin
-                                        bbo_ask_price_r[op_sym_id] <= 32'h0;
-                                        bbo_ask_size_r[op_sym_id]  <= 24'h0;
-                                    end
+                                if (bbo_ref_eq_ask_r) begin
+                                    bbo_ask_price_r[op_sym_id] <= 32'h0;
+                                    bbo_ask_size_r[op_sym_id]  <= 24'h0;
                                 end
                             end
                         end

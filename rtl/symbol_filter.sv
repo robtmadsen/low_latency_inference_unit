@@ -38,27 +38,27 @@ module symbol_filter (
     output logic        watchlist_hit,
 
     // AXI4-Lite write interface (from axi4_lite_slave CAM register bank)
-    input  logic [9:0]  cam_wr_index,   // entry index 0–511
+    input  logic [SYM_FILTER_IDX_W:0] cam_wr_index, // entry index 0..SYM_FILTER_ENTRIES-1
     input  logic [63:0] cam_wr_data,    // key to write
     input  logic        cam_wr_valid,   // write-enable
     input  logic        cam_wr_en_bit   // 1 = valid entry, 0 = invalidate
 );
 
     // ---------------------------------------------------------------
-    // CAM storage: 512 key registers + 512 valid bits
+    // CAM storage: SYM_FILTER_ENTRIES key registers + valid bits
     // ---------------------------------------------------------------
-    logic [63:0] cam_entry [0:511];
-    logic        cam_valid [0:511];
+    logic [63:0] cam_entry [0:SYM_FILTER_ENTRIES-1];
+    logic        cam_valid [0:SYM_FILTER_ENTRIES-1];
 
     genvar gi;
     generate
-        for (gi = 0; gi < 512; gi++) begin : g_cam_init
+        for (gi = 0; gi < SYM_FILTER_ENTRIES; gi++) begin : g_cam_init
             // Initialise all entries as invalid on reset
             always_ff @(posedge clk) begin
                 if (rst) begin
                     cam_entry[gi] <= 64'b0;
                     cam_valid[gi] <= 1'b0;
-                end else if (cam_wr_valid && (cam_wr_index == 10'(gi))) begin
+                end else if (cam_wr_valid && (cam_wr_index == (SYM_FILTER_IDX_W+1)'(gi))) begin
                     cam_entry[gi] <= cam_wr_data;
                     cam_valid[gi] <= cam_wr_en_bit;
                 end
@@ -67,19 +67,76 @@ module symbol_filter (
     endgenerate
 
     // ---------------------------------------------------------------
+    // Run 33 fix: pipeline register on stock/stock_valid to break the
+    // cross-region high-fanout route from u_parser/stock_reg (fo=64).
+    // (* max_fanout = 8 *) forces synthesis to replicate each stock_q bit
+    // so all 64 comparison LUTs route locally within the pblock rather than
+    // receiving a long cross-region fan-out from u_parser.
+    // NOTE: this adds 1 cycle to watchlist_hit; lliu_top_v2.sv compensates
+    // by adding a second delay stage (_d2) for the aligned parser fields.
+    // ---------------------------------------------------------------
+    (* max_fanout = 4 *) logic [63:0] stock_q;
+    logic stock_valid_q;
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            stock_q       <= 64'b0;
+            stock_valid_q <= 1'b0;
+        end else begin
+            stock_q       <= stock;
+            stock_valid_q <= stock_valid;
+        end
+    end
+
+    // ---------------------------------------------------------------
     // Match tree: combinational compare all 64 entries in parallel
     // ---------------------------------------------------------------
-    logic [511:0] match_vec;
+    logic [SYM_FILTER_ENTRIES-1:0] match_vec;
 
     genvar mi;
     generate
-        for (mi = 0; mi < 512; mi++) begin : g_match
-            assign match_vec[mi] = cam_valid[mi] & (stock == cam_entry[mi]);
+        for (mi = 0; mi < SYM_FILTER_ENTRIES; mi++) begin : g_match
+            assign match_vec[mi] = cam_valid[mi] & (stock_q == cam_entry[mi]);
         end
     endgenerate
 
+    // ---------------------------------------------------------------
+    // Stage 2 pipeline: registered partial ORs (8 groups of 8 entries).
+    //
+    // Vivado's opt_design (RuntimeOptimized) flattens combinational OR
+    // trees and re-maps them to CARRY4 chains.  The 6-stage CARRY4 chain
+    // terminates at SLICE_X46Y16 but lookup_match_q_reg sits at X35Y28 —
+    // a 0.854 ns cross-region routing hop that closes timing at −0.176 ns.
+    //
+    // Registering the 8 partial ORs (match_partial_r) breaks the chain:
+    //   Stage 2: stock_q → 64 comparisons → 8 group ORs → match_partial_r
+    //            (Path: ~1.3 ns — comfortably within 3.200 ns budget)
+    //   Stage 3: match_partial_r → 8-input OR (1 LUT6, ~0.05 ns) → lookup_match_q
+    //            (Path: ~0.5 ns — trivially met)
+    //
+    // Cost: +1 cycle on watchlist_hit.  lliu_top_v2 compensates with _d3
+    // alignment (was _d2 before this change).
+    // ---------------------------------------------------------------
+    logic [7:0] match_partial_r;
+    logic       stock_valid_qq;    // extra valid delay for Stage 2→3 alignment
+
+    genvar oi;
+    generate
+        for (oi = 0; oi < 8; oi++) begin : g_or_tree
+            always_ff @(posedge clk) begin
+                if (rst) match_partial_r[oi] <= 1'b0;
+                else     match_partial_r[oi] <= |match_vec[oi*8 +: 8];
+            end
+        end
+    endgenerate
+
+    always_ff @(posedge clk) begin
+        if (rst) stock_valid_qq <= 1'b0;
+        else     stock_valid_qq <= stock_valid_q;
+    end
+
     logic match_comb;
-    assign match_comb = |match_vec;
+    assign match_comb = |match_partial_r;   // 8-input OR → 1 LUT6
     logic lookup_valid_q;
     logic lookup_match_q;
 
@@ -93,9 +150,9 @@ module symbol_filter (
     assign cam_entry_match = match_comb;
 
     // ---------------------------------------------------------------
-    // Single lookup stage: capture stock_valid + match in one cycle.
-    // Drive watchlist_hit combinationally from these flops so it is
-    // visible on the very next rising edge sample.
+    // Stage 3: capture partial-OR result + aligned valid.
+    // watchlist_hit arrives 3 cycles after stock_valid input;
+    // lliu_top_v2 uses fields_valid_d3 alignment.
     // ---------------------------------------------------------------
     assign watchlist_hit = lookup_valid_q & lookup_match_q;
 
@@ -104,7 +161,7 @@ module symbol_filter (
             lookup_valid_q <= 1'b0;
             lookup_match_q <= 1'b0;
         end else begin
-            lookup_valid_q <= stock_valid;
+            lookup_valid_q <= stock_valid_qq;   // was stock_valid_q (pre-stage-2)
             lookup_match_q <= match_comb;
         end
     end
