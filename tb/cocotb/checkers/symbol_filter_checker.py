@@ -9,6 +9,7 @@ Monitors stock_valid / watchlist_hit timing:
 
 import cocotb
 from cocotb.triggers import RisingEdge
+from collections import deque
 
 
 class SymbolFilterChecker:
@@ -28,6 +29,7 @@ class SymbolFilterChecker:
         self.errors = []
         self._cam = {}   # index → (key_int, enabled)
         self._task = None
+        self._pending = deque()  # 3-cycle delay FIFO: True/False/None per cycle
 
     # ------------------------------------------------------------------
     # CAM model — kept in sync with write transactions the test performs
@@ -54,38 +56,38 @@ class SymbolFilterChecker:
 
     async def _monitor(self):
         dut = self.dut
-        prev_stock_valid = False
-        prev_stock_int = 0
-        prev_expected_hit = False
 
         while True:
             await RisingEdge(dut.clk)
 
             cur_hit = int(dut.watchlist_hit.value) == 1
 
-            # Check that watchlist_hit matches expectation from previous cycle
-            if prev_stock_valid:
-                if cur_hit != prev_expected_hit:
-                    msg = (
-                        f"watchlist_hit mismatch: stock=0x{prev_stock_int:016x} "
-                        f"expected={prev_expected_hit} got={cur_hit}"
-                    )
+            # Resolve the oldest pending entry once it has aged 3 cycles.
+            # The deque holds one entry per elapsed cycle: True/False (expected
+            # hit) when stock_valid was sampled that cycle, or None otherwise.
+            if len(self._pending) >= 3:
+                exp = self._pending.popleft()
+                if exp is not None:
+                    if cur_hit != exp:
+                        msg = (
+                            f"watchlist_hit mismatch: "
+                            f"expected={exp} got={cur_hit}"
+                        )
+                        self.errors.append(msg)
+                        dut._log.error(f"[SymbolFilterChecker] {msg}")
+                elif cur_hit:
+                    # watchlist_hit=1 with no stock_valid 3 cycles ago
+                    msg = "watchlist_hit=1 with no preceding stock_valid (false trigger)"
                     self.errors.append(msg)
                     dut._log.error(f"[SymbolFilterChecker] {msg}")
-            elif cur_hit:
-                # watchlist_hit asserted without a preceding stock_valid
-                msg = f"watchlist_hit=1 with no preceding stock_valid (false trigger)"
-                self.errors.append(msg)
-                dut._log.error(f"[SymbolFilterChecker] {msg}")
 
-            # Sample current cycle for next iteration
-            prev_stock_valid = int(dut.stock_valid.value) == 1
-            if prev_stock_valid:
-                prev_stock_int = int(dut.stock.value)
-                prev_expected_hit = self.expected_hit(prev_stock_int)
+            # Record whether stock_valid was sampled this cycle and what hit
+            # we expect 3 cycles from now.
+            if int(dut.stock_valid.value) == 1:
+                stock_int = int(dut.stock.value)
+                self._pending.append(self.expected_hit(stock_int))
             else:
-                prev_stock_int = 0
-                prev_expected_hit = False
+                self._pending.append(None)
 
     async def start(self):
         self._task = cocotb.start_soon(self._monitor())
