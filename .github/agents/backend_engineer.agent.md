@@ -43,13 +43,39 @@ P&R runs on an AWS EC2 instance over SSH. The local machine only needs `ssh` and
 
 | Property | Value |
 |----------|-------|
-| Instance type | `c5.4xlarge` |
+| Instance type | `m7i.8xlarge` |
+| vCPU / Memory | `32 vCPU / 128 GiB RAM` |
 | AMI | AWS FPGA Developer AMI (Ubuntu, AWS Marketplace) |
 | SSH alias | `lliu-par` (configured in `~/.ssh/config` → `ubuntu@<ec2-ip>`) |
 | Vivado path on EC2 | `/opt/Xilinx/2025.2/Vivado/bin/vivado` |
 | Repo path on EC2 | `/home/ubuntu/low_latency_inference_unit/` |
 
 > Vivado 2024.1 is not installed on the instance. Always use the 2025.2 binary path above.
+
+## Vivado Resource Policy (m7i.8xlarge)
+
+- Vivado is only partially parallel. Do not assume linear speedup with threads.
+- Prefer predictable throughput over maximum thread count spikes.
+- Use environment-controlled thread settings so host tuning does not require editing Tcl scripts:
+  - `VIVADO_SYNTH_THREADS`: default `8`
+  - `VIVADO_IMPL_THREADS`: default `12`
+- Stage policy:
+  - `synth_design`: use `VIVADO_SYNTH_THREADS` (start with `8`)
+  - `opt_design` / `place_design` / `route_design`: use `VIVADO_IMPL_THREADS` (start with `12`)
+- Do not exceed `12` threads by default. Raise only with A/B timing + runtime evidence.
+- Use disk-backed temp workspace for Vivado scratch data; do not rely on `/dev/shm` as the default temp root.
+
+## EC2 Preflight Checklist
+
+Before launching a long Vivado run, verify all of the following on EC2:
+
+- No stale Vivado processes for the same run target.
+- Free memory is sufficient for the configured thread count.
+- Free disk space is sufficient for logs, checkpoints, and temp data.
+- `syn/reports/` exists and is writable.
+- Checkpoint output directory is writable.
+
+If any preflight check fails, stop and fix environment issues before launching Vivado.
 
 ## Toolchain Flow
 
@@ -92,6 +118,24 @@ scp lliu-par:~/low_latency_inference_unit/syn/reports/vivado.log            syn/
 - **Active constraints:** `syn/constraints_lliu_top.xdc` — 300 MHz clock (`sys_clk`, 3.333 ns period) and `set_false_path` on all AXI I/Os. `syn/constraints.xdc` is the KC705/`kc705_top` reference file — do **not** use it for `lliu_top` synthesis.
 - Timing closure target: **300 MHz**, 250 MHz fallback.
 - If Vivado cannot meet timing, report the critical path and escalate before relaxing.
+
+### 2.1 — Long-run observability and checkpoints
+
+For multi-hour runs, always emit enough artifacts to prove forward progress:
+
+- Post-synthesis checkpoint and utilization/timing snapshot.
+- Post-place checkpoint and timing snapshot.
+- Post-route checkpoint and final timing/utilization reports.
+- Preserve a single authoritative batch log under `syn/reports/`.
+
+If a phase appears stuck, report:
+
+- Current phase
+- Last log update time
+- Process CPU/memory footprint
+- Existing checkpoints/reports
+
+Do not kill or restart without explicit user approval.
 
 ### 3 — Bitstream
 
@@ -141,3 +185,14 @@ syn/
 | RTL is not latch-free or won't synthesize | Escalate to `rtl_engineer` |
 | Spec is ambiguous or conflicts with physical constraints | Escalate to `architect` |
 | Timing cannot close at 300 MHz after reasonable P&R effort | Report critical path, escalate to `architect` |
+
+## Fallback Playbook (Runtime or Stability)
+
+When runtime is excessive or stability is poor, apply one change at a time and record deltas:
+
+1. Reduce `VIVADO_SYNTH_THREADS` (for example `8 -> 6`).
+2. Compare synthesis directive options (`RuntimeOptimized` vs default).
+3. Keep implementation threads at or below `12` unless profiling supports more.
+4. Re-run and compare wall time, WNS/TNS, and memory footprint.
+
+Never batch multiple tuning changes into one experiment.

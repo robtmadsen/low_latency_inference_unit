@@ -211,17 +211,31 @@ agent is launched.
 
 ### 6.1 Experiment Repo Contents
 
-Private GitHub repo `lliu-dv-experiment` with only:
+Each phase gets its own fresh private GitHub repo (`dv-exp-phase1`, `dv-exp-phase2`, …).
+Every repo is created with a single orphan commit — no git history, no prior phases
+visible to the agent. The `prepare_experiment_repo.sh` script handles all phases
+with the same command pattern.
 
+**Repo structure (all phases):**
 ```
 rtl/
     lliu_pkg.sv               ← package dependency
-    itch_field_extract.sv     ← DUT (clean, no injected bugs)
+    itch_field_extract.sv     ← DUT (clean for Phase 1; buggy for Phase 2)
 spec/
-    itch_field_extract_spec.md  ← full DUT spec (see Appendix A)
+    itch_field_extract_spec.md  ← full DUT spec
 ```
 
 No `tb/`, no `scripts/`, no `reports/`. The agent creates everything.
+
+**Experimenter prep (run once before starting VMs):**
+```bash
+bash .github/plan/dvcon/scripts/prepare_experiment_repo.sh phase1 robtmadsen
+```
+
+**VMs clone:**
+```bash
+git clone --depth 1 git@github.com:robtmadsen/dv-exp-phase1.git ~/experiment
+```
 
 ### 6.2 Autonomous Loop Design
 
@@ -293,11 +307,13 @@ while true; do
     fi
 
     # Run the agent.
+    #   --model                         primary model (default: claude-opus-4-6)
     #   --dangerously-skip-permissions  never pause for confirmation
     #   --max-turns 500                 allow long iterative sessions
     #   --output-format json            structured telemetry
     EXIT_CODE=0
     claude \
+        --model claude-opus-4-6 \
         --dangerously-skip-permissions \
         --max-turns 500 \
         --output-format json \
@@ -468,37 +484,59 @@ bugs exist or how many.
 
 ## 7. Phase 2 — Bug-Injected itch_field_extract
 
-**Goal:** Same autonomous loop as Phase 1, but the repo now includes
-`rtl/bug-injected/itch_field_extract.sv` — a copy of the module with
-~2 deliberate secret bugs. The agent must report any bugs discovered.
+**Goal:** Same autonomous loop as Phase 1, but `itch_field_extract.sv` in
+the experiment repo contains ~2 deliberate secret bugs. The agent must report
+any discrepancies it discovers.
 
 ### 7.1 Repo Delta from Phase 1
 
-The experimenter replaces `rtl/itch_field_extract.sv` with the buggy version
-before the agents clone the repo. From the agent's perspective the repo looks
-identical to Phase 1 — it only ever sees one copy of the module:
+A new private GitHub repo **`dv-exp-phase2`** is created for this phase. Identical
+structure to Phase 1's repo, but the DUT is replaced with the buggy version.
+From the agent's perspective it clones the same minimal repo it would have seen
+in Phase 1 — there is no shared history, no prior phase visible:
 
 ```
 rtl/
-    lliu_pkg.sv                    (unchanged)
-    itch_field_extract.sv          (silently replaced with buggy version)
+    lliu_pkg.sv               ← unchanged
+    itch_field_extract.sv     ← silently replaced with buggy version
 spec/
-    itch_field_extract_spec.md     (unchanged)
+    itch_field_extract_spec.md  ← unchanged
 ```
 
-The experimenter maintains a private `rtl/bug-injected/` reference folder
-**outside the experiment repo** for ground-truth tracking. It never appears
-in the repo the agent clones.
+The buggy source file lives at `rtl/buggy/itch_field_extract.sv` in this repo
+and is tracked for methodology documentation. The `prepare_experiment_repo.sh`
+script copies it to `rtl/itch_field_extract.sv` inside the experiment repo's
+orphan commit — the VMs never see `rtl/buggy/` and the experiment repo has
+exactly one commit with no prior history.
 
-Bug types should match the mutation categories in
-`reports/v1_dut/bug_detection.md` (e.g. wrong byte index, wrong comparison
-operator, missing reset of one output, wrong endianness). ~2 bugs for Phase 2.
+**Experimenter prep (run once before starting VMs):**
+```bash
+bash .github/plan/dvcon/scripts/prepare_experiment_repo.sh phase2 robtmadsen
+```
 
-### 7.2 Prompt Change
+**Reset VMs (removes Phase 1 experiment directory) and clone Phase 2 repo:**
+```bash
+for VM in vm-cocotb vm-uvm; do
+    ssh "$VM" "rm -rf ~/experiment && \
+        git clone --depth 1 git@github.com:robtmadsen/dv-exp-phase2.git ~/experiment"
+done
+```
 
-None. The same prompt used in Phase 1 is used verbatim. The standing
-bug-report clause (step 6) already instructs the agent to document any
-discrepancies it finds. The agent is never told that bugs were injected.
+#### Ground-Truth Bug Register (Phase 2) — experimenter reference only
+
+| # | Type | Location in source | Description |
+|---|------|--------------------|-------------|
+| B1 | Off-by-one byte index | `order_ref_comb` first byte | Index `(B-1-10)` reads byte 10 (`tracking_number[1]`) instead of the correct byte 11 (`order_ref[0]`). MSB of `order_ref` is silently wrong. |
+| B2 | Missing reset | `always_ff` reset block | `fields_valid <= 1'b0` absent from the `if (rst)` branch; `fields_valid` retains its pre-reset value after reset is asserted. |
+
+### 7.2 Prompt and Model
+
+The prompt is unchanged from Phase 1 (verbatim). The standing bug-report clause
+(step 6) already instructs the agent to document any discrepancies it finds.
+The agent is never told that bugs were injected.
+
+The primary model is changed to **`claude-opus-4-6`** (from `claude-opus-4-7[1m]`
+used in Phase 1) to reduce cost. The `--model` flag is set in `run_experiment.sh`.
 
 ### 7.3 Phase 2 Completion Criteria
 
