@@ -1,0 +1,10 @@
+2026-05-10T14:51:44Z === Starting cocotb experiment ===
+2026-05-10T14:51:44Z --- Attempt 1 ---
+2026-05-10T14:51:45Z claude exited with code 1. Backing off 15s...
+2026-05-10T14:52:00Z --- Attempt 2 ---
+2026-05-10T14:52:00Z claude exited with code 1. Backing off 30s...
+2026-05-10T14:52:30Z --- Attempt 3 ---
+2026-05-10T14:52:31Z claude exited with code 1. Backing off 45s...
+2026-05-10T14:53:15Z === Starting cocotb experiment ===
+2026-05-10T14:53:15Z --- Attempt 1 ---
+2026-05-10T15:19:53Z === SUCCESS: 100% coverage in 1598s after 1 attempt(s) ===
