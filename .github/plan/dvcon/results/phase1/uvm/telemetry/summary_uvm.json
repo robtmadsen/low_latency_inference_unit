@@ -1,0 +1,15 @@
+{
+  "methodology": "uvm",
+  "wall_seconds": 3042,
+  "session_wall_seconds": 3038,
+  "attempts": 1,
+  "tb_files_created": 5,
+  "tb_lines_written": 962,
+  "total_input_tokens_fresh": 112,
+  "total_input_tokens_cache_creation": 267016,
+  "total_input_tokens_cache_read": 11199386,
+  "total_output_tokens": 103687,
+  "total_cost_usd": 9.862476000000001,
+  "primary_model": "claude-opus-4-7[1m]",
+  "routing_model": "claude-haiku-4-5"
+}

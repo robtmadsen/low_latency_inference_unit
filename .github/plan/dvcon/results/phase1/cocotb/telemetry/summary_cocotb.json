@@ -1,0 +1,15 @@
+{
+    "methodology": "cocotb",
+    "wall_seconds": 743,
+    "session_wall_seconds": 738,
+    "attempts": 1,
+    "tb_files_created": 5,
+    "tb_lines_written": 731,
+    "total_input_tokens_fresh": 97,
+    "total_input_tokens_cache_creation": 126826,
+    "total_input_tokens_cache_read": 7034258,
+    "total_output_tokens": 52005,
+    "total_cost_usd": 5.611574500000001,
+    "primary_model": "claude-opus-4-7[1m]",
+    "routing_model": "claude-haiku-4-5"
+}

@@ -1,0 +1,2 @@
+Total coverage (28/30) 93.00%
+See lines with '%00' in /home/azureuser/experiment/reports/coverage_annotate

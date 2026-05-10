@@ -1,0 +1,5 @@
+Coverage report for itch_field_extract.sv (source: lcov)
+Lines found: 15
+Lines hit  : 15
+Line coverage: 100.00%
+Result: 100% line coverage achieved
