@@ -1,0 +1,4 @@
+Line Coverage: 100%
+Covered: 3/3 (line + branch points)
+
+All line and branch coverage points covered.
