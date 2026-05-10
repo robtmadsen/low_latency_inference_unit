@@ -1,0 +1,49 @@
+You are a verification engineer. Build a complete UVM testbench for the
+module `itch_field_extract` from scratch. This is a fully autonomous task.
+Never stop to ask for human input — if something is ambiguous, make a
+reasonable engineering decision and document it.
+
+Read these files before writing any code:
+  - rtl/itch_field_extract.sv        (the DUT)
+  - rtl/lliu_pkg.sv                  (package dependency)
+  - spec/itch_field_extract_spec.md  (full specification)
+
+Requirements:
+1. Use UVM with Verilator 5.046 as the simulator backend. UVM_HOME is set
+   in the environment and points to the Accellera UVM source tree containing
+   uvm_pkg.sv.
+2. Create a tb/ directory with a Makefile that compiles and runs all tests.
+   Wrap every `make` or simulation invocation with `timeout 300` so a hung
+   simulator cannot stall your session. Do NOT use `timeout` on any other
+   command — only on `make` and direct simulator calls.
+3. Write a UVM scoreboard that checks every output field on every transaction.
+4. Achieve 100% line coverage of itch_field_extract.sv. Cover:
+     - Valid Add Order messages ('A'/0x41), buy and sell sides
+     - Non-Add-Order message types (fields_valid must remain 0)
+     - Synchronous reset behaviour
+     - Back-to-back valid messages (no idle cycles between)
+     - msg_valid deasserted (fields_valid must remain 0)
+5. Run Verilator with --coverage and write the coverage report to
+   reports/coverage.txt. The file must contain "100%" for line coverage.
+6. Throughout verification, if any test exposes output that contradicts the
+   spec, document it in reports/bugs_found.md: which test, the symptom
+   observed, and your root-cause hypothesis. If nothing is found, write
+   reports/bugs_found.md with the text "No RTL bugs detected."
+7. Write a structured summary to reports/phase1_summary.md: all tests run,
+   pass/fail status, final coverage percentage.
+
+Workflow loop — repeat until the exit criterion is met:
+  a. Write or update testbench files.
+  b. Run `timeout 300 make -C tb/ 2>&1`. Fix any compile or lint errors.
+  c. Run `timeout 300 make -C tb/ test 2>&1`. Fix any test failures.
+  d. Parse reports/coverage.txt for the current line coverage percentage.
+  e. If coverage < 100%, identify uncovered lines, add targeted tests, and
+     repeat from (a).
+  f. When all tests pass and reports/coverage.txt shows 100% line coverage,
+     write reports/phase1_summary.md and then STOP.
+
+Exit criterion: ALL of the following must be true before stopping:
+  - `make -C tb/ test` exits 0 (no test failures)
+  - reports/coverage.txt contains the string "100%"
+  - reports/bugs_found.md exists
+  - reports/phase1_summary.md exists
