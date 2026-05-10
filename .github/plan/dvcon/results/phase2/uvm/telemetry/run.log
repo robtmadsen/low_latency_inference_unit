@@ -1,0 +1,10 @@
+2026-05-10T14:51:51Z === Starting uvm experiment ===
+2026-05-10T14:51:51Z --- Attempt 1 ---
+2026-05-10T14:51:52Z claude exited with code 1. Backing off 15s...
+2026-05-10T14:52:07Z --- Attempt 2 ---
+2026-05-10T14:52:07Z claude exited with code 1. Backing off 30s...
+2026-05-10T14:52:37Z --- Attempt 3 ---
+2026-05-10T14:52:38Z claude exited with code 1. Backing off 45s...
+2026-05-10T14:53:16Z === Starting uvm experiment ===
+2026-05-10T14:53:16Z --- Attempt 1 ---
+2026-05-10T15:51:59Z === SUCCESS: 100% coverage in 3523s after 1 attempt(s) ===
