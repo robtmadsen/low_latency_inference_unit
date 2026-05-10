@@ -57,11 +57,13 @@ while true; do
     SESSION_START=$(date +%s)
 
     # Run the agent.
+    #   --model                         primary model (default: claude-opus-4-6)
     #   --dangerously-skip-permissions  never pause for confirmation
     #   --max-turns 500                 allow long iterative sessions
     #   --output-format json            structured telemetry
     EXIT_CODE=0
     claude \
+        --model claude-opus-4-6 \
         --dangerously-skip-permissions \
         --max-turns 500 \
         --output-format json \
