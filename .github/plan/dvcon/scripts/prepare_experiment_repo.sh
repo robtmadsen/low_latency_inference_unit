@@ -20,14 +20,17 @@
 #   rtl/lliu_pkg.sv                                   (always clean)
 #   rtl/itch_field_extract.sv                         (phase1 — clean DUT)
 #   rtl/buggy/itch_field_extract.sv                   (phase2 — buggy DUT)
-#   .github/plan/dvcon/spec/itch_field_extract_spec.md (must exist before running)
+#   rtl/buggy/phase3/*.sv                             (phase3 — buggy multi-module DUT)
+#   .github/plan/dvcon/spec/itch_field_extract_spec.md (phase1/2)
+#   .github/arch/rtl/{lliu_core,dot_product_engine,   (phase3 — one file per module)
+#     bfloat16_mul,fp32_acc,weight_mem,output_buffer}.md
 #
 # The commit message is intentionally neutral ("initial") so the agent sees
 # no signal about bugs or experiment phases.
 set -euo pipefail
 
 # ── Args ────────────────────────────────────────────────────────────────────
-PHASE=${1:?usage: prepare_experiment_repo.sh [phase1|phase2] [GITHUB_USER]}
+PHASE=${1:?usage: prepare_experiment_repo.sh [phase1|phase2|phase3] [GITHUB_USER]}
 GH_USER=${2:-${GITHUB_USER:?pass GitHub user/org as arg 2 or set GITHUB_USER}}
 
 REPO_NAME="dv-exp-${PHASE}"
@@ -38,26 +41,48 @@ REPO_URL="git@github.com:${REPO_SLUG}.git"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAIN_REPO="$(cd "$SCRIPT_DIR/../../../.." && pwd)"   # repo root
 
-SPEC_SRC="$MAIN_REPO/.github/plan/dvcon/spec/itch_field_extract_spec.md"
 PKG_SRC="$MAIN_REPO/rtl/lliu_pkg.sv"
 
 case "$PHASE" in
-    phase1) DUT_SRC="$MAIN_REPO/rtl/itch_field_extract.sv" ;;
-    phase2) DUT_SRC="$MAIN_REPO/rtl/buggy/itch_field_extract.sv" ;;
-    *) echo "ERROR: phase must be 'phase1' or 'phase2'" >&2; exit 1 ;;
+    phase1)
+        DUT_FILES=("$MAIN_REPO/rtl/itch_field_extract.sv")
+        SPEC_FILES=("$MAIN_REPO/.github/plan/dvcon/spec/itch_field_extract_spec.md")
+        ;;
+    phase2)
+        DUT_FILES=("$MAIN_REPO/rtl/buggy/itch_field_extract.sv")
+        SPEC_FILES=("$MAIN_REPO/.github/plan/dvcon/spec/itch_field_extract_spec.md")
+        ;;
+    phase3)
+        DUT_FILES=(
+            "$MAIN_REPO/rtl/buggy/phase3/lliu_core.sv"
+            "$MAIN_REPO/rtl/buggy/phase3/dot_product_engine.sv"
+            "$MAIN_REPO/rtl/buggy/phase3/bfloat16_mul.sv"
+            "$MAIN_REPO/rtl/buggy/phase3/fp32_acc.sv"
+            "$MAIN_REPO/rtl/buggy/phase3/weight_mem.sv"
+            "$MAIN_REPO/rtl/buggy/phase3/output_buffer.sv"
+        )
+        SPEC_FILES=(
+            "$MAIN_REPO/.github/arch/rtl/lliu_core.md"
+            "$MAIN_REPO/.github/arch/rtl/dot_product_engine.md"
+            "$MAIN_REPO/.github/arch/rtl/bfloat16_mul.md"
+            "$MAIN_REPO/.github/arch/rtl/fp32_acc.md"
+            "$MAIN_REPO/.github/arch/rtl/weight_mem.md"
+            "$MAIN_REPO/.github/arch/rtl/output_buffer.md"
+        )
+        ;;
+    *) echo "ERROR: phase must be 'phase1', 'phase2', or 'phase3'" >&2; exit 1 ;;
 esac
 
 # ── Pre-flight checks ────────────────────────────────────────────────────────
-for f in "$PKG_SRC" "$DUT_SRC" "$SPEC_SRC"; do
+for f in "$PKG_SRC" "${DUT_FILES[@]}" "${SPEC_FILES[@]}"; do
     if [ ! -f "$f" ]; then
         echo "ERROR: required file not found: $f" >&2
-        [ "$f" = "$SPEC_SRC" ] && echo "       Create .github/plan/dvcon/spec/itch_field_extract_spec.md first." >&2
         exit 1
     fi
 done
 
 echo "Phase  : $PHASE"
-echo "DUT    : $DUT_SRC"
+echo "DUT    : ${DUT_FILES[*]}"
 echo "Repo   : $REPO_SLUG (will be created as private)"
 echo ""
 
@@ -83,9 +108,9 @@ git checkout --orphan main
 
 # Populate the tree
 mkdir -p rtl spec
-cp "$PKG_SRC"  rtl/lliu_pkg.sv
-cp "$DUT_SRC"  rtl/itch_field_extract.sv
-cp "$SPEC_SRC" spec/itch_field_extract_spec.md
+cp "$PKG_SRC" rtl/lliu_pkg.sv
+for f in "${DUT_FILES[@]}"; do cp "$f" rtl/; done
+for f in "${SPEC_FILES[@]}"; do cp "$f" spec/; done
 
 # Single neutral commit — no mention of phase, bugs, or experiment
 git add .

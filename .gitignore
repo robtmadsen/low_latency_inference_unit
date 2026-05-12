@@ -25,6 +25,7 @@ coverage_report.json
 
 # Private directories
 JDs/
+.github/plan/dvcon/abstract/
 
 # Editor
 *.swp
