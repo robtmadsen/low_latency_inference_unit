@@ -1,0 +1,139 @@
+//      // verilator_coverage annotation
+        // bfloat16_mul.sv — bfloat16 multiplier producing float32 result
+        //
+        // Takes two bfloat16 operands and produces a float32 product.
+        // Two registered pipeline stages: result is valid 2 cycles after inputs.
+        // Stage 1: 8×8 mantissa multiply → man_product_r (maps to DSP48E1 P-register via use_dsp="yes")
+        // Stage 2: normalize + assemble → result
+        //
+        // bfloat16 format: [15] sign | [14:7] exponent (8-bit, bias 127) | [6:0] mantissa (7-bit, implicit leading 1)
+        // float32 format:  [31] sign | [30:23] exponent (8-bit, bias 127) | [22:0] mantissa (23-bit, implicit leading 1)
+        
+        /* verilator lint_off IMPORTSTAR */
+        import lliu_pkg::*;
+        /* verilator lint_on IMPORTSTAR */
+        
+        module bfloat16_mul (
+            input  logic      clk,
+            input  logic      rst,
+            input  bfloat16_t a,
+            input  bfloat16_t b,
+            output float32_t  result
+        );
+        
+            // Decompose inputs
+            logic        a_sign, b_sign;
+            logic [7:0]  a_exp,  b_exp;
+            logic [7:0]  a_man,  b_man;  // 8-bit: implicit 1 + 7 explicit bits
+            logic        a_zero, b_zero;
+        
+            assign a_sign = a[15];
+            assign b_sign = b[15];
+            assign a_exp  = a[14:7];
+            assign b_exp  = b[14:7];
+            assign a_zero = (a[14:0] == 15'b0);
+            assign b_zero = (b[14:0] == 15'b0);
+        
+            // Implicit leading 1 for normalized numbers (exponent != 0)
+~001890     assign a_man = (a_exp != 8'b0) ? {1'b1, a[6:0]} : {1'b0, a[6:0]};
+ 001866     assign b_man = (b_exp != 8'b0) ? {1'b1, b[6:0]} : {1'b0, b[6:0]};
+        
+            // Result sign: XOR of input signs
+            logic r_sign;
+            assign r_sign = a_sign | b_sign;
+        
+            // Exponent sum with bias correction
+            // Result exponent = a_exp + b_exp - bias
+            // Use wider intermediate to detect overflow/underflow
+            logic [9:0] exp_sum;
+            assign exp_sum = {2'b0, a_exp} + {2'b0, b_exp} - 10'd126;
+        
+            // Stage 1 registered signals — capture multiply result and auxiliaries for Stage 2
+            (* use_dsp = "yes" *) logic [15:0] man_product_r;
+            logic        a_zero_r, b_zero_r;
+            logic [9:0]  exp_sum_r;
+            logic        r_sign_r;
+        
+            // Stage 1: register multiply inputs/product (DSP48E1 P-register) and auxiliary signals
+ 001889     always_ff @(posedge clk) begin
+ 001809         if (rst) begin
+ 000080             man_product_r <= '0;
+ 000080             a_zero_r      <= 1'b1;
+ 000080             b_zero_r      <= 1'b1;
+ 000080             exp_sum_r     <= '0;
+ 000080             r_sign_r      <= 1'b0;
+ 001809         end else begin
+ 001809             man_product_r <= a_man * b_man;
+ 001809             a_zero_r      <= a_zero;
+ 001809             b_zero_r      <= b_zero;
+ 001809             exp_sum_r     <= exp_sum;
+ 001809             r_sign_r      <= r_sign;
+                end
+            end
+        
+            // Normalize: check if product has a leading 1 in bit [15]
+            // If man_product_r[15] == 1: shift right by 1, increment exponent
+            // Otherwise: no shift needed
+            /* verilator coverage_off */  // declaration — no executable code
+            logic        norm_shift;
+            /* verilator coverage_on */
+            logic [22:0] r_man;
+            logic [9:0]  r_exp_wide;
+            logic [7:0]  r_exp;
+        
+            assign norm_shift = man_product_r[15];
+        
+ 001890     always_comb begin
+ 001889         if (a_zero_r || b_zero_r) begin
+                    // Zero result
+ 001889             r_man      = 23'b0;
+ 001889             r_exp_wide = 10'b0;
+%000001         end else if (norm_shift) begin
+                    // Product >= 2.0 in fixed point, shift right, bump exponent
+                    // man_product_r[15:1] is 15 bits; we need 23 mantissa bits for float32
+                    // Place the 14 significant bits (excluding implicit 1) into top of mantissa
+%000000             r_man      = {man_product_r[14:1], 9'b0};
+%000000             r_exp_wide = exp_sum_r + 10'd1;
+%000001         end else begin
+                    // Product < 2.0, no shift
+                    // man_product_r[14:0] is 15 bits; bit [14] is the implicit 1
+                    // Place the 13 significant bits into top of mantissa
+%000001             r_man      = {man_product_r[13:0], 9'b0};
+%000001             r_exp_wide = exp_sum_r;
+                end
+            end
+        
+            // Clamp exponent
+ 001890     always_comb begin
+ 001889         if (a_zero_r || b_zero_r) begin
+ 001889             r_exp = 8'b0;
+                /* verilator coverage_off */  // unreachable: int_to_bf16 features always have exp≥127, so exp_sum≥0
+                end else if (r_exp_wide[9]) begin
+                    // Underflow (negative exponent) — flush to zero
+                    r_exp = 8'b0;
+                /* verilator coverage_on */
+%000001         end else if (r_exp_wide[8]) begin
+                    // Overflow — clamp to max (infinity)
+%000000             r_exp = 8'hFF;
+%000001         end else begin
+%000001             r_exp = r_exp_wide[7:0];
+                end
+            end
+        
+            // Assemble float32 result (combinational)
+            logic result_is_zero;
+            assign result_is_zero = a_zero_r || b_zero_r || (r_exp == 8'b0 && !a_zero_r && !b_zero_r);
+        
+            float32_t result_comb;
+~001890     assign result_comb = result_is_zero ? {r_sign_r, 31'b0} : {r_sign_r, r_exp, r_man};
+        
+            // Output register: 1-cycle latency, enables DSP48E1 P-register inference
+ 001889     always_ff @(posedge clk) begin
+ 001809         if (rst)
+ 000080             result <= '0;
+                else
+ 001809             result <= result_comb;
+            end
+        
+        endmodule
+        

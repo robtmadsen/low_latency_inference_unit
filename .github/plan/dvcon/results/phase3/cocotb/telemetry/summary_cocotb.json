@@ -1,0 +1,14 @@
+{
+  "methodology": "cocotb",
+  "wall_seconds": 1396,
+  "session_wall_seconds": 1395,
+  "attempts": 1,
+  "tb_files_created": 4,
+  "tb_lines_written": 721,
+  "total_input_tokens": 49,
+  "cache_creation_input_tokens": 166942,
+  "cache_read_input_tokens": 5037249,
+  "total_output_tokens": 80292,
+  "total_cost_usd": 5.570556000000003,
+  "num_turns": 57
+}

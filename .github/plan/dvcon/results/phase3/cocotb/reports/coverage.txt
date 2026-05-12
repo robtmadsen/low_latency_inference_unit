@@ -1,0 +1,23 @@
+======================================================================
+Verilator Coverage Report
+======================================================================
+
+  bfloat16_mul.sv                            56/  57    98.2%
+      MISS: r_exp = 8'hFF;
+  dot_product_engine.sv                     101/ 102    99.0%
+      MISS: logic     merge_clear;
+  fp32_acc.sv                               231/ 239    96.7%
+      MISS: else if (sum_man_b1_r[20]) begin sum_result_b2 = {sum_sign_b1_r, sum_e
+      MISS: else if (sum_man_b1_r[19]) begin sum_result_b2 = {sum_sign_b1_r, sum_e
+      MISS: else if (sum_man_b1_r[18]) begin sum_result_b2 = {sum_sign_b1_r, sum_e
+      MISS: else if (sum_man_b1_r[15]) begin sum_result_b2 = {sum_sign_b1_r, sum_e
+      MISS: else if (sum_man_b1_r[14]) begin sum_result_b2 = {sum_sign_b1_r, sum_e
+  lliu_core.sv                               51/  51   100.0%
+  lliu_core_wrapper.sv                       10/  10   100.0%
+  output_buffer.sv                           14/  14   100.0%
+  weight_mem.sv                              10/  10   100.0%
+
+----------------------------------------------------------------------
+lliu_core line coverage: 51/51 = 100.0%
+100%
+
