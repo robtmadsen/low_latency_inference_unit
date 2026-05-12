@@ -1,0 +1,8 @@
+Line Coverage Report
+========================================
+
+Module: lliu_core
+Covered lines:   31
+Uncovered lines: 0
+Total:           31
+Line coverage:   100%

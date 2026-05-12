@@ -1,0 +1,14 @@
+{
+  "methodology": "uvm",
+  "wall_seconds": 2911,
+  "session_wall_seconds": 2911,
+  "attempts": 1,
+  "tb_files_created": 7,
+  "tb_lines_written": 657,
+  "total_input_tokens": 55,
+  "cache_creation_input_tokens": 344581,
+  "cache_read_input_tokens": 3974461,
+  "total_output_tokens": 124688,
+  "total_cost_usd": 8.13296575,
+  "num_turns": 67
+}
