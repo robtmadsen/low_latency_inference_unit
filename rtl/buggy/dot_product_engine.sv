@@ -228,6 +228,7 @@ module dot_product_engine #(
                         mac_elem    <= '0;
                         mac_drain   <= 3'd0;
                         acc_clear   <= 1'b1;
+                        merge_clear <= 1'b1;
                         state       <= S_STREAM;
                     end
                 end

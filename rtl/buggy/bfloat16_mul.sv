@@ -39,13 +39,13 @@ module bfloat16_mul (
 
     // Result sign: XOR of input signs
     logic r_sign;
-    assign r_sign = a_sign | b_sign;
+    assign r_sign = a_sign ^ b_sign;
 
     // Exponent sum with bias correction
     // Result exponent = a_exp + b_exp - bias
     // Use wider intermediate to detect overflow/underflow
     logic [9:0] exp_sum;
-    assign exp_sum = {2'b0, a_exp} + {2'b0, b_exp} - 10'd126;
+    assign exp_sum = {2'b0, a_exp} + {2'b0, b_exp} - 10'd128;
 
     // Stage 1 registered signals — capture multiply result and auxiliaries for Stage 2
     (* use_dsp = "yes" *) logic [15:0] man_product_r;

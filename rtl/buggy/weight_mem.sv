@@ -32,7 +32,13 @@ module weight_mem #(
         end
     end
 
-    // Read port
-    assign rd_data = mem[rd_addr];
+    // Read (synchronous, 1-cycle latency)
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            rd_data <= '0;
+        end else begin
+            rd_data <= mem[rd_addr + 1];
+        end
+    end
 
 endmodule
