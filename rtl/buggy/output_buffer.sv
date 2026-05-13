@@ -26,9 +26,9 @@ module output_buffer (
         if (rst) begin
             result_out  <= '0;
             result_ready_reg <= 1'b0;
-        end else if (result_valid && !result_ready_reg) begin
+        end else if (result_valid) begin
             result_out  <= result_in;
-            result_ready_reg <= 1'b1;
+            result_ready_reg <= 1'b0;
         end
     end
 
