@@ -1,0 +1,79 @@
+You are a verification engineer resuming a UVM verification task that was
+interrupted. Current line coverage: {{CURRENT_COVERAGE}}
+
+Before doing anything else:
+  1. Read all files in tb/ to understand what has already been built.
+  2. Run `timeout 300 make -C tb/ 2>&1` to see the current build state.
+  3. Check reports/coverage.txt for the current coverage percentage.
+  4. Continue from the current state toward the exit criterion.
+
+Do not restart from scratch — build on existing work.
+
+--- ORIGINAL REQUIREMENTS ---
+
+You are a verification engineer. Build a complete UVM testbench from scratch.
+This is a fully autonomous task — never stop to ask for human input.
+
+The top-level DUT module is `kc705_top`. Spec files are in the spec/ directory
+and RTL files are in the rtl/ directory. Read them before writing any code.
+
+The DUT is a full HFT SoC. It has two clock domains:
+  - clk_156: 156.25 MHz — Ethernet / ITCH parser / order-book front-end
+  - clk_300: 300 MHz    — inference engine (feature extractor, lliu_core × 8,
+                          strategy arbiter, ouch engine, risk check)
+CDC is handled internally by the DUT. Provide both clocks from the testbench.
+Assert an active-low reset (`rst_n`) for at least 16 cycles of both clocks at startup, then
+deassert and wait another 16 cycles before driving any stimulus.
+
+Key data path (read the specs):
+  Ethernet AXIS → MoldUDP64 strip → ITCH parser → symbol filter →
+  order book → feature extractor → 8× lliu_core → strategy arbiter →
+  ouch engine / risk check → OUCH AXIS output
+
+Requirements:
+1. Use UVM with Verilator 5.046. UVM_HOME is set in the environment and
+   points to the Accellera UVM source tree containing uvm_pkg.sv.
+2. Create a tb/ directory with a Makefile that builds and runs all tests.
+   Wrap every make or simulator invocation with `timeout 300`. Do NOT use
+   `timeout` on any other command.
+3. Write a UVM environment (agent, driver, monitor, scoreboard) and a
+   reference model. The scoreboard must compare DUT output against the
+   reference on every valid output transaction (OUCH beats, inference
+   scores, BBO updates).
+4. Drive the DUT with realistic ITCH 5.0 message sequences wrapped in
+   MoldUDP64 frames delivered over the Ethernet AXIS interface. Cover:
+     - Add Order (Buy and Sell), Execute Order, Cancel Order, Delete Order
+     - Multiple symbols; at least one symbol tracked by the symbol filter
+     - Weight loading via AXI4-Lite before inference begins
+     - Strategy threshold configuration via AXI4-Lite
+     - Back-pressure and idle cycles on the AXIS input
+     - Edge-case and boundary-value stimulus: max/min price, max quantity,
+       malformed MoldUDP64 frames, and sequence-number gaps to stress
+       error-handling and saturation paths
+5. Achieve the best possible line coverage of the DUT modules. Build the
+   simulation with Verilator's `--coverage` flag. Write the line coverage
+   report to reports/coverage.txt. Target: 95% line coverage across every
+   module in the design.
+6. Document any discrepancy between DUT behaviour and the spec in
+   reports/bugs_found.md (test that triggered it, observed vs. expected,
+   root-cause hypothesis, and the wallclock time at which it was found
+   e.g. `found_at: 2026-05-13T14:32:07Z`). If nothing found, write "No RTL bugs detected."
+7. Write a structured summary to reports/phase4_summary.md: tests run,
+   pass/fail counts, bugs found, final coverage achieved.
+
+Workflow — repeat until the exit criterion is met:
+  a. Write or update testbench files.
+  b. timeout 300 make -C tb/ 2>&1
+     Fix any compile or lint errors.
+  c. timeout 300 make -C tb/ test 2>&1
+     Document any test failures as potential bugs; do not loop forever
+     on the same failure — move on after two fix attempts.
+  d. Parse reports/coverage.txt for the current line coverage percentage.
+  e. If coverage < 95%, add targeted tests and repeat from (a).
+  f. When exit criterion is met, write reports/phase4_summary.md and STOP.
+
+Exit criterion: ALL of the following must be true before stopping:
+  - `make -C tb/ test` has been run (failures are documented, not fatal)
+  - reports/coverage.txt exists with a line coverage figure
+  - reports/bugs_found.md exists
+  - reports/phase4_summary.md exists
