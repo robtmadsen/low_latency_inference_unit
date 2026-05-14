@@ -1,0 +1,39 @@
+//      // verilator_coverage annotation
+        // output_buffer.sv — Single float32 register for inference result
+        //
+        // Latches result on result_valid strobe from dot-product engine.
+        // Presents value for AXI4-Lite readout.
+        
+        /* verilator lint_off IMPORTSTAR */
+        import lliu_pkg::*;
+        /* verilator lint_on IMPORTSTAR */
+        
+        module output_buffer (
+            input  logic     clk,
+            input  logic     rst,
+        
+            // From dot-product engine
+            input  float32_t result_in,
+            input  logic     result_valid,
+        
+            // To AXI4-Lite read path
+            output float32_t result_out,
+            output logic     result_ready  // indicates a valid result is available
+        );
+        
+            logic result_ready_reg;
+        
+ 13749928     always_ff @(posedge clk) begin
+ 022576         if (rst) begin
+ 022576             result_out  <= '0;
+ 022576             result_ready_reg <= 1'b0;
+ 13724536         end else if (result_valid) begin
+ 002816             result_out  <= result_in;
+ 002816             result_ready_reg <= 1'b0;
+                end
+            end
+        
+            assign result_ready = result_ready_reg;
+        
+        endmodule
+        
