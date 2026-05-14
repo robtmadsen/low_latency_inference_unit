@@ -1,0 +1,316 @@
+[0] === HFT SoC UVM Testbench Starting ===
+[0] Asserting reset...
+[105021] Reset deasserted. Waiting 16 cycles...
+[211709] === Phase 1: Configuration ===
+[811829] Symbol filter configured (6 symbols)
+[5932853] Weights loaded (cores 0-6=1.0, core 7=2.0)
+[6152897] Risk parameters configured
+[6152897] === Phase 2: Basic Add Orders ===
+[6152897] Sending AAPL BUY Add Order (seq=1)
+[6224000] DBG mold: seq=1 exp=1 inorder=1
+[6272921] DBG parser: type=0x41 ref=0x0000000000000001 price=384000000 side=1 shares=100
+[6300800] Sending AAPL SELL Add Order (seq=2)
+[6377600] DBG mold: seq=2 exp=2 inorder=1
+[6422400] Sending MSFT BUY Add Order (seq=3)
+[6426285] DBG parser: type=0x41 ref=0x0000000000000002 price=386560000 side=0 shares=200
+[6499200] DBG mold: seq=3 exp=3 inorder=1
+[6522971] DBG best_valid! core=7 score=0x4db7003f
+[6544000] Sending MSFT SELL Add Order (seq=4)
+[6549643] DBG parser: type=0x41 ref=0x0000000000000003 price=768000000 side=1 shares=300
+[6620800] DBG mold: seq=4 exp=4 inorder=1
+[6669667] DBG parser: type=0x41 ref=0x0000000000000004 price=770560000 side=0 shares=150
+[6799693] DBG best_valid! core=7 score=0x4eb78003
+[7299793] OUCH packets after basic adds: 0
+[7299793] === Phase 3: Modify Orders ===
+[7299793] Sending Execute Order ref=1 (seq=5)
+[7376000] DBG mold: seq=5 exp=5 inorder=1
+[7420800] Sending Cancel Order ref=2 (seq=6)
+[7426485] DBG parser: type=0x45 ref=0x0000000000000001 price=0 side=0 shares=50
+[7536000] Sending Delete Order ref=3 (seq=7)
+[7543175] DBG parser: type=0x58 ref=0x0000000000000002 price=0 side=0 shares=100
+[7649863] DBG parser: type=0x44 ref=0x0000000000000003 price=0 side=0 shares=0
+[8276655] OUCH packets after modifies: 0
+[8276655] === Phase 4: Replace Order ===
+[8276655] Sending Replace Order ref=4->5 (seq=8)
+[8400013] DBG parser: type=0x55 ref=0x0000000000000004 price=3020000 side=0 shares=250
+[9026805] === Phase 5: Multi-symbol stress ===
+[9146829] DBG parser: type=0x41 ref=0x0000000000000010 price=358400000 side=1 shares=500
+[9256851] DBG parser: type=0x41 ref=0x0000000000000011 price=360960000 side=0 shares=400
+[9366873] DBG parser: type=0x41 ref=0x0000000000000012 price=640000000 side=1 shares=600
+[9396879] DBG best_valid! core=7 score=0x4e31b816
+[9473561] DBG parser: type=0x41 ref=0x0000000000000013 price=642560000 side=0 shares=700
+[9583583] DBG parser: type=0x41 ref=0x0000000000000014 price=381440000 side=1 shares=800
+[9616923] DBG best_valid! core=7 score=0x4ecfdc0d
+[9690271] DBG parser: type=0x41 ref=0x0000000000000015 price=389120000 side=0 shares=900
+[9833633] DBG best_valid! core=7 score=0x4eb11c11
+[11320597] OUCH packets after multi-symbol: 0
+[11320597] === Phase 6: Edge cases ===
+[11320597] Sending max-price order
+[11440000] Sending min-price order
+[11443955] DBG parser: type=0x41 ref=0x0000000000000020 price=4294967040 side=1 shares=100
+[11561600] Sending max-quantity order
+[11567313] DBG parser: type=0x41 ref=0x0000000000000021 price=256 side=0 shares=100
+[11683200] Sending zero-shares order
+[11687337] DBG parser: type=0x41 ref=0x0000000000000022 price=384000000 side=1 shares=16777215
+[11694005] DBG best_valid! core=7 score=0x4f416e07
+[11714009] DBG risk_pass!
+[11740681] OUCH packet #1 completed (6 beats total)
+[11810695] DBG parser: type=0x41 ref=0x0000000000000023 price=384000000 side=1 shares=0
+[11937387] DBG best_valid! core=7 score=0x4eb53c0f
+[12770887] === Phase 7: MoldUDP64 sequence gap ===
+[12770887] Sending out-of-order frame (seq=20, expected=19)
+[12918400] Sending in-order frame (seq=19)
+[13044275] DBG parser: type=0x41 ref=0x0000000000000031 price=384000000 side=1 shares=100
+[13294325] DBG best_valid! core=7 score=0x4eb14011
+[13674401] === Phase 8: Back-pressure ===
+[13801093] DBG parser: type=0x41 ref=0x0000000000000040 price=768000000 side=1 shares=100
+[13911115] DBG parser: type=0x41 ref=0x0000000000000041 price=770560000 side=0 shares=100
+[14051143] DBG best_valid! core=7 score=0x4edf0010
+[15204707] OUCH packets after backpressure: 1
+[15204707] === Phase 9: Untracked symbol ===
+[15204707] Sending untracked symbol AMZN
+[15331399] DBG parser: type=0x41 ref=0x0000000000000050 price=768000000 side=1 shares=100
+[15958191] PASS: No OUCH for untracked symbol
+[15958191] === Phase 10: Burst stress test ===
+[16078215] DBG parser: type=0x41 ref=0x0000000000000100 price=256000000 side=1 shares=100
+[16174901] DBG parser: type=0x41 ref=0x0000000000000101 price=258560000 side=0 shares=110
+[16264919] DBG parser: type=0x41 ref=0x0000000000000102 price=261120000 side=1 shares=120
+[16328265] DBG best_valid! core=7 score=0x4ea20014
+[16354937] DBG parser: type=0x41 ref=0x0000000000000103 price=263680000 side=0 shares=130
+[16451623] DBG parser: type=0x41 ref=0x0000000000000104 price=266240000 side=1 shares=140
+[16538307] DBG parser: type=0x41 ref=0x0000000000000105 price=268800000 side=0 shares=150
+[16604987] DBG best_valid! core=7 score=0x4ea2e00e
+[16695005] DBG parser: type=0x41 ref=0x0000000000000106 price=271360000 side=1 shares=160
+[16788357] DBG parser: type=0x41 ref=0x0000000000000107 price=273920000 side=0 shares=170
+[16878375] DBG parser: type=0x41 ref=0x0000000000000108 price=276480000 side=1 shares=180
+[16945055] DBG best_valid! core=7 score=0x4ea3c010
+[16968393] DBG parser: type=0x41 ref=0x0000000000000109 price=279040000 side=0 shares=190
+[17065079] DBG parser: type=0x41 ref=0x000000000000010a price=281600000 side=1 shares=200
+[17218443] DBG best_valid! core=7 score=0x4ea4c00f
+[17218443] DBG parser: type=0x41 ref=0x000000000000010b price=284160000 side=0 shares=210
+[17308461] DBG parser: type=0x41 ref=0x000000000000010c price=286720000 side=1 shares=220
+[17405147] DBG parser: type=0x41 ref=0x000000000000010d price=289280000 side=0 shares=230
+[17468493] DBG best_valid! core=7 score=0x4ea5400f
+[17495165] DBG parser: type=0x41 ref=0x000000000000010e price=291840000 side=1 shares=240
+[17581849] DBG parser: type=0x41 ref=0x000000000000010f price=294400000 side=0 shares=250
+[17678535] DBG parser: type=0x41 ref=0x0000000000000110 price=296960000 side=1 shares=260
+[17745215] DBG best_valid! core=7 score=0x4ea64011
+[17768553] DBG parser: type=0x41 ref=0x0000000000000111 price=299520000 side=0 shares=270
+[17858571] DBG parser: type=0x41 ref=0x0000000000000112 price=302080000 side=1 shares=280
+[17955257] DBG parser: type=0x41 ref=0x0000000000000113 price=304640000 side=0 shares=290
+[18018603] DBG best_valid! core=7 score=0x4ea70010
+[21249249] === Phase 11: OUCH generation (targeted) ===
+[21429285] DBG parser: type=0x41 ref=0x0000000000000060 price=256 side=0 shares=100
+[21679335] DBG best_valid! core=7 score=0x4e838018
+[21699339] DBG risk_pass!
+[21726011] OUCH packet #2 completed (12 beats total)
+[22509501] DBG parser: type=0x41 ref=0x0000000000000061 price=256 side=1 shares=50
+[22759551] DBG best_valid! core=7 score=0x4e838013
+[22779555] DBG risk_pass!
+[22806227] OUCH packet #3 completed (18 beats total)
+[23599719] DBG parser: type=0x41 ref=0x0000000000000062 price=256 side=0 shares=200
+[23849769] DBG best_valid! core=7 score=0x4e838014
+[23869773] DBG risk_pass!
+[23896445] OUCH packet #4 completed (24 beats total)
+[24679935] DBG parser: type=0x41 ref=0x0000000000000063 price=256 side=1 shares=75
+[24929985] DBG best_valid! core=7 score=0x4e838013
+[24949989] DBG risk_pass!
+[24976661] OUCH packet #5 completed (30 beats total)
+[25763485] DBG parser: type=0x41 ref=0x0000000000000064 price=256 side=0 shares=150
+[26033539] DBG risk_pass!
+[26060211] OUCH packet #6 completed (36 beats total)
+[26850369] DBG parser: type=0x41 ref=0x0000000000000065 price=256 side=1 shares=80
+[27120423] DBG risk_pass!
+[27147095] OUCH packet #7 completed (42 beats total)
+[27930585] DBG parser: type=0x41 ref=0x00000000000000a0 price=256 side=1 shares=60
+[28200639] DBG risk_pass!
+[28227311] OUCH packet #8 completed (48 beats total)
+[29020803] DBG parser: type=0x41 ref=0x00000000000000a1 price=256 side=0 shares=90
+[29290857] DBG risk_pass!
+[29317529] OUCH packet #9 completed (54 beats total)
+[30034339] OUCH packets after targeted test: 9 (new: 8)
+[30034339] PASS: OUCH generation working
+[30034339] === Phase 12: Multi-message datagram ===
+[30157697] DBG parser: type=0x41 ref=0x0000000000000070 price=153600000 side=1 shares=100
+[31151229] Multi-message datagram sent
+[31151229] === Phase 13: Order book exerciser ===
+[31271253] DBG parser: type=0x45 ref=0x0000000000000060 price=0 side=0 shares=25
+[31681335] DBG parser: type=0x58 ref=0x0000000000000061 price=0 side=0 shares=50
+[32091417] DBG parser: type=0x44 ref=0x0000000000000062 price=0 side=0 shares=0
+[32508167] DBG parser: type=0x55 ref=0x0000000000000064 price=900000 side=0 shares=300
+[33134959] Order book operations complete
+[33134959] === Phase 14: Risk blocking tests ===
+[33258317] DBG parser: type=0x41 ref=0x0000000000000080 price=128000000 side=1 shares=10001
+[35012001] DBG parser: type=0x41 ref=0x0000000000000090 price=128000000 side=1 shares=100
+[35112021] DBG parser: type=0x41 ref=0x0000000000000091 price=128000000 side=1 shares=100
+[35215375] DBG parser: type=0x41 ref=0x0000000000000092 price=128000000 side=1 shares=100
+[35318729] DBG parser: type=0x41 ref=0x0000000000000093 price=128000000 side=1 shares=100
+[35418749] DBG parser: type=0x41 ref=0x0000000000000094 price=128000000 side=1 shares=100
+[35522103] DBG parser: type=0x41 ref=0x0000000000000095 price=128000000 side=1 shares=100
+[35625457] DBG parser: type=0x41 ref=0x0000000000000096 price=128000000 side=1 shares=100
+[35725477] DBG parser: type=0x41 ref=0x0000000000000097 price=128000000 side=1 shares=100
+[35828831] DBG parser: type=0x41 ref=0x0000000000000098 price=128000000 side=1 shares=100
+[35932185] DBG parser: type=0x41 ref=0x0000000000000099 price=128000000 side=1 shares=100
+[36035539] DBG parser: type=0x41 ref=0x000000000000009a price=128000000 side=1 shares=100
+[36135559] DBG parser: type=0x41 ref=0x000000000000009b price=128000000 side=1 shares=100
+[37775887] Risk blocking tests done, OUCH delta: 0
+[37775887] === Phase 15: ITCH message types ===
+[38652729] DBG parser: type=0x50 ref=0x0000000000000000 price=0 side=0 shares=0
+[39336199] ITCH message types covered (F, P, S)
+[39336199] === Phase 16: OUCH backpressure stress ===
+[39459557] DBG parser: type=0x41 ref=0x00000000000000b0 price=256000000 side=0 shares=100
+[39872973] DBG parser: type=0x41 ref=0x00000000000000b1 price=128000000 side=1 shares=50
+[42170099] OUCH backpressure test done, pkts=9
+[42170099] === Phase 17: AXI4-Lite readback ===
+[42190103] Collision count: 0
+[42210107] Risk status: 0x00000001
+[42230111] Histogram overflow: 8
+[42250115] band_bps readback: 0
+[42270119] max_qty readback: 0
+[42290123] score_thresh readback: 0x00000000
+[42310127] CAM data lo: 0x00000000
+[42330131] CAM data hi: 0x00000000
+[42530171] === Phase 18: PCIe DMA snapshot ===
+[42583515] PCIe BAR0 configured, waiting for DMA trigger...
+[49251515] DMA active: 1
+[49251515] === Phase 19: FIFO stress ===
+[49378207] DBG parser: type=0x41 ref=0x00000000000000c0 price=128000000 side=1 shares=50
+[49468225] DBG parser: type=0x41 ref=0x00000000000000c1 price=128256000 side=0 shares=51
+[49558243] DBG parser: type=0x41 ref=0x00000000000000c2 price=128512000 side=1 shares=52
+[49648261] DBG parser: type=0x41 ref=0x00000000000000c3 price=128768000 side=0 shares=53
+[49738279] DBG parser: type=0x41 ref=0x00000000000000c4 price=129024000 side=1 shares=54
+[49824963] DBG parser: type=0x41 ref=0x00000000000000c5 price=129280000 side=0 shares=55
+[49914981] DBG parser: type=0x41 ref=0x00000000000000c6 price=129536000 side=1 shares=56
+[50004999] DBG parser: type=0x41 ref=0x00000000000000c7 price=129792000 side=0 shares=57
+[50095017] DBG parser: type=0x41 ref=0x00000000000000c8 price=130048000 side=1 shares=58
+[50185035] DBG parser: type=0x41 ref=0x00000000000000c9 price=130304000 side=0 shares=59
+[50275053] DBG parser: type=0x41 ref=0x00000000000000ca price=130560000 side=1 shares=60
+[50365071] DBG parser: type=0x41 ref=0x00000000000000cb price=130816000 side=0 shares=61
+[50455089] DBG parser: type=0x41 ref=0x00000000000000cc price=131072000 side=1 shares=62
+[50541773] DBG parser: type=0x41 ref=0x00000000000000cd price=131328000 side=0 shares=63
+[50631791] DBG parser: type=0x41 ref=0x00000000000000ce price=131584000 side=1 shares=64
+[50721809] DBG parser: type=0x41 ref=0x00000000000000cf price=131840000 side=0 shares=65
+[50811827] DBG parser: type=0x41 ref=0x00000000000000d0 price=132096000 side=1 shares=66
+[50901845] DBG parser: type=0x41 ref=0x00000000000000d1 price=132352000 side=0 shares=67
+[50991863] DBG parser: type=0x41 ref=0x00000000000000d2 price=132608000 side=1 shares=68
+[51081881] DBG parser: type=0x41 ref=0x00000000000000d3 price=132864000 side=0 shares=69
+[51171899] DBG parser: type=0x41 ref=0x00000000000000d4 price=133120000 side=1 shares=70
+[51258583] DBG parser: type=0x41 ref=0x00000000000000d5 price=133376000 side=0 shares=71
+[51348601] DBG parser: type=0x41 ref=0x00000000000000d6 price=133632000 side=1 shares=72
+[51438619] DBG parser: type=0x41 ref=0x00000000000000d7 price=133888000 side=0 shares=73
+[51528637] DBG parser: type=0x41 ref=0x00000000000000d8 price=134144000 side=1 shares=74
+[51618655] DBG parser: type=0x41 ref=0x00000000000000d9 price=134400000 side=0 shares=75
+[51708673] DBG parser: type=0x41 ref=0x00000000000000da price=134656000 side=1 shares=76
+[51798691] DBG parser: type=0x41 ref=0x00000000000000db price=134912000 side=0 shares=77
+[51888709] DBG parser: type=0x41 ref=0x00000000000000dc price=135168000 side=1 shares=78
+[51975393] DBG parser: type=0x41 ref=0x00000000000000dd price=135424000 side=0 shares=79
+[55272719] FIFO stress done, OUCH=9
+[55272719] === Phase 20: Histogram clear ===
+[55346067] Histogram overflow after clear: 0
+[55346067] === Phase 22: Order book BBO resets ===
+[55472759] DBG parser: type=0x41 ref=0x00000000000000e0 price=256 side=0 shares=10
+[55719475] DBG parser: type=0x41 ref=0x00000000000000e1 price=256 side=0 shares=20
+[55742813] DBG risk_pass!
+[55769485] OUCH packet #10 completed (60 beats total)
+[55969525] DBG parser: type=0x41 ref=0x00000000000000e2 price=256 side=0 shares=30
+[55989529] DBG risk_pass!
+[56016201] OUCH packet #11 completed (66 beats total)
+[56219575] DBG parser: type=0x41 ref=0x00000000000000e3 price=256 side=0 shares=40
+[56239579] DBG risk_pass!
+[56266251] OUCH packet #12 completed (72 beats total)
+[56462957] DBG parser: type=0x58 ref=0x00000000000000e0 price=0 side=0 shares=10
+[56489629] DBG risk_pass!
+[56516301] OUCH packet #13 completed (78 beats total)
+[56713007] DBG parser: type=0x45 ref=0x00000000000000e1 price=0 side=0 shares=20
+[56949721] DBG parser: type=0x44 ref=0x00000000000000e2 price=0 side=0 shares=0
+[57199771] DBG parser: type=0x55 ref=0x00000000000000e3 price=1 side=0 shares=50
+[57616521] DBG parser: type=0x41 ref=0x00000000000000e5 price=256 side=1 shares=15
+[57863237] DBG parser: type=0x45 ref=0x00000000000000e5 price=0 side=0 shares=15
+[58113287] DBG parser: type=0x41 ref=0x00000000000000e6 price=256 side=1 shares=25
+[58356669] DBG parser: type=0x44 ref=0x00000000000000e6 price=0 side=0 shares=0
+[58486695] Order book BBO reset tests done
+[58486695] === Phase 23: PCIe DMA TLP generation ===
+[66168231] PCIe DMA TLP test done, active=1
+[66168231] === Phase 24: Strategy arbiter asymmetry ===
+[70825829] DBG parser: type=0x41 ref=0x0000000000000300 price=256 side=0 shares=100
+[73859769] DBG parser: type=0x41 ref=0x0000000000000301 price=256 side=1 shares=100
+[76890375] DBG parser: type=0x41 ref=0x0000000000000302 price=256 side=0 shares=100
+[79924315] DBG parser: type=0x41 ref=0x0000000000000303 price=256 side=1 shares=100
+[86729009] Strategy arbiter asymmetry tests done
+[86729009] === Phase 25: MoldUDP64 error paths ===
+[87017600] MoldUDP64 error path tests done
+[87017600] === Phase 26: OUCH template + AXI config ===
+[87435817] Risk blocked latch: 0x00000001
+[87502497] OUCH template + AXI config done
+[87502497] === Phase 27: UDP error paths ===
+[87644800] UDP error path tests done
+[87644800] === Phase 28: Risk block reasons ===
+[87842565] DBG parser: type=0x41 ref=0x0000000000000400 price=256 side=0 shares=10
+[89616253] DBG parser: type=0x41 ref=0x0000000000000410 price=256 side=1 shares=3
+[90029669] DBG parser: type=0x41 ref=0x0000000000000411 price=256 side=1 shares=3
+[90446419] DBG parser: type=0x41 ref=0x0000000000000412 price=256 side=1 shares=3
+[90863169] DBG parser: type=0x41 ref=0x0000000000000413 price=256 side=1 shares=3
+[91279919] DBG parser: type=0x41 ref=0x0000000000000414 price=256 side=1 shares=3
+[91696669] DBG parser: type=0x41 ref=0x0000000000000415 price=256 side=1 shares=3
+[92110085] DBG parser: type=0x41 ref=0x0000000000000416 price=256 side=1 shares=3
+[92533503] DBG parser: type=0x41 ref=0x0000000000000417 price=256 side=1 shares=3
+[92880239] Risk block reason tests done
+[92880239] === Phase 29: Misc coverage ===
+[93570377] DBG parser: type=0x50 ref=0x00000000000000ff price=0 side=1 shares=0
+[93987127] DBG parser: type=0x41 ref=0x0000000000000500 price=256 side=1 shares=50
+[94403877] DBG parser: type=0x41 ref=0x0000000000000501 price=256 side=0 shares=50
+[94697269] Misc coverage tests done
+[94697269] === Phase 30: OUCH backpressure overflow ===
+[94893975] DBG parser: type=0x41 ref=0x0000000000000600 price=256 side=0 shares=100
+[95650793] DBG parser: type=0x41 ref=0x0000000000000601 price=256 side=1 shares=100
+[98944785] OUCH BP overflow test done, tx_overflow=0
+[98944785] === Phase 31: Order book ref_empty path ===
+[99054807] DBG parser: type=0x44 ref=0xdeadbeefcafe0001 price=0 side=0 shares=0
+[99804957] DBG parser: type=0x45 ref=0xdeadbeefcafe0002 price=0 side=0 shares=50
+[100431749] Order book ref_empty tests done
+[100431749] === Phase 32: Mold truncated B0 header ===
+[100656000] Mold truncated header tests done
+[100656000] === Phase 33: Frame drop counter ===
+[100781819] DBG parser: type=0x41 ref=0x0000000000000700 price=384000000 side=0 shares=10
+[100871837] DBG parser: type=0x41 ref=0x0000000000000701 price=384000000 side=1 shares=10
+[100961855] DBG parser: type=0x41 ref=0x0000000000000702 price=384000000 side=0 shares=10
+[101051873] DBG parser: type=0x41 ref=0x0000000000000703 price=384000000 side=1 shares=10
+[101141891] DBG parser: type=0x41 ref=0x0000000000000704 price=384000000 side=0 shares=10
+[101231909] DBG parser: type=0x41 ref=0x0000000000000705 price=384000000 side=1 shares=10
+[101321927] DBG parser: type=0x41 ref=0x0000000000000706 price=384000000 side=0 shares=10
+[101411945] DBG parser: type=0x41 ref=0x0000000000000707 price=384000000 side=1 shares=10
+[101498629] DBG parser: type=0x41 ref=0x0000000000000708 price=384000000 side=0 shares=10
+[101588647] DBG parser: type=0x41 ref=0x0000000000000709 price=384000000 side=1 shares=10
+[101678665] DBG parser: type=0x41 ref=0x000000000000070a price=384000000 side=0 shares=10
+[101768683] DBG parser: type=0x41 ref=0x000000000000070b price=384000000 side=1 shares=10
+[101858701] DBG parser: type=0x41 ref=0x000000000000070c price=384000000 side=0 shares=10
+[101948719] DBG parser: type=0x41 ref=0x000000000000070d price=384000000 side=1 shares=10
+[102038737] DBG parser: type=0x41 ref=0x000000000000070e price=384000000 side=0 shares=10
+[102128755] DBG parser: type=0x41 ref=0x000000000000070f price=384000000 side=1 shares=10
+[102215439] DBG parser: type=0x41 ref=0x0000000000000710 price=384000000 side=0 shares=10
+[102305457] DBG parser: type=0x41 ref=0x0000000000000711 price=384000000 side=1 shares=10
+[102395475] DBG parser: type=0x41 ref=0x0000000000000712 price=384000000 side=0 shares=10
+[102485493] DBG parser: type=0x41 ref=0x0000000000000713 price=384000000 side=1 shares=10
+[104112485] Frame drop counter test done, dropped=0
+[104112485] === Phase 21: Kill switch ===
+[104132489] Kill switch engaged
+[104259181] DBG parser: type=0x41 ref=0x0000000000000200 price=384000000 side=1 shares=100
+[105886173] OUCH after kill switch: 13 (before: 13)
+
+============================================
+  HFT SoC Testbench Summary
+============================================
+  Tests run:    33
+  Tests passed: 33
+  Tests failed: 0
+  ITCH messages sent: 157
+  OUCH packets received: 13
+  Dropped frames: 0
+  Dropped datagrams: 2
+  Collision count: 0
+  TX overflow: 0
+============================================
+- tb_top.sv:1971: Verilog $finish
+- S i m u l a t i o n   R e p o r t: Verilator 5.046 2026-02-28
+- Verilator: $finish at 107us; walltime 0.151 s; speed 708.249 us/s
+- Verilator: cpu 0.150 s on 1 threads; allocated 9 MB
