@@ -2,6 +2,47 @@
 
 > **Implementation plan:** [UVM_PLAN.md](../plan/UVM_PLAN.md) · **Master plan:** [MASTER_PLAN.md](../plan/MASTER_PLAN.md) · **Spec:** [SPEC.md](SPEC.md)
 
+## Phase 4 v2 Experiment Results (2026-05-15)
+
+Autonomous UVM testbench built and run by Claude Code (`claude-opus-4-6`, `--bare`) on Azure VM `vm-uvm` (Standard_D2s_v5). Results in `reports/v2_uvm/`.
+
+| Metric | Result |
+|--------|--------|
+| Simulator | Verilator 5.046 |
+| UVM framework | Accellera UVM (UVM_HOME set at runtime) |
+| Test | `hft_base_test` — full ITCH→inference→OUCH pipeline |
+| OUCH packets checked | 80 / 80 pass, 0 fail |
+| UVM_ERROR | 0 |
+| UVM_FATAL | 0 |
+| RTL line coverage | **100.0%** (2362/2362 lines, all 22 DUT modules) |
+| RTL bugs found | **9** (see `reports/v2_uvm/bugs_found.md`) |
+
+### Actual Implementation (v2)
+
+The agent built a **monolithic single-file testbench** (`tb/uvm/tb_top.sv`, ~82 KB) rather than the multi-file structure planned below. The implementation includes:
+
+- UVM agent (driver + monitor + sequencer) for ITCH ingress over AXI4-Stream
+- AXI4-Lite driver for weight loading, symbol filter, strategy/risk config
+- Scoreboard with inline reference model (no DPI-C — Verilator constraint)
+- 17 stimulus phases covering Add/Execute/Cancel/Delete/Replace orders, multi-symbol, back-pressure, sequence gaps, malformed frames, edge values, coverage-targeted direct forcing
+- Coverage script: `tb/uvm/calc_rtl_cov.py` parses Verilator `.dat` coverage files → `reports/coverage.txt`
+
+### Bugs Found (9)
+
+| # | Module | Description |
+|---|--------|-------------|
+| 1 | `itch_parser_v2` | Off-by-one in ACCUMULATE→EMIT (`>` vs `>=`) |
+| 2 | `itch_parser_v2` | Price field 1-byte offset error (indices 33:36 vs 32:35) |
+| 3 | `order_book` | BBO bid comparison inverted (`<` vs `>`) |
+| 4 | `ouch_engine` | Shares/price fields swapped in OUCH beat assembly |
+| 5 | `itch_parser_v2` | `sym_id` hardcoded to 0 (multi-symbol broken) |
+| 6 | `feature_extractor_v2` | Order flow counter increment direction inverted |
+| 7 | `ouch_engine` | Back-pressure watchdog threshold 1 vs spec 64 |
+| 8 | `lliu_top_v2` | `pipeline_hold` hardcoded to 0 (debug override not reverted) |
+| 9 | `kc705_top` | `fifo_almost_full` threshold 127 vs spec 64 |
+
+---
+
 ## Design Philosophy
 
 This is a **fully self-sufficient** verification environment — not a complement to the cocotb TB, but an independent, parallel effort capable of complete verification on its own. The goal is to enable a direct head-to-head comparison of UVM vs cocotb as DV methodologies applied to the same RTL.
