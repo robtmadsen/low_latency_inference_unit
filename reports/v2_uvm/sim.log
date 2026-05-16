@@ -1,0 +1,1266 @@
+UVM_INFO /home/azureuser/uvm-core/src/base/uvm_root.svh(476) @ 0: reporter [UVM/RELNOTES] 
+  ***********       IMPORTANT RELEASE NOTES         ************
+
+  This implementation of the UVM Library deviates from the 1800.2-2020
+  standard.  See the DEVIATIONS.md file contained in the release
+  for more details.
+
+----------------------------------------------------------------
+Accellera:1800.2:UVM:2020.3.1
+
+All copyright owners for this kit are listed in NOTICE.txt
+All Rights Reserved Worldwide
+----------------------------------------------------------------
+
+      (Specify +UVM_NO_RELNOTES to turn off this notice)
+
+UVM_WARNING /home/azureuser/uvm-core/src/base/uvm_root.svh(549) @ 0: reporter [NO_DPI_USED] We are thinking of removing support for UVM_NO_DPI.  Please try this test without it and evaluate the impact
+UVM_INFO /home/azureuser/uvm-core/src/base/uvm_root.svh(552) @ 0: reporter [NO_DPI_TSTNAME] UVM_NO_DPI defined--getting UVM_TESTNAME directly, without DPI
+UVM_INFO @ 0: reporter [RNTST] Running test hft_base_test...
+UVM_INFO /home/azureuser/uvm-core/src/base/uvm_traversal.svh(345) @ 0: reporter [UVM/COMP/NAMECHECK] This implementation of the component name checks requires DPI to be enabled
+UVM_WARNING /home/azureuser/uvm-core/src/base/uvm_traversal.svh(314) @ 0: reporter [NO_VISIT_CHECK] Because UVM_REGEX_NO_DPI is defined, no uvm component name constraints will be checked
+UVM_INFO tb_top.sv(565) @ 0: uvm_test_top [TEST] === HFT Base Test Starting ===
+UVM_INFO tb_top.sv(590) @ 375075: uvm_test_top [TEST] Reset deasserted, system running
+UVM_INFO tb_top.sv(593) @ 375075: uvm_test_top [TEST] Configuring symbol filter for AAPL
+UVM_INFO tb_top.sv(608) @ 525105: uvm_test_top [TEST] Loading weights for all 8 cores
+UVM_INFO tb_top.sv(618) @ 4792625: uvm_test_top [TEST] Configuring OUCH template for AAPL (sym_id=0)
+UVM_INFO tb_top.sv(637) @ 4992665: uvm_test_top [TEST] Configuring risk parameters
+UVM_INFO tb_top.sv(656) @ 5209375: uvm_test_top [TEST] Sending ITCH Add Order (Buy, AAPL)
+[DBG] t=5326065 fields_valid #1 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=5329399 OB_READ_REF1 op_msg_type=0x41 order_ref=1001 probe=0
+[DBG] t=5336067 watchlist_hit #1
+[DBG] t=5336067 feat_ext_fv #1 bbo_bid=0 bbo_ask=0
+[DBG] t=5339401 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=5352737 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=5359405 features_valid #1
+UVM_INFO tb_top.sv(669) @ 5424000: uvm_test_top [TEST] Sending ITCH Add Order (Sell, AAPL)
+[DBG] t=5546109 fields_valid #2 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=5549443 OB_READ_REF1 op_msg_type=0x41 order_ref=1002 probe=0
+[DBG] t=5556111 watchlist_hit #2
+[DBG] t=5556111 feat_ext_fv #2 bbo_bid=0 bbo_ask=0
+[DBG] t=5559445 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=5566113 GV=11111111 lv0v=1111 scores=0x4b430364 0x4b430364 0x4b430364 0x4b430364 0x4b430364 0x4b430364 0x4b430364 0x4b430364
+[DBG] t=5572781 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=5576115 best_valid #1 score=0x4b430364
+[DBG] t=5579449 features_valid #2
+[DBG] t=5596119 risk_blocked #1 reason=01 ref_price=0 band_thresh=0 price_diff=26880000
+UVM_INFO tb_top.sv(679) @ 5641600: uvm_test_top [TEST] Sending ITCH Add Order (Buy, MSFT)
+[DBG] t=5762819 fields_valid #3 msg_type=0x41 stock=4d53465420202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=5766153 OB_READ_REF1 op_msg_type=0x41 order_ref=2001 probe=0
+[DBG] t=5772821 watchlist_hit #3
+[DBG] t=5772821 feat_ext_fv #3 bbo_bid=0 bbo_ask=26880000
+[DBG] t=5776155 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=5786157 GV=11111111 lv0v=1111 scores=0x4b4d0084 0x4b4d0084 0x4b4d0084 0x4b4d0084 0x4b4d0084 0x4b4d0084 0x4b4d0084 0x4b4d0084
+[DBG] t=5789491 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=5796159 features_valid #3
+[DBG] t=5796159 best_valid #2 score=0x4b4d0084
+[DBG] t=5816163 risk_pass #1
+UVM_INFO tb_top.sv(130) @ 5842835: uvm_test_top.scb [SCB] OUCH pkt #1: msg_type=O correct
+UVM_INFO tb_top.sv(689) @ 5859200: uvm_test_top [TEST] Sending ITCH Add Order (Sell, MSFT)
+[DBG] t=5979529 fields_valid #4 msg_type=0x41 stock=4d53465420202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=5982863 OB_READ_REF1 op_msg_type=0x41 order_ref=2002 probe=0
+[DBG] t=5989531 watchlist_hit #4
+[DBG] t=5989531 feat_ext_fv #4 bbo_bid=0 bbo_ask=26880000
+[DBG] t=5992865 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=6002867 GV=11111111 lv0v=1111 scores=0x4c183ffb 0x4c183ffb 0x4c183ffb 0x4c183ffb 0x4c183ffb 0x4c183ffb 0x4c183ffb 0x4c183ffb
+[DBG] t=6006201 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=6012869 features_valid #4
+[DBG] t=6012869 best_valid #3 score=0x4c183ffb
+[DBG] t=6032873 risk_pass #2
+UVM_INFO tb_top.sv(130) @ 6059545: uvm_test_top.scb [SCB] OUCH pkt #2: msg_type=O correct
+[DBG] t=6219577 GV=11111111 lv0v=1111 scores=0x4c4bfffe 0x4c4bfffe 0x4c4bfffe 0x4c4bfffe 0x4c4bfffe 0x4c4bfffe 0x4c4bfffe 0x4c4bfffe
+[DBG] t=6229579 best_valid #4 score=0x4c4bfffe
+[DBG] t=6249583 risk_pass #3
+UVM_INFO tb_top.sv(130) @ 6276255: uvm_test_top.scb [SCB] OUCH pkt #3: msg_type=O correct
+UVM_INFO tb_top.sv(698) @ 7868800: uvm_test_top [TEST] Sending Execute Order (partial, buy-side)
+[DBG] t=7989931 fields_valid #5 msg_type=0x45 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=7993265 OB_READ_REF1 op_msg_type=0x45 order_ref=1001 probe=0
+[DBG] t=8003267 OB_MATCH op_msg=0x45 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=8016603 OB_UPDATE op_msg=0x45 target_found=1
+UVM_INFO tb_top.sv(706) @ 9878400: uvm_test_top [TEST] Sending Cancel Order (sell-side)
+[DBG] t=9993665 fields_valid #6 msg_type=0x58 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=9996999 OB_READ_REF1 op_msg_type=0x58 order_ref=1002 probe=0
+[DBG] t=10007001 OB_MATCH op_msg=0x58 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=10020337 OB_UPDATE op_msg=0x58 target_found=1
+UVM_INFO tb_top.sv(714) @ 11881600: uvm_test_top [TEST] Sending Delete Order (buy-side)
+[DBG] t=11990731 fields_valid #7 msg_type=0x44 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=11994065 OB_READ_REF1 op_msg_type=0x44 order_ref=2001 probe=0
+[DBG] t=12004067 OB_MATCH op_msg=0x44 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=12017403 OB_UPDATE op_msg=0x44 target_found=1
+UVM_INFO tb_top.sv(724) @ 12598400: uvm_test_top [TEST] Sending Replace Order (MSFT sell)
+[DBG] t=12717543 fields_valid #8 msg_type=0x55 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=12720877 OB_READ_REF1 op_msg_type=0x55 order_ref=2002 probe=0
+[DBG] t=12730879 OB_MATCH op_msg=0x55 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=12744215 OB_UPDATE op_msg=0x55 target_found=1
+UVM_INFO tb_top.sv(732) @ 13328000: uvm_test_top [TEST] Sending Trade message (P)
+[DBG] t=13454357 fields_valid #9 msg_type=0x50 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=13464359 watchlist_hit #5
+[DBG] t=13464359 feat_ext_fv #5 bbo_bid=0 bbo_ask=26880000
+[DBG] t=13487697 features_valid #5
+[DBG] t=13694405 GV=11111111 lv0v=1111 scores=0x4c174105 0x4c174105 0x4c174105 0x4c174105 0x4c174105 0x4c174105 0x4c174105 0x4c174105
+[DBG] t=13704407 best_valid #5 score=0x4c174105
+[DBG] t=13724411 risk_pass #4
+UVM_INFO tb_top.sv(130) @ 13751083: uvm_test_top.scb [SCB] OUCH pkt #4: msg_type=O correct
+UVM_INFO tb_top.sv(741) @ 14064000: uvm_test_top [TEST] Sending Add sell AAPL (for delete test)
+[DBG] t=14184503 fields_valid #10 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=14187837 OB_READ_REF1 op_msg_type=0x41 order_ref=1010 probe=0
+[DBG] t=14194505 watchlist_hit #6
+[DBG] t=14194505 feat_ext_fv #6 bbo_bid=0 bbo_ask=26880000
+[DBG] t=14197839 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=14211175 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=14217843 features_valid #6
+[DBG] t=14424551 GV=11111111 lv0v=1111 scores=0x4c1b000e 0x4c1b000e 0x4c1b000e 0x4c1b000e 0x4c1b000e 0x4c1b000e 0x4c1b000e 0x4c1b000e
+[DBG] t=14434553 best_valid #6 score=0x4c1b000e
+[DBG] t=14454557 risk_pass #5
+UVM_INFO tb_top.sv(130) @ 14481229: uvm_test_top.scb [SCB] OUCH pkt #5: msg_type=O correct
+UVM_INFO tb_top.sv(750) @ 14793600: uvm_test_top [TEST] Sending Delete Order (sell-side)
+[DBG] t=14901313 fields_valid #11 msg_type=0x44 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=14904647 OB_READ_REF1 op_msg_type=0x44 order_ref=1010 probe=0
+[DBG] t=14914649 OB_MATCH op_msg=0x44 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=14927985 OB_UPDATE op_msg=0x44 target_found=1
+UVM_INFO tb_top.sv(758) @ 15510400: uvm_test_top [TEST] Sending Execute Order (sell-side)
+[DBG] t=15631459 fields_valid #12 msg_type=0x45 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=15634793 OB_READ_REF1 op_msg_type=0x45 order_ref=2003 probe=0
+[DBG] t=15644795 OB_MATCH op_msg=0x45 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=15658131 OB_UPDATE op_msg=0x45 target_found=1
+UVM_INFO tb_top.sv(766) @ 16240000: uvm_test_top [TEST] Sending Cancel to zero shares (full cancel)
+[DBG] t=16354937 fields_valid #13 msg_type=0x58 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=16358271 OB_READ_REF1 op_msg_type=0x58 order_ref=1001 probe=0
+[DBG] t=16368273 OB_MATCH op_msg=0x58 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=16381609 OB_UPDATE op_msg=0x58 target_found=1
+UVM_INFO tb_top.sv(774) @ 16963200: uvm_test_top [TEST] Sending fat-finger order (shares > MAX_QTY)
+[DBG] t=17085083 fields_valid #14 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=17088417 OB_READ_REF1 op_msg_type=0x41 order_ref=5500 probe=0
+[DBG] t=17095085 watchlist_hit #7
+[DBG] t=17095085 feat_ext_fv #7 bbo_bid=0 bbo_ask=26880000
+[DBG] t=17098419 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=17111755 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=17118423 features_valid #7
+UVM_INFO tb_top.sv(786) @ 17180800: uvm_test_top [TEST] Sending seq gap (skip 15, send 16)
+[DBG] t=17325131 GV=11111111 lv0v=1111 scores=0x4c19836c 0x4c19836c 0x4c19836c 0x4c19836c 0x4c19836c 0x4c19836c 0x4c19836c 0x4c19836c
+[DBG] t=17335133 best_valid #7 score=0x4c19836c
+[DBG] t=17355137 risk_pass #6
+UVM_INFO tb_top.sv(130) @ 17381809: uvm_test_top.scb [SCB] OUCH pkt #6: msg_type=O correct
+UVM_INFO tb_top.sv(794) @ 17398400: uvm_test_top [TEST] Sending correct seq 15
+[DBG] t=17518503 fields_valid #15 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=17521837 OB_READ_REF1 op_msg_type=0x41 order_ref=4002 probe=0
+[DBG] t=17528505 watchlist_hit #8
+[DBG] t=17528505 feat_ext_fv #8 bbo_bid=0 bbo_ask=26880000
+[DBG] t=17531839 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=17545175 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=17551843 features_valid #8
+[DBG] t=17735213 fields_valid #16 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=17738547 OB_READ_REF1 op_msg_type=0x41 order_ref=5000 probe=0
+[DBG] t=17745215 watchlist_hit #9
+[DBG] t=17745215 feat_ext_fv #9 bbo_bid=0 bbo_ask=25600000
+[DBG] t=17748549 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=17758551 GV=11111111 lv0v=1111 scores=0x4c173ff8 0x4c173ff8 0x4c173ff8 0x4c173ff8 0x4c173ff8 0x4c173ff8 0x4c173ff8 0x4c173ff8
+[DBG] t=17761885 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=17768553 features_valid #9
+[DBG] t=17768553 best_valid #8 score=0x4c173ff8
+[DBG] t=17788557 risk_pass #7
+UVM_INFO tb_top.sv(130) @ 17815229: uvm_test_top.scb [SCB] OUCH pkt #7: msg_type=O correct
+[DBG] t=17955257 fields_valid #17 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=17958591 OB_READ_REF1 op_msg_type=0x41 order_ref=5001 probe=0
+[DBG] t=17965259 watchlist_hit #10
+[DBG] t=17965259 feat_ext_fv #10 bbo_bid=0 bbo_ask=25600000
+[DBG] t=17968593 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=17975261 GV=11111111 lv0v=1111 scores=0x4c43000a 0x4c43000a 0x4c43000a 0x4c43000a 0x4c43000a 0x4c43000a 0x4c43000a 0x4c43000a
+[DBG] t=17981929 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=17985263 best_valid #9 score=0x4c43000a
+[DBG] t=17988597 features_valid #10
+[DBG] t=18005267 risk_pass #8
+UVM_INFO tb_top.sv(130) @ 18031939: uvm_test_top.scb [SCB] OUCH pkt #8: msg_type=O correct
+[DBG] t=18171967 fields_valid #18 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=18175301 OB_READ_REF1 op_msg_type=0x41 order_ref=5002 probe=0
+[DBG] t=18181969 watchlist_hit #11
+[DBG] t=18181969 feat_ext_fv #11 bbo_bid=0 bbo_ask=25600000
+[DBG] t=18185303 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=18195305 GV=11111111 lv0v=1111 scores=0x4c72400e 0x4c72400e 0x4c72400e 0x4c72400e 0x4c72400e 0x4c72400e 0x4c72400e 0x4c72400e
+[DBG] t=18198639 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=18205307 features_valid #11
+[DBG] t=18205307 best_valid #10 score=0x4c72400e
+[DBG] t=18225311 risk_pass #9
+UVM_INFO tb_top.sv(130) @ 18251983: uvm_test_top.scb [SCB] OUCH pkt #9: msg_type=O correct
+[DBG] t=18388677 fields_valid #19 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=18392011 OB_READ_REF1 op_msg_type=0x41 order_ref=5003 probe=0
+[DBG] t=18398679 watchlist_hit #12
+[DBG] t=18398679 feat_ext_fv #12 bbo_bid=0 bbo_ask=25600000
+[DBG] t=18402013 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=18412015 GV=11111111 lv0v=1111 scores=0x4c734010 0x4c734010 0x4c734010 0x4c734010 0x4c734010 0x4c734010 0x4c734010 0x4c734010
+[DBG] t=18415349 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=18422017 features_valid #12
+[DBG] t=18422017 best_valid #11 score=0x4c734010
+[DBG] t=18442021 risk_pass #10
+UVM_INFO tb_top.sv(130) @ 18468693: uvm_test_top.scb [SCB] OUCH pkt #10: msg_type=O correct
+[DBG] t=18608721 fields_valid #20 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=18612055 OB_READ_REF1 op_msg_type=0x41 order_ref=5004 probe=0
+[DBG] t=18618723 watchlist_hit #13
+[DBG] t=18618723 feat_ext_fv #13 bbo_bid=0 bbo_ask=25600000
+[DBG] t=18622057 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=18628725 GV=11111111 lv0v=1111 scores=0x4c744016 0x4c744016 0x4c744016 0x4c744016 0x4c744016 0x4c744016 0x4c744016 0x4c744016
+[DBG] t=18635393 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=18638727 best_valid #12 score=0x4c744016
+[DBG] t=18642061 features_valid #13
+[DBG] t=18658731 risk_pass #11
+UVM_INFO tb_top.sv(130) @ 18685403: uvm_test_top.scb [SCB] OUCH pkt #11: msg_type=O correct
+[DBG] t=18778755 fields_valid #21 msg_type=0x41 stock=4d53465420202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=18782089 OB_READ_REF1 op_msg_type=0x41 order_ref=6000 probe=0
+[DBG] t=18788757 watchlist_hit #14
+[DBG] t=18788757 feat_ext_fv #14 bbo_bid=0 bbo_ask=25600000
+[DBG] t=18792091 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=18805427 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=18812095 features_valid #14
+[DBG] t=18848769 GV=11111111 lv0v=1111 scores=0x4c754018 0x4c754018 0x4c754018 0x4c754018 0x4c754018 0x4c754018 0x4c754018 0x4c754018
+[DBG] t=18858771 best_valid #13 score=0x4c754018
+[DBG] t=18878775 risk_pass #12
+UVM_INFO tb_top.sv(130) @ 18905447: uvm_test_top.scb [SCB] OUCH pkt #12: msg_type=O correct
+[DBG] t=18922117 fields_valid #22 msg_type=0x41 stock=4d53465420202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=18925451 OB_READ_REF1 op_msg_type=0x41 order_ref=6001 probe=0
+[DBG] t=18932119 watchlist_hit #15
+[DBG] t=18932119 feat_ext_fv #15 bbo_bid=0 bbo_ask=25600000
+[DBG] t=18935453 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=18948789 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=18955457 features_valid #15
+[DBG] t=19062145 fields_valid #23 msg_type=0x41 stock=4d53465420202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=19065479 OB_READ_REF1 op_msg_type=0x41 order_ref=6002 probe=0
+[DBG] t=19072147 watchlist_hit #16
+[DBG] t=19072147 feat_ext_fv #16 bbo_bid=0 bbo_ask=25600000
+[DBG] t=19075481 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=19088817 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=19095485 features_valid #16
+[DBG] t=19162165 GV=11111111 lv0v=1111 scores=0x4c74c012 0x4c74c012 0x4c74c012 0x4c74c012 0x4c74c012 0x4c74c012 0x4c74c012 0x4c74c012
+[DBG] t=19172167 best_valid #14 score=0x4c74c012
+[DBG] t=19192171 risk_pass #13
+UVM_INFO tb_top.sv(130) @ 19218843: uvm_test_top.scb [SCB] OUCH pkt #13: msg_type=O correct
+UVM_INFO tb_top.sv(848) @ 19670400: uvm_test_top [TEST] Sending additional AAPL orders (post-BBO)
+[DBG] t=19982329 fields_valid #24 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=19985663 OB_READ_REF1 op_msg_type=0x41 order_ref=7000 probe=0
+[DBG] t=19992331 watchlist_hit #17
+[DBG] t=19992331 feat_ext_fv #17 bbo_bid=0 bbo_ask=25600000
+[DBG] t=19995665 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=20009001 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=20015669 features_valid #17
+[DBG] t=20222377 GV=11111111 lv0v=1111 scores=0x4c71c033 0x4c71c033 0x4c71c033 0x4c71c033 0x4c71c033 0x4c71c033 0x4c71c033 0x4c71c033
+[DBG] t=20232379 best_valid #15 score=0x4c71c033
+[DBG] t=20252383 risk_pass #14
+[DBG] t=20265719 fields_valid #25 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=20269053 OB_READ_REF1 op_msg_type=0x41 order_ref=7001 probe=0
+[DBG] t=20275721 watchlist_hit #18
+[DBG] t=20275721 feat_ext_fv #18 bbo_bid=0 bbo_ask=25600000
+UVM_INFO tb_top.sv(130) @ 20279055: uvm_test_top.scb [SCB] OUCH pkt #14: msg_type=O correct
+[DBG] t=20279055 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=20292391 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=20299059 features_valid #18
+[DBG] t=20505767 GV=11111111 lv0v=1111 scores=0x4c724016 0x4c724016 0x4c724016 0x4c724016 0x4c724016 0x4c724016 0x4c724016 0x4c724016
+[DBG] t=20515769 best_valid #16 score=0x4c724016
+[DBG] t=20535773 risk_pass #15
+[DBG] t=20545775 fields_valid #26 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=20549109 OB_READ_REF1 op_msg_type=0x41 order_ref=7002 probe=0
+[DBG] t=20555777 watchlist_hit #19
+[DBG] t=20555777 feat_ext_fv #19 bbo_bid=0 bbo_ask=24832000
+[DBG] t=20559111 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(130) @ 20562445: uvm_test_top.scb [SCB] OUCH pkt #15: msg_type=O correct
+[DBG] t=20572447 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=20579115 features_valid #19
+[DBG] t=20785823 GV=11111111 lv0v=1111 scores=0x4c714019 0x4c714019 0x4c714019 0x4c714019 0x4c714019 0x4c714019 0x4c714019 0x4c714019
+[DBG] t=20795825 best_valid #17 score=0x4c714019
+[DBG] t=20815829 risk_pass #16
+[DBG] t=20829165 fields_valid #27 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=20832499 OB_READ_REF1 op_msg_type=0x41 order_ref=7003 probe=0
+[DBG] t=20839167 watchlist_hit #20
+[DBG] t=20839167 feat_ext_fv #20 bbo_bid=0 bbo_ask=24832000
+UVM_INFO tb_top.sv(130) @ 20842501: uvm_test_top.scb [SCB] OUCH pkt #16: msg_type=O correct
+[DBG] t=20842501 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=20855837 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=20862505 features_valid #20
+[DBG] t=21069213 GV=11111111 lv0v=1111 scores=0x4c71c012 0x4c71c012 0x4c71c012 0x4c71c012 0x4c71c012 0x4c71c012 0x4c71c012 0x4c71c012
+[DBG] t=21079215 best_valid #18 score=0x4c71c012
+[DBG] t=21099219 risk_pass #17
+[DBG] t=21109221 fields_valid #28 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=21112555 OB_READ_REF1 op_msg_type=0x41 order_ref=7004 probe=0
+[DBG] t=21119223 watchlist_hit #21
+[DBG] t=21119223 feat_ext_fv #21 bbo_bid=0 bbo_ask=24832000
+[DBG] t=21122557 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(130) @ 21125891: uvm_test_top.scb [SCB] OUCH pkt #17: msg_type=O correct
+[DBG] t=21135893 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=21142561 features_valid #21
+[DBG] t=21349269 GV=11111111 lv0v=1111 scores=0x4c72401e 0x4c72401e 0x4c72401e 0x4c72401e 0x4c72401e 0x4c72401e 0x4c72401e 0x4c72401e
+[DBG] t=21359271 best_valid #19 score=0x4c72401e
+[DBG] t=21379275 risk_pass #18
+[DBG] t=21392611 fields_valid #29 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=21395945 OB_READ_REF1 op_msg_type=0x41 order_ref=7005 probe=0
+[DBG] t=21402613 watchlist_hit #22
+[DBG] t=21402613 feat_ext_fv #22 bbo_bid=0 bbo_ask=24832000
+UVM_INFO tb_top.sv(130) @ 21405947: uvm_test_top.scb [SCB] OUCH pkt #18: msg_type=O correct
+[DBG] t=21405947 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=21419283 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=21425951 features_valid #22
+[DBG] t=21632659 GV=11111111 lv0v=1111 scores=0x4c72c014 0x4c72c014 0x4c72c014 0x4c72c014 0x4c72c014 0x4c72c014 0x4c72c014 0x4c72c014
+[DBG] t=21642661 best_valid #20 score=0x4c72c014
+[DBG] t=21662665 risk_pass #19
+[DBG] t=21672667 fields_valid #30 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=21676001 OB_READ_REF1 op_msg_type=0x41 order_ref=7006 probe=0
+[DBG] t=21682669 watchlist_hit #23
+[DBG] t=21682669 feat_ext_fv #23 bbo_bid=0 bbo_ask=24832000
+[DBG] t=21686003 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(130) @ 21689337: uvm_test_top.scb [SCB] OUCH pkt #19: msg_type=O correct
+[DBG] t=21699339 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=21706007 features_valid #23
+[DBG] t=21912715 GV=11111111 lv0v=1111 scores=0x4c734023 0x4c734023 0x4c734023 0x4c734023 0x4c734023 0x4c734023 0x4c734023 0x4c734023
+[DBG] t=21922717 best_valid #21 score=0x4c734023
+[DBG] t=21942721 risk_pass #20
+[DBG] t=21952723 fields_valid #31 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=21956057 OB_READ_REF1 op_msg_type=0x41 order_ref=7007 probe=0
+[DBG] t=21962725 watchlist_hit #24
+[DBG] t=21962725 feat_ext_fv #24 bbo_bid=0 bbo_ask=24832000
+[DBG] t=21966059 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(130) @ 21969393: uvm_test_top.scb [SCB] OUCH pkt #20: msg_type=O correct
+[DBG] t=21979395 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=21986063 features_valid #24
+[DBG] t=22192771 GV=11111111 lv0v=1111 scores=0x4c73c017 0x4c73c017 0x4c73c017 0x4c73c017 0x4c73c017 0x4c73c017 0x4c73c017 0x4c73c017
+[DBG] t=22202773 best_valid #22 score=0x4c73c017
+[DBG] t=22222777 risk_pass #21
+[DBG] t=22236113 fields_valid #32 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=22239447 OB_READ_REF1 op_msg_type=0x41 order_ref=7008 probe=0
+[DBG] t=22246115 watchlist_hit #25
+[DBG] t=22246115 feat_ext_fv #25 bbo_bid=0 bbo_ask=24832000
+UVM_INFO tb_top.sv(130) @ 22249449: uvm_test_top.scb [SCB] OUCH pkt #21: msg_type=O correct
+[DBG] t=22249449 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=22262785 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=22269453 features_valid #25
+[DBG] t=22476161 GV=11111111 lv0v=1111 scores=0x4c744028 0x4c744028 0x4c744028 0x4c744028 0x4c744028 0x4c744028 0x4c744028 0x4c744028
+[DBG] t=22486163 best_valid #23 score=0x4c744028
+UVM_INFO tb_top.sv(861) @ 22486400: uvm_test_top [TEST] Sending additional MSFT orders (post-BBO)
+[DBG] t=22506167 risk_pass #22
+[DBG] t=22516169 fields_valid #33 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=22519503 OB_READ_REF1 op_msg_type=0x41 order_ref=7009 probe=0
+[DBG] t=22526171 watchlist_hit #26
+[DBG] t=22526171 feat_ext_fv #26 bbo_bid=0 bbo_ask=24832000
+[DBG] t=22529505 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(130) @ 22532839: uvm_test_top.scb [SCB] OUCH pkt #22: msg_type=O correct
+[DBG] t=22542841 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=22549509 features_valid #26
+[DBG] t=22756217 GV=11111111 lv0v=1111 scores=0x4c74c019 0x4c74c019 0x4c74c019 0x4c74c019 0x4c74c019 0x4c74c019 0x4c74c019 0x4c74c019
+[DBG] t=22766219 best_valid #24 score=0x4c74c019
+[DBG] t=22786223 risk_pass #23
+[DBG] t=22799559 fields_valid #34 msg_type=0x41 stock=4d53465420202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=22802893 OB_READ_REF1 op_msg_type=0x41 order_ref=8000 probe=0
+[DBG] t=22809561 watchlist_hit #27
+[DBG] t=22809561 feat_ext_fv #27 bbo_bid=0 bbo_ask=24832000
+UVM_INFO tb_top.sv(130) @ 22812895: uvm_test_top.scb [SCB] OUCH pkt #23: msg_type=O correct
+[DBG] t=22812895 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=22826231 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=22832899 features_valid #27
+[DBG] t=23039607 GV=11111111 lv0v=1111 scores=0x4c71400e 0x4c71400e 0x4c71400e 0x4c71400e 0x4c71400e 0x4c71400e 0x4c71400e 0x4c71400e
+[DBG] t=23049609 best_valid #25 score=0x4c71400e
+[DBG] t=23069613 risk_pass #24
+[DBG] t=23079615 fields_valid #35 msg_type=0x41 stock=4d53465420202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=23082949 OB_READ_REF1 op_msg_type=0x41 order_ref=8001 probe=0
+[DBG] t=23089617 watchlist_hit #28
+[DBG] t=23089617 feat_ext_fv #28 bbo_bid=0 bbo_ask=24832000
+[DBG] t=23092951 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(130) @ 23096285: uvm_test_top.scb [SCB] OUCH pkt #24: msg_type=O correct
+[DBG] t=23106287 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=23112955 features_valid #28
+[DBG] t=23319663 GV=11111111 lv0v=1111 scores=0x4c71c00c 0x4c71c00c 0x4c71c00c 0x4c71c00c 0x4c71c00c 0x4c71c00c 0x4c71c00c 0x4c71c00c
+[DBG] t=23329665 best_valid #26 score=0x4c71c00c
+[DBG] t=23349669 risk_pass #25
+[DBG] t=23363005 fields_valid #36 msg_type=0x41 stock=4d53465420202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=23366339 OB_READ_REF1 op_msg_type=0x41 order_ref=8002 probe=0
+[DBG] t=23373007 watchlist_hit #29
+[DBG] t=23373007 feat_ext_fv #29 bbo_bid=0 bbo_ask=24832000
+UVM_INFO tb_top.sv(130) @ 23376341: uvm_test_top.scb [SCB] OUCH pkt #25: msg_type=O correct
+[DBG] t=23376341 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=23389677 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=23396345 features_valid #29
+[DBG] t=23603053 GV=11111111 lv0v=1111 scores=0x4c724011 0x4c724011 0x4c724011 0x4c724011 0x4c724011 0x4c724011 0x4c724011 0x4c724011
+[DBG] t=23613055 best_valid #27 score=0x4c724011
+[DBG] t=23633059 risk_pass #26
+[DBG] t=23643061 fields_valid #37 msg_type=0x41 stock=4d53465420202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=23646395 OB_READ_REF1 op_msg_type=0x41 order_ref=8003 probe=0
+[DBG] t=23653063 watchlist_hit #30
+[DBG] t=23653063 feat_ext_fv #30 bbo_bid=0 bbo_ask=24832000
+[DBG] t=23656397 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(130) @ 23659731: uvm_test_top.scb [SCB] OUCH pkt #26: msg_type=O correct
+[DBG] t=23669733 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=23676401 features_valid #30
+[DBG] t=23883109 GV=11111111 lv0v=1111 scores=0x4c72c00d 0x4c72c00d 0x4c72c00d 0x4c72c00d 0x4c72c00d 0x4c72c00d 0x4c72c00d 0x4c72c00d
+[DBG] t=23893111 best_valid #28 score=0x4c72c00d
+[DBG] t=23913115 risk_pass #27
+[DBG] t=23926451 fields_valid #38 msg_type=0x41 stock=4d53465420202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=23929785 OB_READ_REF1 op_msg_type=0x41 order_ref=8004 probe=0
+[DBG] t=23936453 watchlist_hit #31
+[DBG] t=23936453 feat_ext_fv #31 bbo_bid=0 bbo_ask=24832000
+UVM_INFO tb_top.sv(130) @ 23939787: uvm_test_top.scb [SCB] OUCH pkt #27: msg_type=O correct
+[DBG] t=23939787 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=23953123 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=23959791 features_valid #31
+UVM_INFO tb_top.sv(875) @ 24086400: uvm_test_top [TEST] Sending unfiltered symbol GOOG
+[DBG] t=24166499 GV=11111111 lv0v=1111 scores=0x4c734013 0x4c734013 0x4c734013 0x4c734013 0x4c734013 0x4c734013 0x4c734013 0x4c734013
+UVM_INFO tb_top.sv(883) @ 24176000: uvm_test_top [TEST] Sending rapid burst of 20 orders
+[DBG] t=24176501 best_valid #29 score=0x4c734013
+[DBG] t=24196505 risk_pass #28
+[DBG] t=24206507 fields_valid #39 msg_type=0x41 stock=474f4f4720202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=24209841 OB_READ_REF1 op_msg_type=0x41 order_ref=9001 probe=0
+[DBG] t=24219843 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(130) @ 24223177: uvm_test_top.scb [SCB] OUCH pkt #28: msg_type=O correct
+[DBG] t=24233179 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=24329865 fields_valid #40 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=24333199 OB_READ_REF1 op_msg_type=0x41 order_ref=10000 probe=0
+[DBG] t=24339867 watchlist_hit #32
+[DBG] t=24339867 feat_ext_fv #32 bbo_bid=0 bbo_ask=24832000
+[DBG] t=24343201 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=24356537 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=24363205 features_valid #32
+[DBG] t=24449889 fields_valid #41 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=24453223 OB_READ_REF1 op_msg_type=0x41 order_ref=10001 probe=0
+[DBG] t=24459891 watchlist_hit #33
+[DBG] t=24459891 feat_ext_fv #33 bbo_bid=0 bbo_ask=24832000
+[DBG] t=24463225 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=24476561 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=24483229 features_valid #33
+[DBG] t=24569913 GV=11111111 lv0v=1111 scores=0x4c6d400f 0x4c6d400f 0x4c6d400f 0x4c6d400f 0x4c6d400f 0x4c6d400f 0x4c6d400f 0x4c6d400f
+[DBG] t=24573247 fields_valid #42 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=24576581 OB_READ_REF1 op_msg_type=0x41 order_ref=10002 probe=0
+[DBG] t=24579915 best_valid #30 score=0x4c6d400f
+[DBG] t=24583249 watchlist_hit #34
+[DBG] t=24583249 feat_ext_fv #34 bbo_bid=0 bbo_ask=23296000
+[DBG] t=24586583 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=24599919 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=24599919 risk_pass #29
+[DBG] t=24606587 features_valid #34
+UVM_INFO tb_top.sv(130) @ 24626591: uvm_test_top.scb [SCB] OUCH pkt #29: msg_type=O correct
+[DBG] t=24693271 fields_valid #43 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=24696605 OB_READ_REF1 op_msg_type=0x41 order_ref=10003 probe=0
+[DBG] t=24703273 watchlist_hit #35
+[DBG] t=24703273 feat_ext_fv #35 bbo_bid=0 bbo_ask=23296000
+[DBG] t=24706607 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=24719943 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=24726611 features_valid #35
+[DBG] t=24813295 GV=11111111 lv0v=1111 scores=0x4c6b400c 0x4c6b400c 0x4c6b400c 0x4c6b400c 0x4c6b400c 0x4c6b400c 0x4c6b400c 0x4c6b400c
+[DBG] t=24816629 fields_valid #44 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=24819963 OB_READ_REF1 op_msg_type=0x41 order_ref=10004 probe=0
+[DBG] t=24823297 best_valid #31 score=0x4c6b400c
+[DBG] t=24826631 watchlist_hit #36
+[DBG] t=24826631 feat_ext_fv #36 bbo_bid=0 bbo_ask=23296000
+[DBG] t=24829965 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=24843301 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=24843301 risk_pass #30
+[DBG] t=24849969 features_valid #36
+UVM_INFO tb_top.sv(130) @ 24869973: uvm_test_top.scb [SCB] OUCH pkt #30: msg_type=O correct
+[DBG] t=24936653 fields_valid #45 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=24939987 OB_READ_REF1 op_msg_type=0x41 order_ref=10005 probe=0
+[DBG] t=24946655 watchlist_hit #37
+[DBG] t=24946655 feat_ext_fv #37 bbo_bid=0 bbo_ask=23296000
+[DBG] t=24949989 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=24963325 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=24969993 features_valid #37
+[DBG] t=25056677 fields_valid #46 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=25056677 GV=11111111 lv0v=1111 scores=0x4c6c400f 0x4c6c400f 0x4c6c400f 0x4c6c400f 0x4c6c400f 0x4c6c400f 0x4c6c400f 0x4c6c400f
+[DBG] t=25060011 OB_READ_REF1 op_msg_type=0x41 order_ref=10006 probe=0
+[DBG] t=25066679 watchlist_hit #38
+[DBG] t=25066679 feat_ext_fv #38 bbo_bid=0 bbo_ask=23296000
+[DBG] t=25066679 best_valid #32 score=0x4c6c400f
+[DBG] t=25070013 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=25083349 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=25086683 risk_pass #31
+[DBG] t=25090017 features_valid #38
+UVM_INFO tb_top.sv(130) @ 25113355: uvm_test_top.scb [SCB] OUCH pkt #31: msg_type=O correct
+[DBG] t=25180035 fields_valid #47 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=25183369 OB_READ_REF1 op_msg_type=0x41 order_ref=10007 probe=0
+[DBG] t=25190037 watchlist_hit #39
+[DBG] t=25190037 feat_ext_fv #39 bbo_bid=0 bbo_ask=23296000
+[DBG] t=25193371 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=25206707 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=25213375 features_valid #39
+[DBG] t=25296725 GV=11111111 lv0v=1111 scores=0x4c6d4012 0x4c6d4012 0x4c6d4012 0x4c6d4012 0x4c6d4012 0x4c6d4012 0x4c6d4012 0x4c6d4012
+[DBG] t=25300059 fields_valid #48 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=25303393 OB_READ_REF1 op_msg_type=0x41 order_ref=10008 probe=0
+[DBG] t=25306727 best_valid #33 score=0x4c6d4012
+[DBG] t=25310061 watchlist_hit #40
+[DBG] t=25310061 feat_ext_fv #40 bbo_bid=0 bbo_ask=23296000
+[DBG] t=25313395 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=25326731 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=25326731 risk_pass #32
+[DBG] t=25333399 features_valid #40
+UVM_INFO tb_top.sv(130) @ 25353403: uvm_test_top.scb [SCB] OUCH pkt #32: msg_type=O correct
+[DBG] t=25423417 fields_valid #49 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=25426751 OB_READ_REF1 op_msg_type=0x41 order_ref=10009 probe=0
+[DBG] t=25433419 watchlist_hit #41
+[DBG] t=25433419 feat_ext_fv #41 bbo_bid=0 bbo_ask=23296000
+[DBG] t=25436753 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=25450089 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=25456757 features_valid #41
+[DBG] t=25540107 GV=11111111 lv0v=1111 scores=0x4c6e4014 0x4c6e4014 0x4c6e4014 0x4c6e4014 0x4c6e4014 0x4c6e4014 0x4c6e4014 0x4c6e4014
+[DBG] t=25543441 fields_valid #50 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=25546775 OB_READ_REF1 op_msg_type=0x41 order_ref=10010 probe=0
+[DBG] t=25550109 best_valid #34 score=0x4c6e4014
+[DBG] t=25553443 watchlist_hit #42
+[DBG] t=25553443 feat_ext_fv #42 bbo_bid=0 bbo_ask=23296000
+[DBG] t=25556777 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=25570113 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=25570113 risk_pass #33
+[DBG] t=25576781 features_valid #42
+UVM_INFO tb_top.sv(130) @ 25596785: uvm_test_top.scb [SCB] OUCH pkt #33: msg_type=O correct
+[DBG] t=25666799 fields_valid #51 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=25670133 OB_READ_REF1 op_msg_type=0x41 order_ref=10011 probe=0
+[DBG] t=25676801 watchlist_hit #43
+[DBG] t=25676801 feat_ext_fv #43 bbo_bid=0 bbo_ask=23296000
+[DBG] t=25680135 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=25693471 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=25700139 features_valid #43
+[DBG] t=25783489 GV=11111111 lv0v=1111 scores=0x4c6f4016 0x4c6f4016 0x4c6f4016 0x4c6f4016 0x4c6f4016 0x4c6f4016 0x4c6f4016 0x4c6f4016
+[DBG] t=25786823 fields_valid #52 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=25790157 OB_READ_REF1 op_msg_type=0x41 order_ref=10012 probe=0
+[DBG] t=25793491 best_valid #35 score=0x4c6f4016
+[DBG] t=25796825 watchlist_hit #44
+[DBG] t=25796825 feat_ext_fv #44 bbo_bid=0 bbo_ask=23296000
+[DBG] t=25800159 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=25813495 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=25813495 risk_pass #34
+[DBG] t=25820163 features_valid #44
+UVM_INFO tb_top.sv(130) @ 25840167: uvm_test_top.scb [SCB] OUCH pkt #34: msg_type=O correct
+[DBG] t=25910181 fields_valid #53 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=25913515 OB_READ_REF1 op_msg_type=0x41 order_ref=10013 probe=0
+[DBG] t=25920183 watchlist_hit #45
+[DBG] t=25920183 feat_ext_fv #45 bbo_bid=0 bbo_ask=23296000
+[DBG] t=25923517 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=25936853 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=25943521 features_valid #45
+[DBG] t=26026871 GV=11111111 lv0v=1111 scores=0x4c704019 0x4c704019 0x4c704019 0x4c704019 0x4c704019 0x4c704019 0x4c704019 0x4c704019
+[DBG] t=26030205 fields_valid #54 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=26033539 OB_READ_REF1 op_msg_type=0x41 order_ref=10014 probe=0
+[DBG] t=26036873 best_valid #36 score=0x4c704019
+[DBG] t=26040207 watchlist_hit #46
+[DBG] t=26040207 feat_ext_fv #46 bbo_bid=0 bbo_ask=23296000
+[DBG] t=26043541 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=26056877 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=26056877 risk_pass #35
+[DBG] t=26063545 features_valid #46
+UVM_INFO tb_top.sv(130) @ 26083549: uvm_test_top.scb [SCB] OUCH pkt #35: msg_type=O correct
+[DBG] t=26153563 fields_valid #55 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=26156897 OB_READ_REF1 op_msg_type=0x41 order_ref=10015 probe=0
+[DBG] t=26163565 watchlist_hit #47
+[DBG] t=26163565 feat_ext_fv #47 bbo_bid=0 bbo_ask=23296000
+[DBG] t=26166899 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=26180235 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=26186903 features_valid #47
+[DBG] t=26270253 GV=11111111 lv0v=1111 scores=0x4c71401c 0x4c71401c 0x4c71401c 0x4c71401c 0x4c71401c 0x4c71401c 0x4c71401c 0x4c71401c
+[DBG] t=26273587 fields_valid #56 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=26276921 OB_READ_REF1 op_msg_type=0x41 order_ref=10016 probe=0
+[DBG] t=26280255 best_valid #37 score=0x4c71401c
+[DBG] t=26283589 watchlist_hit #48
+[DBG] t=26283589 feat_ext_fv #48 bbo_bid=0 bbo_ask=23296000
+[DBG] t=26286923 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=26300259 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=26300259 risk_pass #36
+[DBG] t=26306927 features_valid #48
+UVM_INFO tb_top.sv(130) @ 26326931: uvm_test_top.scb [SCB] OUCH pkt #36: msg_type=O correct
+[DBG] t=26396945 fields_valid #57 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=26400279 OB_READ_REF1 op_msg_type=0x41 order_ref=10017 probe=0
+[DBG] t=26406947 watchlist_hit #49
+[DBG] t=26406947 feat_ext_fv #49 bbo_bid=0 bbo_ask=23296000
+[DBG] t=26410281 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=26423617 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=26430285 features_valid #49
+[DBG] t=26513635 GV=11111111 lv0v=1111 scores=0x4c72401e 0x4c72401e 0x4c72401e 0x4c72401e 0x4c72401e 0x4c72401e 0x4c72401e 0x4c72401e
+[DBG] t=26516969 fields_valid #58 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=26520303 OB_READ_REF1 op_msg_type=0x41 order_ref=10018 probe=0
+[DBG] t=26523637 best_valid #38 score=0x4c72401e
+[DBG] t=26526971 watchlist_hit #50
+[DBG] t=26526971 feat_ext_fv #50 bbo_bid=0 bbo_ask=23296000
+[DBG] t=26530305 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=26543641 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=26543641 risk_pass #37
+[DBG] t=26550309 features_valid #50
+UVM_INFO tb_top.sv(130) @ 26570313: uvm_test_top.scb [SCB] OUCH pkt #37: msg_type=O correct
+UVM_INFO tb_top.sv(896) @ 26608000: uvm_test_top [TEST] Reconfiguring weights: odd cores = 2.0
+[DBG] t=26640327 fields_valid #59 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=26643661 OB_READ_REF1 op_msg_type=0x41 order_ref=10019 probe=0
+[DBG] t=26650329 watchlist_hit #51
+[DBG] t=26650329 feat_ext_fv #51 bbo_bid=0 bbo_ask=23296000
+[DBG] t=26653663 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=26666999 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=26673667 features_valid #51
+[DBG] t=26757017 GV=11111111 lv0v=1111 scores=0x4c730020 0x4c730025 0x4c730020 0x4c730020 0x4c730020 0x4c730020 0x4c730020 0x4c730020
+[DBG] t=26767019 best_valid #39 score=0x4c730025
+[DBG] t=26787023 risk_pass #38
+UVM_INFO tb_top.sv(130) @ 26813695: uvm_test_top.scb [SCB] OUCH pkt #38: msg_type=O correct
+[DBG] t=29084149 fields_valid #60 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=29087483 OB_READ_REF1 op_msg_type=0x41 order_ref=11000 probe=0
+[DBG] t=29094151 watchlist_hit #52
+[DBG] t=29094151 feat_ext_fv #52 bbo_bid=0 bbo_ask=23296000
+[DBG] t=29097485 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=29110821 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=29117489 features_valid #52
+[DBG] t=29324197 GV=11111111 lv0v=1111 scores=0x4c6dc066 0x4cedc066 0x4c6dc066 0x4cedc066 0x4c6dc066 0x4cedc066 0x4c6dc066 0x4cedc066
+[DBG] t=29334199 best_valid #40 score=0x4cedc066
+[DBG] t=29354203 risk_pass #39
+[DBG] t=29364205 fields_valid #61 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=29367539 OB_READ_REF1 op_msg_type=0x41 order_ref=11001 probe=0
+[DBG] t=29374207 watchlist_hit #53
+[DBG] t=29374207 feat_ext_fv #53 bbo_bid=0 bbo_ask=23296000
+[DBG] t=29377541 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(130) @ 29380875: uvm_test_top.scb [SCB] OUCH pkt #39: msg_type=O correct
+[DBG] t=29390877 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=29397545 features_valid #53
+[DBG] t=29604253 GV=11111111 lv0v=1111 scores=0x4c6e4013 0x4cee4013 0x4c6e4013 0x4cee4013 0x4c6e4013 0x4cee4013 0x4c6e4013 0x4cee4013
+[DBG] t=29614255 best_valid #41 score=0x4cee4013
+[DBG] t=29634259 risk_pass #40
+[DBG] t=29647595 fields_valid #62 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=29650929 OB_READ_REF1 op_msg_type=0x41 order_ref=11002 probe=0
+[DBG] t=29657597 watchlist_hit #54
+[DBG] t=29657597 feat_ext_fv #54 bbo_bid=0 bbo_ask=23296000
+UVM_INFO tb_top.sv(130) @ 29660931: uvm_test_top.scb [SCB] OUCH pkt #40: msg_type=O correct
+[DBG] t=29660931 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=29674267 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=29680935 features_valid #54
+[DBG] t=29887643 GV=11111111 lv0v=1111 scores=0x4c6ec01a 0x4ceec01a 0x4c6ec01a 0x4ceec01a 0x4c6ec01a 0x4ceec01a 0x4c6ec01a 0x4ceec01a
+[DBG] t=29897645 best_valid #42 score=0x4ceec01a
+[DBG] t=29917649 risk_pass #41
+[DBG] t=29927651 fields_valid #63 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=29930985 OB_READ_REF1 op_msg_type=0x41 order_ref=11003 probe=0
+[DBG] t=29937653 watchlist_hit #55
+[DBG] t=29937653 feat_ext_fv #55 bbo_bid=0 bbo_ask=23296000
+[DBG] t=29940987 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(130) @ 29944321: uvm_test_top.scb [SCB] OUCH pkt #41: msg_type=O correct
+[DBG] t=29954323 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=29960991 features_valid #55
+[DBG] t=30167699 GV=11111111 lv0v=1111 scores=0x4c6f4015 0x4cef4015 0x4c6f4015 0x4cef4015 0x4c6f4015 0x4cef4015 0x4c6f4015 0x4cef4015
+[DBG] t=30177701 best_valid #43 score=0x4cef4015
+[DBG] t=30197705 risk_pass #42
+[DBG] t=30211041 fields_valid #64 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=30214375 OB_READ_REF1 op_msg_type=0x41 order_ref=11004 probe=0
+[DBG] t=30221043 watchlist_hit #56
+[DBG] t=30221043 feat_ext_fv #56 bbo_bid=0 bbo_ask=23296000
+UVM_INFO tb_top.sv(130) @ 30224377: uvm_test_top.scb [SCB] OUCH pkt #42: msg_type=O correct
+[DBG] t=30224377 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=30237713 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=30244381 features_valid #56
+[DBG] t=30451089 GV=11111111 lv0v=1111 scores=0x4c6fc01f 0x4cefc01f 0x4c6fc01f 0x4cefc01f 0x4c6fc01f 0x4cefc01f 0x4c6fc01f 0x4cefc01f
+UVM_INFO tb_top.sv(921) @ 30460800: uvm_test_top [TEST] Reconfiguring weights: even cores = 0
+[DBG] t=30461091 best_valid #44 score=0x4cefc01f
+[DBG] t=30481095 risk_pass #43
+[DBG] t=30491097 fields_valid #65 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=30494431 OB_READ_REF1 op_msg_type=0x41 order_ref=11005 probe=0
+[DBG] t=30501099 watchlist_hit #57
+[DBG] t=30501099 feat_ext_fv #57 bbo_bid=0 bbo_ask=23296000
+[DBG] t=30504433 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(130) @ 30507767: uvm_test_top.scb [SCB] OUCH pkt #43: msg_type=O correct
+[DBG] t=30517769 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=30524437 features_valid #57
+[DBG] t=30731145 GV=11111111 lv0v=1111 scores=0x4c3e800d 0x4cf04018 0x4c704018 0x4cf04018 0x4c704018 0x4cf04018 0x4c704018 0x4cf04018
+[DBG] t=30741147 best_valid #45 score=0x4cf04018
+[DBG] t=30761151 risk_pass #44
+UVM_INFO tb_top.sv(130) @ 30787823: uvm_test_top.scb [SCB] OUCH pkt #44: msg_type=O correct
+[DBG] t=33698405 fields_valid #66 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=33701739 OB_READ_REF1 op_msg_type=0x41 order_ref=12000 probe=0
+[DBG] t=33708407 watchlist_hit #58
+[DBG] t=33708407 feat_ext_fv #58 bbo_bid=0 bbo_ask=23296000
+[DBG] t=33711741 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=33725077 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=33731745 features_valid #58
+[DBG] t=33938453 GV=01010101 lv0v=1111 scores=0x00000000 0x4ceec080 0x00000000 0x4ceec080 0x00000000 0x4ceec080 0x00000000 0x4ceec080
+[DBG] t=33948455 best_valid #46 score=0x4ceec080
+[DBG] t=33968459 risk_pass #45
+UVM_INFO tb_top.sv(130) @ 33995131: uvm_test_top.scb [SCB] OUCH pkt #45: msg_type=O correct
+[DBG] t=34108487 fields_valid #67 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=34111821 OB_READ_REF1 op_msg_type=0x41 order_ref=12001 probe=0
+[DBG] t=34118489 watchlist_hit #59
+[DBG] t=34118489 feat_ext_fv #59 bbo_bid=0 bbo_ask=23296000
+[DBG] t=34121823 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=34135159 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=34141827 features_valid #59
+[DBG] t=34348535 GV=01010101 lv0v=1111 scores=0x00000000 0x4cef4017 0x00000000 0x4cef4017 0x00000000 0x4cef4017 0x00000000 0x4cef4017
+[DBG] t=34358537 best_valid #47 score=0x4cef4017
+[DBG] t=34378541 risk_pass #46
+UVM_INFO tb_top.sv(130) @ 34405213: uvm_test_top.scb [SCB] OUCH pkt #46: msg_type=O correct
+[DBG] t=34518569 fields_valid #68 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=34521903 OB_READ_REF1 op_msg_type=0x41 order_ref=12002 probe=0
+[DBG] t=34528571 watchlist_hit #60
+[DBG] t=34528571 feat_ext_fv #60 bbo_bid=0 bbo_ask=23296000
+[DBG] t=34531905 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=34545241 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=34551909 features_valid #60
+[DBG] t=34758617 GV=01010101 lv0v=1111 scores=0x00000000 0x4cefc01f 0x00000000 0x4cefc01f 0x00000000 0x4cefc01f 0x00000000 0x4cefc01f
+[DBG] t=34768619 best_valid #48 score=0x4cefc01f
+[DBG] t=34788623 risk_pass #47
+UVM_INFO tb_top.sv(130) @ 34815295: uvm_test_top.scb [SCB] OUCH pkt #47: msg_type=O correct
+UVM_INFO tb_top.sv(947) @ 34896000: uvm_test_top [TEST] Reading AXI-Lite status registers
+UVM_INFO tb_top.sv(952) @ 34915315: uvm_test_top [TEST] Risk STATUS = 0x00000000
+[DBG] t=34928651 fields_valid #69 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=34931985 OB_READ_REF1 op_msg_type=0x41 order_ref=12003 probe=0
+UVM_INFO tb_top.sv(955) @ 34935319: uvm_test_top [TEST] Collision count = 0x00000000
+[DBG] t=34938653 watchlist_hit #61
+[DBG] t=34938653 feat_ext_fv #61 bbo_bid=0 bbo_ask=23296000
+[DBG] t=34941987 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(958) @ 34955323: uvm_test_top [TEST] Overflow bin = 0x0000001e
+[DBG] t=34955323 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=34961991 features_valid #61
+UVM_INFO tb_top.sv(962) @ 34975327: uvm_test_top [TEST] Histogram[0] = 0x00000000
+UVM_INFO tb_top.sv(962) @ 34995331: uvm_test_top [TEST] Histogram[1] = 0x00000000
+UVM_INFO tb_top.sv(962) @ 35015335: uvm_test_top [TEST] Histogram[2] = 0x00000000
+UVM_INFO tb_top.sv(962) @ 35035339: uvm_test_top [TEST] Histogram[3] = 0x00000000
+UVM_INFO tb_top.sv(966) @ 35055343: uvm_test_top [TEST] Unknown addr = 0x00000000
+UVM_INFO tb_top.sv(974) @ 35088683: uvm_test_top [TEST] Sending 'F' (Add Order MPID) messages
+[DBG] t=35168699 GV=01010101 lv0v=1111 scores=0x00000000 0x4cf0401a 0x00000000 0x4cf0401a 0x00000000 0x4cf0401a 0x00000000 0x4cf0401a
+[DBG] t=35178701 best_valid #49 score=0x4cf0401a
+[DBG] t=35198705 risk_pass #48
+UVM_INFO tb_top.sv(130) @ 35225377: uvm_test_top.scb [SCB] OUCH pkt #48: msg_type=O correct
+UVM_INFO tb_top.sv(986) @ 37122423: uvm_test_top [TEST] Sending 'C' (Exec with Price) messages
+[DBG] t=37492497 fields_valid #70 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=37495831 OB_READ_REF1 op_msg_type=0x41 order_ref=14100 probe=0
+[DBG] t=37502499 watchlist_hit #62
+[DBG] t=37502499 feat_ext_fv #62 bbo_bid=0 bbo_ask=23296000
+[DBG] t=37505833 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=37519169 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=37525837 features_valid #62
+[DBG] t=37732545 GV=01010101 lv0v=1111 scores=0x00000000 0x4cef407c 0x00000000 0x4cef407c 0x00000000 0x4cef407c 0x00000000 0x4cef407c
+[DBG] t=37742547 best_valid #50 score=0x4cef407c
+[DBG] t=37762551 risk_pass #49
+UVM_INFO tb_top.sv(130) @ 37789223: uvm_test_top.scb [SCB] OUCH pkt #49: msg_type=O correct
+[DBG] t=37839233 fields_valid #71 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=37842567 OB_READ_REF1 op_msg_type=0x41 order_ref=14101 probe=0
+[DBG] t=37849235 watchlist_hit #63
+[DBG] t=37849235 feat_ext_fv #63 bbo_bid=0 bbo_ask=23296000
+[DBG] t=37852569 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=37865905 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=37872573 features_valid #63
+[DBG] t=38079281 GV=01010101 lv0v=1111 scores=0x00000000 0x4cef4029 0x00000000 0x4cef4029 0x00000000 0x4cef4029 0x00000000 0x4cef4029
+[DBG] t=38089283 best_valid #51 score=0x4cef4029
+[DBG] t=38109287 risk_pass #50
+UVM_INFO tb_top.sv(130) @ 38135959: uvm_test_top.scb [SCB] OUCH pkt #50: msg_type=O correct
+[DBG] t=38512701 fields_valid #72 msg_type=0x43 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=38516035 OB_READ_REF1 op_msg_type=0x43 order_ref=14100 probe=0
+[DBG] t=38526037 OB_MATCH op_msg=0x43 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=38539373 OB_UPDATE op_msg=0x43 target_found=1
+[DBG] t=38856103 fields_valid #73 msg_type=0x43 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=38859437 OB_READ_REF1 op_msg_type=0x43 order_ref=14101 probe=0
+[DBG] t=38869439 OB_MATCH op_msg=0x43 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=38882775 OB_UPDATE op_msg=0x43 target_found=1
+UVM_INFO tb_top.sv(1014) @ 39822963: uvm_test_top [TEST] Arbiter: asymmetric weights (odd cores > even cores)
+[DBG] t=45257383 fields_valid #74 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=45260717 OB_READ_REF1 op_msg_type=0x41 order_ref=15000 probe=0
+[DBG] t=45267385 watchlist_hit #64
+[DBG] t=45267385 feat_ext_fv #64 bbo_bid=0 bbo_ask=23296000
+[DBG] t=45270719 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=45284055 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=45290723 features_valid #64
+[DBG] t=45497431 GV=11111111 lv0v=1111 scores=0x4c6d4131 0x4d31f0e4 0x4c6d4131 0x4d31f0e4 0x4c6d4131 0x4d31f0e4 0x4c6d4131 0x4d31f0e4
+[DBG] t=45507433 best_valid #52 score=0x4d31f0e4
+[DBG] t=45527437 risk_pass #51
+UVM_INFO tb_top.sv(130) @ 45554109: uvm_test_top.scb [SCB] OUCH pkt #51: msg_type=O correct
+[DBG] t=45730811 fields_valid #75 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=45734145 OB_READ_REF1 op_msg_type=0x41 order_ref=15001 probe=0
+[DBG] t=45740813 watchlist_hit #65
+[DBG] t=45740813 feat_ext_fv #65 bbo_bid=0 bbo_ask=23296000
+[DBG] t=45744147 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=45757483 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=45764151 features_valid #65
+[DBG] t=45970859 GV=11111111 lv0v=1111 scores=0x4c6dc02d 0x4d325021 0x4c6dc02d 0x4d325021 0x4c6dc02d 0x4d325021 0x4c6dc02d 0x4d325021
+[DBG] t=45980861 best_valid #53 score=0x4d325021
+[DBG] t=46000865 risk_pass #52
+UVM_INFO tb_top.sv(130) @ 46027537: uvm_test_top.scb [SCB] OUCH pkt #52: msg_type=O correct
+[DBG] t=46204239 fields_valid #76 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=46207573 OB_READ_REF1 op_msg_type=0x41 order_ref=15002 probe=0
+[DBG] t=46214241 watchlist_hit #66
+[DBG] t=46214241 feat_ext_fv #66 bbo_bid=0 bbo_ask=23296000
+[DBG] t=46217575 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=46230911 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=46237579 features_valid #66
+[DBG] t=46444287 GV=11111111 lv0v=1111 scores=0x4c6e402f 0x4d32b022 0x4c6e402f 0x4d32b022 0x4c6e402f 0x4d32b022 0x4c6e402f 0x4d32b022
+[DBG] t=46454289 best_valid #54 score=0x4d32b022
+[DBG] t=46474293 risk_pass #53
+UVM_INFO tb_top.sv(130) @ 46500965: uvm_test_top.scb [SCB] OUCH pkt #53: msg_type=O correct
+UVM_INFO tb_top.sv(1042) @ 47337799: uvm_test_top [TEST] Arbiter: lv1 right-side wins (cores 2,3,6,7 higher)
+[DBG] t=52775553 fields_valid #77 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=52778887 OB_READ_REF1 op_msg_type=0x41 order_ref=16000 probe=0
+[DBG] t=52785555 watchlist_hit #67
+[DBG] t=52785555 feat_ext_fv #67 bbo_bid=0 bbo_ask=23296000
+[DBG] t=52788889 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=52802225 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=52808893 features_valid #67
+[DBG] t=53015601 GV=11111111 lv0v=1111 scores=0x4c6cc10f 0x4c6cc10f 0x4d3190cb 0x4d3190cb 0x4c6cc10f 0x4c6cc10f 0x4d3190cb 0x4d3190cb
+[DBG] t=53025603 best_valid #55 score=0x4d3190cb
+[DBG] t=53045607 risk_pass #54
+UVM_INFO tb_top.sv(130) @ 53072279: uvm_test_top.scb [SCB] OUCH pkt #54: msg_type=O correct
+[DBG] t=53248981 fields_valid #78 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=53252315 OB_READ_REF1 op_msg_type=0x41 order_ref=16001 probe=0
+[DBG] t=53258983 watchlist_hit #68
+[DBG] t=53258983 feat_ext_fv #68 bbo_bid=0 bbo_ask=23296000
+[DBG] t=53262317 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=53275653 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=53282321 features_valid #68
+[DBG] t=53489029 GV=11111111 lv0v=1111 scores=0x4c6d402b 0x4c6d402b 0x4d31f020 0x4d31f020 0x4c6d402b 0x4c6d402b 0x4d31f020 0x4d31f020
+[DBG] t=53499031 best_valid #56 score=0x4d31f020
+[DBG] t=53519035 risk_pass #55
+UVM_INFO tb_top.sv(130) @ 53545707: uvm_test_top.scb [SCB] OUCH pkt #55: msg_type=O correct
+[DBG] t=53722409 fields_valid #79 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=53725743 OB_READ_REF1 op_msg_type=0x41 order_ref=16002 probe=0
+[DBG] t=53732411 watchlist_hit #69
+[DBG] t=53732411 feat_ext_fv #69 bbo_bid=0 bbo_ask=23296000
+[DBG] t=53735745 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=53749081 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=53755749 features_valid #69
+[DBG] t=53962457 GV=11111111 lv0v=1111 scores=0x4c6dc02c 0x4c6dc02c 0x4d325020 0x4d325020 0x4c6dc02c 0x4c6dc02c 0x4d325020 0x4d325020
+[DBG] t=53972459 best_valid #57 score=0x4d325020
+[DBG] t=53992463 risk_pass #56
+UVM_INFO tb_top.sv(130) @ 54019135: uvm_test_top.scb [SCB] OUCH pkt #56: msg_type=O correct
+UVM_INFO tb_top.sv(1068) @ 54859303: uvm_test_top [TEST] Arbiter: lv2 right-side wins (cores 4-7 higher)
+[DBG] t=60297057 fields_valid #80 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=60300391 OB_READ_REF1 op_msg_type=0x41 order_ref=17000 probe=0
+[DBG] t=60307059 watchlist_hit #70
+[DBG] t=60307059 feat_ext_fv #70 bbo_bid=0 bbo_ask=23296000
+[DBG] t=60310393 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=60323729 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=60330397 features_valid #70
+[DBG] t=60537105 GV=11111111 lv0v=1111 scores=0x4c6ac111 0x4c6ac111 0x4c6ac111 0x4c6ac111 0x4d3010cc 0x4d3010cc 0x4d3010cc 0x4d3010cc
+[DBG] t=60547107 best_valid #58 score=0x4d3010cc
+[DBG] t=60567111 risk_pass #57
+UVM_INFO tb_top.sv(130) @ 60593783: uvm_test_top.scb [SCB] OUCH pkt #57: msg_type=O correct
+[DBG] t=60770485 fields_valid #81 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=60773819 OB_READ_REF1 op_msg_type=0x41 order_ref=17001 probe=0
+[DBG] t=60780487 watchlist_hit #71
+[DBG] t=60780487 feat_ext_fv #71 bbo_bid=0 bbo_ask=23296000
+[DBG] t=60783821 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=60797157 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=60803825 features_valid #71
+[DBG] t=61010533 GV=11111111 lv0v=1111 scores=0x4c6b402f 0x4c6b402f 0x4c6b402f 0x4c6b402f 0x4d307022 0x4d307022 0x4d307022 0x4d307022
+[DBG] t=61020535 best_valid #59 score=0x4d307022
+[DBG] t=61040539 risk_pass #58
+UVM_INFO tb_top.sv(130) @ 61067211: uvm_test_top.scb [SCB] OUCH pkt #58: msg_type=O correct
+[DBG] t=61243913 fields_valid #82 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=61247247 OB_READ_REF1 op_msg_type=0x41 order_ref=17002 probe=0
+[DBG] t=61253915 watchlist_hit #72
+[DBG] t=61253915 feat_ext_fv #72 bbo_bid=0 bbo_ask=23296000
+[DBG] t=61257249 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=61270585 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=61277253 features_valid #72
+[DBG] t=61483961 GV=11111111 lv0v=1111 scores=0x4c6bc02f 0x4c6bc02f 0x4c6bc02f 0x4c6bc02f 0x4d30d023 0x4d30d023 0x4d30d023 0x4d30d023
+[DBG] t=61493963 best_valid #60 score=0x4d30d023
+[DBG] t=61513967 risk_pass #59
+UVM_INFO tb_top.sv(130) @ 61540639: uvm_test_top.scb [SCB] OUCH pkt #59: msg_type=O correct
+UVM_INFO tb_top.sv(1093) @ 62377473: uvm_test_top [TEST] Arbiter: lv1 only-first-valid
+[DBG] t=67811893 fields_valid #83 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=67815227 OB_READ_REF1 op_msg_type=0x41 order_ref=18000 probe=0
+[DBG] t=67821895 watchlist_hit #73
+[DBG] t=67821895 feat_ext_fv #73 bbo_bid=0 bbo_ask=23296000
+[DBG] t=67825229 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=67838565 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=67845233 features_valid #73
+[DBG] t=68051941 GV=11001100 lv0v=1010 scores=0x4cea410f 0x4cea410f 0x00000000 0x00000000 0x4cea410f 0x4cea410f 0x00000000 0x00000000
+[DBG] t=68061943 best_valid #61 score=0x4cea410f
+[DBG] t=68081947 risk_pass #60
+UVM_INFO tb_top.sv(130) @ 68108619: uvm_test_top.scb [SCB] OUCH pkt #60: msg_type=O correct
+[DBG] t=68285321 fields_valid #84 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=68288655 OB_READ_REF1 op_msg_type=0x41 order_ref=18001 probe=0
+[DBG] t=68295323 watchlist_hit #74
+[DBG] t=68295323 feat_ext_fv #74 bbo_bid=0 bbo_ask=23296000
+[DBG] t=68298657 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=68311993 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=68318661 features_valid #74
+[DBG] t=68525369 GV=11001100 lv0v=1010 scores=0x4ceac02d 0x4ceac02d 0x00000000 0x00000000 0x4ceac02d 0x4ceac02d 0x00000000 0x00000000
+[DBG] t=68535371 best_valid #62 score=0x4ceac02d
+[DBG] t=68555375 risk_pass #61
+UVM_INFO tb_top.sv(130) @ 68582047: uvm_test_top.scb [SCB] OUCH pkt #61: msg_type=O correct
+[DBG] t=68758749 fields_valid #85 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=68762083 OB_READ_REF1 op_msg_type=0x41 order_ref=18002 probe=0
+[DBG] t=68768751 watchlist_hit #75
+[DBG] t=68768751 feat_ext_fv #75 bbo_bid=0 bbo_ask=23296000
+[DBG] t=68772085 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=68785421 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=68792089 features_valid #75
+[DBG] t=68998797 GV=11001100 lv0v=1010 scores=0x4ceb402d 0x4ceb402d 0x00000000 0x00000000 0x4ceb402d 0x4ceb402d 0x00000000 0x00000000
+[DBG] t=69008799 best_valid #63 score=0x4ceb402d
+[DBG] t=69028803 risk_pass #62
+UVM_INFO tb_top.sv(130) @ 69055475: uvm_test_top.scb [SCB] OUCH pkt #62: msg_type=O correct
+UVM_INFO tb_top.sv(1118) @ 69892309: uvm_test_top [TEST] Arbiter: lv1 only-second-valid
+[DBG] t=75330063 fields_valid #86 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=75333397 OB_READ_REF1 op_msg_type=0x41 order_ref=19000 probe=0
+[DBG] t=75340065 watchlist_hit #76
+[DBG] t=75340065 feat_ext_fv #76 bbo_bid=0 bbo_ask=23296000
+[DBG] t=75343399 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=75356735 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=75363403 features_valid #76
+[DBG] t=75570111 GV=00110011 lv0v=0101 scores=0x00000000 0x00000000 0x4ce9c10d 0x4ce9c10d 0x00000000 0x00000000 0x4ce9c10d 0x4ce9c10d
+[DBG] t=75580113 best_valid #64 score=0x4ce9c10d
+[DBG] t=75600117 risk_pass #63
+UVM_INFO tb_top.sv(130) @ 75626789: uvm_test_top.scb [SCB] OUCH pkt #63: msg_type=O correct
+[DBG] t=75803491 fields_valid #87 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=75806825 OB_READ_REF1 op_msg_type=0x41 order_ref=19001 probe=0
+[DBG] t=75813493 watchlist_hit #77
+[DBG] t=75813493 feat_ext_fv #77 bbo_bid=0 bbo_ask=22784000
+[DBG] t=75816827 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=75830163 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=75836831 features_valid #77
+[DBG] t=76043539 GV=00110011 lv0v=0101 scores=0x00000000 0x00000000 0x4ce94029 0x4ce94029 0x00000000 0x00000000 0x4ce94029 0x4ce94029
+[DBG] t=76053541 best_valid #65 score=0x4ce94029
+[DBG] t=76073545 risk_pass #64
+UVM_INFO tb_top.sv(130) @ 76100217: uvm_test_top.scb [SCB] OUCH pkt #64: msg_type=O correct
+[DBG] t=76276919 fields_valid #88 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=76280253 OB_READ_REF1 op_msg_type=0x41 order_ref=19002 probe=0
+[DBG] t=76286921 watchlist_hit #78
+[DBG] t=76286921 feat_ext_fv #78 bbo_bid=0 bbo_ask=22784000
+[DBG] t=76290255 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=76303591 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=76310259 features_valid #78
+[DBG] t=76516967 GV=00110011 lv0v=0101 scores=0x00000000 0x00000000 0x4ce9c029 0x4ce9c029 0x00000000 0x00000000 0x4ce9c029 0x4ce9c029
+[DBG] t=76526969 best_valid #66 score=0x4ce9c029
+[DBG] t=76546973 risk_pass #65
+UVM_INFO tb_top.sv(130) @ 76573645: uvm_test_top.scb [SCB] OUCH pkt #65: msg_type=O correct
+UVM_INFO tb_top.sv(1141) @ 77410479: uvm_test_top [TEST] Arbiter: lv2 only-first-valid (cores 0-3)
+[DBG] t=82844899 fields_valid #89 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=82848233 OB_READ_REF1 op_msg_type=0x41 order_ref=20000 probe=0
+[DBG] t=82854901 watchlist_hit #79
+[DBG] t=82854901 feat_ext_fv #79 bbo_bid=0 bbo_ask=22784000
+[DBG] t=82858235 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=82871571 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=82878239 features_valid #79
+[DBG] t=83084947 GV=11110000 lv0v=1100 scores=0x4d2e30c9 0x4d2e30c9 0x4d2e30c9 0x4d2e30c9 0x00000000 0x00000000 0x00000000 0x00000000
+[DBG] t=83094949 best_valid #67 score=0x4d2e30c9
+[DBG] t=83114953 risk_pass #66
+UVM_INFO tb_top.sv(130) @ 83141625: uvm_test_top.scb [SCB] OUCH pkt #66: msg_type=O correct
+[DBG] t=83318327 fields_valid #90 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=83321661 OB_READ_REF1 op_msg_type=0x41 order_ref=20001 probe=0
+[DBG] t=83328329 watchlist_hit #80
+[DBG] t=83328329 feat_ext_fv #80 bbo_bid=0 bbo_ask=22528000
+[DBG] t=83331663 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=83344999 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=83351667 features_valid #80
+[DBG] t=83558375 GV=11110000 lv0v=1100 scores=0x4d2e301e 0x4d2e301e 0x4d2e301e 0x4d2e301e 0x00000000 0x00000000 0x00000000 0x00000000
+[DBG] t=83568377 best_valid #68 score=0x4d2e301e
+[DBG] t=83588381 risk_pass #67
+UVM_INFO tb_top.sv(130) @ 83615053: uvm_test_top.scb [SCB] OUCH pkt #67: msg_type=O correct
+[DBG] t=83791755 fields_valid #91 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=83795089 OB_READ_REF1 op_msg_type=0x41 order_ref=20002 probe=0
+[DBG] t=83801757 watchlist_hit #81
+[DBG] t=83801757 feat_ext_fv #81 bbo_bid=0 bbo_ask=22528000
+[DBG] t=83805091 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=83818427 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=83825095 features_valid #81
+[DBG] t=84031803 GV=11110000 lv0v=1100 scores=0x4d2e901e 0x4d2e901e 0x4d2e901e 0x4d2e901e 0x00000000 0x00000000 0x00000000 0x00000000
+[DBG] t=84041805 best_valid #69 score=0x4d2e901e
+[DBG] t=84061809 risk_pass #68
+UVM_INFO tb_top.sv(130) @ 84088481: uvm_test_top.scb [SCB] OUCH pkt #68: msg_type=O correct
+UVM_INFO tb_top.sv(1164) @ 84925315: uvm_test_top [TEST] Arbiter: lv2 only-second-valid (cores 4-7)
+[DBG] t=90363069 fields_valid #92 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=90366403 OB_READ_REF1 op_msg_type=0x41 order_ref=21000 probe=0
+[DBG] t=90373071 watchlist_hit #82
+[DBG] t=90373071 feat_ext_fv #82 bbo_bid=0 bbo_ask=22528000
+[DBG] t=90376405 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=90389741 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=90396409 features_valid #82
+[DBG] t=90603117 GV=00001111 lv0v=0011 scores=0x00000000 0x00000000 0x00000000 0x00000000 0x4d2d70cb 0x4d2d70cb 0x4d2d70cb 0x4d2d70cb
+[DBG] t=90613119 best_valid #70 score=0x4d2d70cb
+[DBG] t=90633123 risk_pass #69
+UVM_INFO tb_top.sv(130) @ 90659795: uvm_test_top.scb [SCB] OUCH pkt #69: msg_type=O correct
+[DBG] t=90836497 fields_valid #93 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=90839831 OB_READ_REF1 op_msg_type=0x41 order_ref=21001 probe=0
+[DBG] t=90846499 watchlist_hit #83
+[DBG] t=90846499 feat_ext_fv #83 bbo_bid=0 bbo_ask=22528000
+[DBG] t=90849833 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=90863169 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=90869837 features_valid #83
+[DBG] t=91076545 GV=00001111 lv0v=0011 scores=0x00000000 0x00000000 0x00000000 0x00000000 0x4d2dd020 0x4d2dd020 0x4d2dd020 0x4d2dd020
+[DBG] t=91086547 best_valid #71 score=0x4d2dd020
+[DBG] t=91106551 risk_pass #70
+UVM_INFO tb_top.sv(130) @ 91133223: uvm_test_top.scb [SCB] OUCH pkt #70: msg_type=O correct
+[DBG] t=91309925 fields_valid #94 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=91313259 OB_READ_REF1 op_msg_type=0x41 order_ref=21002 probe=0
+[DBG] t=91319927 watchlist_hit #84
+[DBG] t=91319927 feat_ext_fv #84 bbo_bid=0 bbo_ask=22528000
+[DBG] t=91323261 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=91336597 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=91343265 features_valid #84
+[DBG] t=91549973 GV=00001111 lv0v=0011 scores=0x00000000 0x00000000 0x00000000 0x00000000 0x4d2e3022 0x4d2e3022 0x4d2e3022 0x4d2e3022
+[DBG] t=91559975 best_valid #72 score=0x4d2e3022
+[DBG] t=91579979 risk_pass #71
+UVM_INFO tb_top.sv(130) @ 91606651: uvm_test_top.scb [SCB] OUCH pkt #71: msg_type=O correct
+UVM_INFO tb_top.sv(1187) @ 92446819: uvm_test_top [TEST] Sending out-of-order MoldUDP64 frame
+[DBG] t=92973591 fields_valid #95 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=92976925 OB_READ_REF1 op_msg_type=0x41 order_ref=22001 probe=0
+[DBG] t=92983593 watchlist_hit #85
+[DBG] t=92983593 feat_ext_fv #85 bbo_bid=0 bbo_ask=22528000
+[DBG] t=92986927 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=93000263 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=93006931 features_valid #85
+[DBG] t=93213639 GV=00001111 lv0v=0011 scores=0x00000000 0x00000000 0x00000000 0x00000000 0x4d32b047 0x4d32b047 0x4d32b047 0x4d32b047
+[DBG] t=93223641 best_valid #73 score=0x4d32b047
+[DBG] t=93243645 risk_pass #72
+UVM_INFO tb_top.sv(130) @ 93270317: uvm_test_top.scb [SCB] OUCH pkt #72: msg_type=O correct
+UVM_INFO tb_top.sv(1207) @ 93943785: uvm_test_top [TEST] Testing ouch_engine back-pressure
+[DBG] t=98664729 fields_valid #96 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=98668063 OB_READ_REF1 op_msg_type=0x41 order_ref=23000 probe=0
+[DBG] t=98674731 watchlist_hit #86
+[DBG] t=98674731 feat_ext_fv #86 bbo_bid=0 bbo_ask=22528000
+[DBG] t=98678065 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=98691401 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=98698069 features_valid #86
+[DBG] t=98904777 GV=11111111 lv0v=1111 scores=0x4c6ac0ee 0x4c6ac0ee 0x4c6ac0ee 0x4c6ac0ee 0x4c6ac0ee 0x4c6ac0ee 0x4c6ac0ee 0x4c6ac0ee
+[DBG] t=98914779 best_valid #74 score=0x4c6ac0ee
+[DBG] t=98934783 risk_pass #73
+UVM_INFO tb_top.sv(1231) @ 98944785: uvm_test_top [TEST] OUCH TX detected, asserting back-pressure for 4 cycles
+UVM_INFO tb_top.sv(130) @ 98974791: uvm_test_top.scb [SCB] OUCH pkt #73: msg_type=O correct
+[DBG] t=100328395 fields_valid #97 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=100331729 OB_READ_REF1 op_msg_type=0x41 order_ref=23001 probe=0
+[DBG] t=100338397 watchlist_hit #87
+[DBG] t=100338397 feat_ext_fv #87 bbo_bid=0 bbo_ask=22528000
+[DBG] t=100341731 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=100355067 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=100361735 features_valid #87
+[DBG] t=100568443 GV=11111111 lv0v=1111 scores=0x4c6a4058 0x4c6a4058 0x4c6a4058 0x4c6a4058 0x4c6a4058 0x4c6a4058 0x4c6a4058 0x4c6a4058
+[DBG] t=100578445 best_valid #75 score=0x4c6a4058
+[DBG] t=100598449 risk_pass #74
+UVM_INFO tb_top.sv(130) @ 100625121: uvm_test_top.scb [SCB] OUCH pkt #74: msg_type=O correct
+[DBG] t=100675131 fields_valid #98 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=100678465 OB_READ_REF1 op_msg_type=0x41 order_ref=23002 probe=0
+[DBG] t=100685133 watchlist_hit #88
+[DBG] t=100685133 feat_ext_fv #88 bbo_bid=0 bbo_ask=22528000
+[DBG] t=100688467 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=100701803 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=100708471 features_valid #88
+[DBG] t=100915179 GV=11111111 lv0v=1111 scores=0x4c6ac027 0x4c6ac027 0x4c6ac027 0x4c6ac027 0x4c6ac027 0x4c6ac027 0x4c6ac027 0x4c6ac027
+[DBG] t=100925181 best_valid #76 score=0x4c6ac027
+[DBG] t=100945185 risk_pass #75
+UVM_INFO tb_top.sv(130) @ 100971857: uvm_test_top.scb [SCB] OUCH pkt #75: msg_type=O correct
+[DBG] t=101018533 fields_valid #99 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=101021867 OB_READ_REF1 op_msg_type=0x41 order_ref=23003 probe=0
+[DBG] t=101028535 watchlist_hit #89
+[DBG] t=101028535 feat_ext_fv #89 bbo_bid=0 bbo_ask=22528000
+[DBG] t=101031869 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=101045205 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=101051873 features_valid #89
+[DBG] t=101258581 GV=11111111 lv0v=1111 scores=0x4c6b4027 0x4c6b4027 0x4c6b4027 0x4c6b4027 0x4c6b4027 0x4c6b4027 0x4c6b4027 0x4c6b4027
+[DBG] t=101268583 best_valid #77 score=0x4c6b4027
+[DBG] t=101288587 risk_pass #76
+UVM_INFO tb_top.sv(130) @ 101315259: uvm_test_top.scb [SCB] OUCH pkt #76: msg_type=O correct
+UVM_INFO tb_top.sv(1251) @ 101988727: uvm_test_top [TEST] Sending short/malformed frame (should be dropped)
+[DBG] t=102248779 fields_valid #100 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=102252113 OB_READ_REF1 op_msg_type=0x41 order_ref=24000 probe=0
+[DBG] t=102258781 watchlist_hit #90
+[DBG] t=102258781 feat_ext_fv #90 bbo_bid=0 bbo_ask=22528000
+[DBG] t=102262115 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=102275451 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=102282119 features_valid #90
+[DBG] t=102488827 GV=11111111 lv0v=1111 scores=0x4c6b4049 0x4c6b4049 0x4c6b4049 0x4c6b4049 0x4c6b4049 0x4c6b4049 0x4c6b4049 0x4c6b4049
+[DBG] t=102498829 best_valid #78 score=0x4c6b4049
+[DBG] t=102518833 risk_pass #77
+UVM_INFO tb_top.sv(130) @ 102545505: uvm_test_top.scb [SCB] OUCH pkt #77: msg_type=O correct
+UVM_INFO tb_top.sv(1266) @ 103215639: uvm_test_top [TEST] Arbiter: even cores valid, odd cores zero (lv0 left-only)
+[DBG] t=108353333 fields_valid #101 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=108356667 OB_READ_REF1 op_msg_type=0x41 order_ref=25000 probe=0
+[DBG] t=108363335 watchlist_hit #91
+[DBG] t=108363335 feat_ext_fv #91 bbo_bid=0 bbo_ask=22528000
+[DBG] t=108366669 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=108380005 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=108386673 features_valid #91
+[DBG] t=108593381 GV=10101010 lv0v=1111 scores=0x4d2ce0be 0x00000000 0x4d2ce0be 0x00000000 0x4d2ce0be 0x00000000 0x4d2ce0be 0x00000000
+[DBG] t=108603383 best_valid #79 score=0x4d2ce0be
+[DBG] t=108623387 risk_pass #78
+UVM_INFO tb_top.sv(130) @ 108650059: uvm_test_top.scb [SCB] OUCH pkt #78: msg_type=O correct
+[DBG] t=108700069 fields_valid #102 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=108703403 OB_READ_REF1 op_msg_type=0x41 order_ref=25001 probe=0
+[DBG] t=108710071 watchlist_hit #92
+[DBG] t=108710071 feat_ext_fv #92 bbo_bid=0 bbo_ask=22528000
+[DBG] t=108713405 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=108726741 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=108733409 features_valid #92
+[DBG] t=108940117 GV=10101010 lv0v=1111 scores=0x4d2d101e 0x00000000 0x4d2d101e 0x00000000 0x4d2d101e 0x00000000 0x4d2d101e 0x00000000
+[DBG] t=108950119 best_valid #80 score=0x4d2d101e
+[DBG] t=108970123 risk_pass #79
+UVM_INFO tb_top.sv(130) @ 108996795: uvm_test_top.scb [SCB] OUCH pkt #79: msg_type=O correct
+UVM_INFO tb_top.sv(1299) @ 114434549: uvm_test_top [TEST] Delete nonexistent order ref (ref_empty path)
+[DBG] t=114537903 fields_valid #103 msg_type=0x44 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=114541237 OB_READ_REF1 op_msg_type=0x44 order_ref=50000 probe=0
+[DBG] t=114551239 OB_MATCH op_msg=0x44 is_add=0 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(1313) @ 115465600: uvm_test_top [TEST] Freeing ask-side book levels (delete 1002, 2003, 7001, 7003)
+[DBG] t=115574777 fields_valid #104 msg_type=0x44 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=115578111 OB_READ_REF1 op_msg_type=0x44 order_ref=1002 probe=0
+[DBG] t=115588113 OB_MATCH op_msg=0x44 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=115601449 OB_UPDATE op_msg=0x44 target_found=1
+[DBG] t=116291587 fields_valid #105 msg_type=0x44 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=116294921 OB_READ_REF1 op_msg_type=0x44 order_ref=2003 probe=0
+[DBG] t=116304923 OB_MATCH op_msg=0x44 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=116318259 OB_UPDATE op_msg=0x44 target_found=1
+[DBG] t=117008397 fields_valid #106 msg_type=0x44 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=117011731 OB_READ_REF1 op_msg_type=0x44 order_ref=7001 probe=0
+[DBG] t=117021733 OB_MATCH op_msg=0x44 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=117035069 OB_UPDATE op_msg=0x44 target_found=0
+[DBG] t=117725207 fields_valid #107 msg_type=0x44 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=117728541 OB_READ_REF1 op_msg_type=0x44 order_ref=7003 probe=0
+[DBG] t=117738543 OB_MATCH op_msg=0x44 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=117751879 OB_UPDATE op_msg=0x44 target_found=0
+UVM_INFO tb_top.sv(1336) @ 118652800: uvm_test_top [TEST] Full execution of ask order at BBO
+[DBG] t=118772083 fields_valid #108 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=118775417 OB_READ_REF1 op_msg_type=0x41 order_ref=50001 probe=0
+[DBG] t=118782085 watchlist_hit #93
+[DBG] t=118782085 feat_ext_fv #93 bbo_bid=0 bbo_ask=22528000
+[DBG] t=118785419 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=118798755 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=118805423 features_valid #93
+[DBG] t=119012131 GV=11111111 lv0v=1111 scores=0x4c0a3e98 0x4c0a3e98 0x4c0a3e98 0x4c0a3e98 0x4c0a3e98 0x4c0a3e98 0x4c0a3e98 0x4c0a3e98
+[DBG] t=119022133 best_valid #81 score=0x4c0a3e98
+[DBG] t=119042137 risk_pass #80
+UVM_INFO tb_top.sv(130) @ 119068809: uvm_test_top.scb [SCB] OUCH pkt #80: msg_type=O correct
+[DBG] t=119822293 fields_valid #109 msg_type=0x45 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=119825627 OB_READ_REF1 op_msg_type=0x45 order_ref=50001 probe=0
+[DBG] t=119835629 OB_MATCH op_msg=0x45 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=119848965 OB_UPDATE op_msg=0x45 target_found=1
+UVM_INFO tb_top.sv(1351) @ 120752000: uvm_test_top [TEST] Cancel-to-zero of ask order at BBO
+[DBG] t=120872503 fields_valid #110 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=120875837 OB_READ_REF1 op_msg_type=0x41 order_ref=50002 probe=0
+[DBG] t=120882505 watchlist_hit #94
+[DBG] t=120882505 feat_ext_fv #94 bbo_bid=0 bbo_ask=0
+[DBG] t=120885839 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=120899175 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=120905843 features_valid #94
+[DBG] t=121112551 GV=11111111 lv0v=1111 scores=0x4bbf76d8 0x4bbf76d8 0x4bbf76d8 0x4bbf76d8 0x4bbf76d8 0x4bbf76d8 0x4bbf76d8 0x4bbf76d8
+[DBG] t=121122553 best_valid #82 score=0x4bbf76d8
+[DBG] t=121142557 risk_blocked #2 reason=01 ref_price=0 band_thresh=0 price_diff=384000
+[DBG] t=121916045 fields_valid #111 msg_type=0x58 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=121919379 OB_READ_REF1 op_msg_type=0x58 order_ref=50002 probe=0
+[DBG] t=121929381 OB_MATCH op_msg=0x58 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=121942717 OB_UPDATE op_msg=0x58 target_found=1
+UVM_INFO tb_top.sv(1365) @ 122844800: uvm_test_top [TEST] Delete ask order at BBO
+[DBG] t=122966255 fields_valid #112 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=122969589 OB_READ_REF1 op_msg_type=0x41 order_ref=50003 probe=0
+[DBG] t=122976257 watchlist_hit #95
+[DBG] t=122976257 feat_ext_fv #95 bbo_bid=0 bbo_ask=0
+[DBG] t=122979591 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=122992927 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=122999595 features_valid #95
+[DBG] t=123206303 GV=11111111 lv0v=1111 scores=0x4bc16adf 0x4bc16adf 0x4bc16adf 0x4bc16adf 0x4bc16adf 0x4bc16adf 0x4bc16adf 0x4bc16adf
+[DBG] t=123216305 best_valid #83 score=0x4bc16adf
+[DBG] t=123236309 risk_blocked #3 reason=01 ref_price=0 band_thresh=0 price_diff=512000
+[DBG] t=124003129 fields_valid #113 msg_type=0x44 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=124006463 OB_READ_REF1 op_msg_type=0x44 order_ref=50003 probe=0
+[DBG] t=124016465 OB_MATCH op_msg=0x44 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=124029801 OB_UPDATE op_msg=0x44 target_found=1
+UVM_INFO tb_top.sv(1379) @ 124931200: uvm_test_top [TEST] Replace ask order at BBO with better price
+[DBG] t=125053339 fields_valid #114 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=125056673 OB_READ_REF1 op_msg_type=0x41 order_ref=50004 probe=0
+[DBG] t=125063341 watchlist_hit #96
+[DBG] t=125063341 feat_ext_fv #96 bbo_bid=0 bbo_ask=0
+[DBG] t=125066675 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=125080011 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=125086679 features_valid #96
+[DBG] t=125293387 GV=11111111 lv0v=1111 scores=0x4bc070d9 0x4bc070d9 0x4bc070d9 0x4bc070d9 0x4bc070d9 0x4bc070d9 0x4bc070d9 0x4bc070d9
+[DBG] t=125303389 best_valid #84 score=0x4bc070d9
+[DBG] t=125323393 risk_blocked #4 reason=01 ref_price=0 band_thresh=0 price_diff=640000
+[DBG] t=126100215 fields_valid #115 msg_type=0x55 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=126103549 OB_READ_REF1 op_msg_type=0x55 order_ref=50004 probe=0
+[DBG] t=126113551 OB_MATCH op_msg=0x55 is_add=0 ref_match=1 ref_empty=0 probe=0
+[DBG] t=126126887 OB_UPDATE op_msg=0x55 target_found=1
+UVM_INFO tb_top.sv(1393) @ 127030400: uvm_test_top [TEST] Short ITCH message (msg_len=4, unknown type)
+[DBG] t=127853899 fields_valid #116 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=127857233 OB_READ_REF1 op_msg_type=0x41 order_ref=50006 probe=0
+[DBG] t=127863901 watchlist_hit #97
+[DBG] t=127863901 feat_ext_fv #97 bbo_bid=0 bbo_ask=1000
+[DBG] t=127867235 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=127880571 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=127887239 features_valid #97
+[DBG] t=128093947 GV=11111111 lv0v=1111 scores=0x4c0ac17b 0x4c0ac17b 0x4c0ac17b 0x4c0ac17b 0x4c0ac17b 0x4c0ac17b 0x4c0ac17b 0x4c0ac17b
+[DBG] t=128103949 best_valid #85 score=0x4c0ac17b
+[DBG] t=128123953 risk_blocked #5 reason=01 ref_price=500 band_thresh=999 price_diff=23039500
+UVM_INFO tb_top.sv(1415) @ 128490693: uvm_test_top [TEST] Execute nonexistent order ref (ref_empty path)
+[DBG] t=128610717 fields_valid #117 msg_type=0x45 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=128614051 OB_READ_REF1 op_msg_type=0x45 order_ref=60000 probe=0
+[DBG] t=128624053 OB_MATCH op_msg=0x45 is_add=0 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(1423) @ 129539200: uvm_test_top [TEST] Cancel nonexistent order ref (ref_empty path)
+[DBG] t=129654259 fields_valid #118 msg_type=0x58 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=129657593 OB_READ_REF1 op_msg_type=0x58 order_ref=60001 probe=0
+[DBG] t=129667595 OB_MATCH op_msg=0x58 is_add=0 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(1431) @ 130582400: uvm_test_top [TEST] Replace nonexistent order ref (ref_empty path)
+[DBG] t=130704469 fields_valid #119 msg_type=0x55 stock=0000000000000000 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=130707803 OB_READ_REF1 op_msg_type=0x55 order_ref=60002 probe=0
+[DBG] t=130717805 OB_MATCH op_msg=0x55 is_add=0 ref_match=0 ref_empty=1 probe=0
+UVM_INFO tb_top.sv(1440) @ 131664661: uvm_test_top [TEST] Activating kill switch
+[DBG] t=131988059 fields_valid #120 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=131991393 OB_READ_REF1 op_msg_type=0x41 order_ref=13000 probe=0
+[DBG] t=131998061 watchlist_hit #98
+[DBG] t=131998061 feat_ext_fv #98 bbo_bid=0 bbo_ask=1000
+[DBG] t=132001395 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=132014731 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=132021399 features_valid #98
+[DBG] t=132228107 GV=11111111 lv0v=1111 scores=0x4c1041af 0x4c1041af 0x4c1041af 0x4c1041af 0x4c1041af 0x4c1041af 0x4c1041af 0x4c1041af
+[DBG] t=132238109 best_valid #86 score=0x4c1041af
+[DBG] t=132258113 risk_blocked #6 reason=00 ref_price=500 band_thresh=999 price_diff=25855500
+[DBG] t=132271449 fields_valid #121 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=132274783 OB_READ_REF1 op_msg_type=0x41 order_ref=13001 probe=0
+[DBG] t=132281451 watchlist_hit #99
+[DBG] t=132281451 feat_ext_fv #99 bbo_bid=0 bbo_ask=1000
+[DBG] t=132284785 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=132298121 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=132304789 features_valid #99
+[DBG] t=132511497 GV=11111111 lv0v=1111 scores=0x4c10c11f 0x4c10c11f 0x4c10c11f 0x4c10c11f 0x4c10c11f 0x4c10c11f 0x4c10c11f 0x4c10c11f
+[DBG] t=132521499 best_valid #87 score=0x4c10c11f
+[DBG] t=132541503 risk_blocked #7 reason=00 ref_price=500 band_thresh=999 price_diff=26111500
+[DBG] t=132551505 fields_valid #122 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=132554839 OB_READ_REF1 op_msg_type=0x41 order_ref=13002 probe=0
+[DBG] t=132561507 watchlist_hit #100
+[DBG] t=132561507 feat_ext_fv #100 bbo_bid=0 bbo_ask=1000
+[DBG] t=132564841 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=132578177 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=132584845 features_valid #100
+UVM_INFO tb_top.sv(1456) @ 132713600: uvm_test_top [TEST] Sending edge-case: max price/qty
+[DBG] t=132791553 GV=11111111 lv0v=1111 scores=0x4c11411f 0x4c11411f 0x4c11411f 0x4c11411f 0x4c11411f 0x4c11411f 0x4c11411f 0x4c11411f
+[DBG] t=132801555 best_valid #88 score=0x4c11411f
+[DBG] t=132821559 risk_blocked #8 reason=00 ref_price=500 band_thresh=999 price_diff=26367500
+[DBG] t=132834895 fields_valid #123 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=132838229 OB_READ_REF1 op_msg_type=0x41 order_ref=3001 probe=0
+[DBG] t=132844897 watchlist_hit #101
+[DBG] t=132844897 feat_ext_fv #101 bbo_bid=0 bbo_ask=1000
+[DBG] t=132848231 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=132861567 OB_UPDATE op_msg=0x41 target_found=0
+[DBG] t=132868235 features_valid #101
+UVM_INFO tb_top.sv(1464) @ 132931200: uvm_test_top [TEST] Sending edge-case: min price
+UVM_INFO tb_top.sv(1472) @ 133020800: uvm_test_top [TEST] Waiting for pipeline to complete...
+[DBG] t=133051605 fields_valid #124 msg_type=0x41 stock=4141504c20202020 ob_state=0 ob_ready=1 ob_fv=1
+[DBG] t=133054939 OB_READ_REF1 op_msg_type=0x41 order_ref=3002 probe=0
+[DBG] t=133061607 watchlist_hit #102
+[DBG] t=133061607 feat_ext_fv #102 bbo_bid=0 bbo_ask=1000
+[DBG] t=133064941 OB_MATCH op_msg=0x41 is_add=1 ref_match=0 ref_empty=1 probe=0
+[DBG] t=133074943 GV=11111111 lv0v=1111 scores=0x4e847607 0x4e847607 0x4e847607 0x4e847607 0x4e847607 0x4e847607 0x4e847607 0x4e847607
+[DBG] t=133078277 OB_UPDATE op_msg=0x41 target_found=1
+[DBG] t=133084945 features_valid #102
+[DBG] t=133084945 best_valid #89 score=0x4e847607
+[DBG] t=133104949 risk_blocked #9 reason=00 ref_price=500 band_thresh=999 price_diff=244
+[DBG] t=133291653 GV=11111111 lv0v=1111 scores=0x4bbe0261 0x4bbe0261 0x4bbe0261 0x4bbe0261 0x4bbe0261 0x4bbe0261 0x4bbe0261 0x4bbe0261
+[DBG] t=133301655 best_valid #90 score=0x4bbe0261
+[DBG] t=133321659 risk_blocked #10 reason=00 ref_price=500 band_thresh=999 price_diff=244
+[COV] t=140137600 Truncated MoldUDP test: S_HEADER_B0 truncation
+[COV] t=140182400 Truncated MoldUDP test: S_HEADER_B1 truncation
+[COV] t=140227200 Truncated MoldUDP test: S_HEADER_B2 !b2_valid
+[COV] t=140278400 Truncated MoldUDP test: S_HEADER_B2 !b2_valid no tlast
+[COV] t=140336000 Truncated MoldUDP test: S_HEADER_B2 OOO+s_tlast
+[COV] t=140387200 Truncated MoldUDP test: S_HEADER_B2 in-order+s_tlast (FLUSH_SHORT)
+[COV] t=140598400 Coverage stimulus complete
+UVM_INFO tb_top.sv(1478) @ 199698265: uvm_test_top [TEST] Test complete. OUCH packets received: 80
+UVM_INFO tb_top.sv(1481) @ 199698265: uvm_test_top [TEST] Monitoring: collision_count=0 dropped_frames=1 dropped_datagrams=6
+UVM_INFO tb_top.sv(1482) @ 199698265: uvm_test_top [TEST] Expected seq_num: 129
+UVM_INFO tb_top.sv(140) @ 199698265: uvm_test_top.scb [SCB] Scoreboard: 80 OUCH pkts, 80 pass, 0 fail
+UVM_INFO tb_top.sv(1488) @ 199698265: uvm_test_top [TEST] === HFT Base Test Complete ===
+UVM_INFO /home/azureuser/uvm-core/src/base/uvm_report_server.svh(1009) @ 199698265: reporter [UVM/REPORT/SERVER] 
+--- UVM Report Summary ---
+
+** Report counts by severity
+UVM_INFO :  154
+UVM_WARNING :    2
+UVM_ERROR :    0
+UVM_FATAL :    0
+** Report counts by id
+[NO_DPI_TSTNAME]     1
+[NO_DPI_USED]     1
+[NO_VISIT_CHECK]     1
+[RNTST]     1
+[SCB]    81
+[TEST]    69
+[UVM/COMP/NAMECHECK]     1
+[UVM/RELNOTES]     1
+
+- /home/azureuser/uvm-core/src/base/uvm_root.svh:633: Verilog $finish
+[DBG] Summary: fields_valid=124 watchlist_hit=102 feat_ext_fv=102 features_valid=102 best_valid=90 risk_pass=80 risk_blocked=10
+- S i m u l a t i o n   R e p o r t: Verilator 5.046 2026-02-28
+- Verilator: $finish at 200us; walltime 4.384 s; speed 45.550 us/s
+- Verilator: cpu 4.384 s on 1 threads; allocated 102 MB

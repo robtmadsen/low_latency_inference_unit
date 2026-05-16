@@ -77,3 +77,7 @@ Exit criterion: ALL of the following must be true before stopping:
   - reports/coverage.txt exists with a line coverage figure
   - reports/bugs_found.md exists
   - reports/phase4_summary.md exists
+  - The simulation log (reports/sim.log or make output) contains the string
+    "UVM_INFO @ 0: reporter [RNTST] Running test" — proof that UVM phasing
+    actually executed. Plain SV $display never produces this string. If it
+    is absent, UVM never ran; fix the testbench and re-run before stopping.
